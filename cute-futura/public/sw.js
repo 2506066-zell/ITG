@@ -19,7 +19,7 @@ const ASSETS = [
   'js/login.js',
   'js/memories.js',
   'js/anniversary.js',
-  'js/tasks.js',
+  'js/tasks_v2.js',
   'js/assignments.js',
   'js/goals.js',
   'js/schedule.js',
@@ -53,9 +53,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   // Only handle GET requests
   if (e.request.method !== 'GET') return;
-  
+
   const url = new URL(e.request.url);
-  
+
   // Skip API calls (Network Only)
   if (url.pathname.startsWith('/api/')) return;
 
