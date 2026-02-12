@@ -16,7 +16,7 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+const connectionString = process.env.DATABASE_URL;
 const pool = new Pool({
   connectionString,
   ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: true }

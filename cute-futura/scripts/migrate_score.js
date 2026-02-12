@@ -16,7 +16,7 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+const connectionString = process.env.DATABASE_URL;
 const pool = new Pool({
   connectionString,
   ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: true }
@@ -51,9 +51,7 @@ async function run() {
     `);
     
     // Add completed_at index for performance
-    await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_tasks_completed_at ON tasks(deleted_at) WHERE completed = TRUE;
-    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_tasks_completed_at ON tasks(completed_at) WHERE completed = TRUE;`);
     // Note: 'deleted_at' is used for soft delete. 'completed' is boolean. 
     // We don't have 'completed_at' column in previous schema? 
     // Let's check schema.

@@ -1,19 +1,29 @@
 import { Pool } from 'pg';
 import jwt from 'jsonwebtoken';
-export const pool = new Pool({
-  // Use POSTGRES_URL first (Vercel default), fallback to DATABASE_URL
-  connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
-  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: true },
-  max: 1, // Limit connections for Serverless environment
-  idleTimeoutMillis: 3000, // Close idle connections faster
-  connectionTimeoutMillis: 5000, // Fail fast if connection hangs
-});
-
-// Prevent crash on unexpected connection loss
-pool.on('error', (err, client) => {
-  console.error('Unexpected error on idle client', err);
-  // Don't exit process, just log. Vercel/Neon will recover on next request.
-});
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is not defined');
+}
+if (!global._pool) {
+  global._pool = new Pool({
+    connectionString: databaseUrl,
+    ssl: { rejectUnauthorized: false },
+    max: 5,
+  });
+  global._pool.on('error', (err) => {
+    console.error('Unexpected error on idle client', err);
+  });
+}
+export const pool = global._pool;
+if (!global._pool_pinged) {
+  global._pool_pinged = (async () => {
+    try {
+      await pool.query('SELECT 1');
+    } catch (e) {
+      console.error('DB ping failed', e);
+    }
+  })();
+}
 
 export function readBody(req) {
   return new Promise(resolve => {

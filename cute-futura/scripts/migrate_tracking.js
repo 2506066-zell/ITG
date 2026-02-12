@@ -17,8 +17,8 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-// Use POSTGRES_URL if available (pooled), else DATABASE_URL
-const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+// Use DATABASE_URL only (pooled Neon connection)
+const connectionString = process.env.DATABASE_URL;
 
 const pool = new Pool({
   connectionString,
@@ -111,6 +111,10 @@ async function run() {
     }
 
     console.log('Migration completed successfully!');
+    
+    // Indexes to keep queries simple & efficient for 2 users
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to) WHERE is_deleted = FALSE;`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by) WHERE is_deleted = FALSE;`);
   } catch (err) {
     console.error('Migration failed:', err);
   } finally {

@@ -37,6 +37,10 @@ const routes = [
   { path: '/api/anniversary', file: '../api/anniversary.js' },
   { path: '/api/goals', file: '../api/goals.js' },
   { path: '/api/activity', file: '../api/activity.js' },
+  { path: '/api/stats', file: '../api/stats.js' },
+  { path: '/api/schedule', file: '../api/schedule.js' },
+  { path: '/api/chat', file: '../api/chat.js' },
+  { path: '/api/health', file: '../api/health.js' },
   { path: '/api/monthly', file: '../api/monthly.js' },
   { path: '/api/monthly_stats', file: '../api/monthly_stats.js' }
 ];
