@@ -1,0 +1,133 @@
+﻿﻿﻿﻿<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="icon" href="icons/192.png">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
+  <title>NZ • Goals</title>
+  <style>
+    .progress-container {
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+      height: 8px;
+      width: 100%;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .mood-selector {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .mood-btn {
+      font-size: 24px;
+      background: transparent;
+      border: 2px solid transparent;
+      border-radius: 50%;
+      cursor: pointer;
+      padding: 5px;
+      transition: transform 0.2s;
+    }
+    .mood-btn:hover { transform: scale(1.2); }
+    .mood-btn.selected { background: rgba(255,255,255,0.2); border-color: var(--accent); }
+    
+    .tab-btn {
+      padding: 10px 20px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 600;
+      border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active {
+      color: var(--text);
+      border-bottom-color: var(--accent);
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
+    <div class="nav-actions">
+      <a class="btn" href="index.html"><i class="fa-solid fa-house"></i> Home</a>
+      <a class="btn" href="settings.html"><i class="fa-solid fa-gear"></i> Settings</a>
+    </div>
+  </nav>
+  <div class="container">
+    <a class="btn back-home" href="index.html"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
+    
+    <div class="card" style="margin-bottom: 20px;">
+      <div style="display:flex; justify-content:center; gap:20px; margin-bottom:10px;">
+        <button class="tab-btn active" data-tab="goals">Goals</button>
+        <button class="tab-btn" data-tab="evaluations">Evaluations</button>
+      </div>
+    </div>
+
+    <!-- GOALS TAB -->
+    <div id="tab-goals" class="tab-content active">
+      <div class="grid">
+        <div class="card">
+          <div class="section-title">New Goal</div>
+          <form id="create-goal" class="list">
+            <input class="input" name="title" placeholder="Goal Title" required>
+            <select class="input" name="category">
+              <option value="Personal">Personal</option>
+              <option value="Academic">Academic</option>
+              <option value="Career">Career</option>
+              <option value="Health">Health</option>
+            </select>
+            <input class="input" type="date" name="deadline">
+            <button class="btn" type="submit"><i class="fa-solid fa-bullseye"></i> Set Goal</button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="section-title">My Goals</div>
+          <div id="goals-list" class="list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EVALUATIONS TAB -->
+    <div id="tab-evaluations" class="tab-content">
+      <div class="grid">
+        <div class="card">
+          <div class="section-title">Daily Evaluation</div>
+          <form id="create-eval" class="list">
+            <div class="mood-selector">
+              <button type="button" class="mood-btn" data-value="1">😫</button>
+              <button type="button" class="mood-btn" data-value="2">😕</button>
+              <button type="button" class="mood-btn" data-value="3">😐</button>
+              <button type="button" class="mood-btn" data-value="4">🙂</button>
+              <button type="button" class="mood-btn" data-value="5">🤩</button>
+            </div>
+            <input type="hidden" name="mood" id="mood-input" required>
+            <textarea class="input" name="note" placeholder="What went well? What can be improved?" required></textarea>
+            <button class="btn" type="submit"><i class="fa-solid fa-pen-fancy"></i> Save Log</button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="section-title">History</div>
+          <div id="evals-list" class="list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">NZ</div>
+  </div>
+  <script type="module" src="js/goals.js"></script>
+</body>
+</html>

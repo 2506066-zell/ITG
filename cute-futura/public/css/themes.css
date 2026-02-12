@@ -1,0 +1,161 @@
+:root[data-theme="light"] {
+  /* MODERN WHITE GLASSMORPHISM - REFINED */
+  --bg: #E6F2FF; /* Soft Blue */
+  --surface: rgba(255, 255, 255, 0.25); /* Slightly more opacity for contrast against blue */
+  --surface-strong: rgba(255, 255, 255, 0.4);
+  --text: #2d3748; 
+  --muted: #718096;
+  --primary: #3182ce; 
+  --secondary: #805ad5; 
+  --accent: #3182ce; 
+  --success: #48bb78;
+  --danger: #f56565;
+  --shadow: 0 10px 25px -5px rgba(66, 153, 225, 0.25), 0 5px 10px -5px rgba(0, 0, 0, 0.05);
+  --glass: backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  --glass-bg: rgba(255, 255, 255, 0.3);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.5); 
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+}
+html[data-theme="light"] body {
+  background: 
+    radial-gradient(at 0% 0%, rgba(255, 255, 255, 0.5) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(100, 200, 255, 0.3) 0px, transparent 50%),
+    linear-gradient(135deg, #E6F2FF 0%, #d0e1f9 100%);
+  color: var(--text);
+  background-attachment: fixed;
+}
+
+/* Light Theme Overrides */
+html[data-theme="light"] .card {
+  background: rgba(255, 255, 255, 0.2); /* Opacity 0.2 */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3); /* Thin white border low opacity */
+  box-shadow: var(--shadow);
+  border-radius: 20px;
+}
+html[data-theme="light"] .card:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 20px 40px -5px rgba(66, 153, 225, 0.2);
+}
+html[data-theme="light"] .navbar {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+}
+html[data-theme="light"] .btn {
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(49, 130, 206, 0.3);
+  color: var(--primary);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+  font-weight: 600;
+  backdrop-filter: blur(5px);
+}
+html[data-theme="light"] .btn:hover {
+  background: linear-gradient(135deg, var(--primary), #4299e1);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 10px 20px rgba(49, 130, 206, 0.3);
+  transform: translateY(-2px);
+}
+html[data-theme="light"] .input, 
+html[data-theme="light"] select, 
+html[data-theme="light"] textarea {
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: var(--text);
+  backdrop-filter: blur(10px);
+}
+html[data-theme="light"] .input:focus {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(49, 130, 206, 0.15);
+}
+html[data-theme="light"] .list-item {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--text);
+  backdrop-filter: blur(10px);
+}
+html[data-theme="light"] .list-item:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: scale(1.02);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+  border-color: var(--primary);
+}
+html[data-theme="light"] .hero-timer-card {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 20px 50px rgba(49, 130, 206, 0.15);
+}
+html[data-theme="light"] .hero-title {
+  background: linear-gradient(135deg, #2b6cb0, #4299e1);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+html[data-theme="light"] .hero-timer .val {
+  color: #2c5282;
+  text-shadow: 2px 2px 0px rgba(255,255,255,0.5);
+}
+html[data-theme="light"] .hero-timer .sep,
+html[data-theme="light"] .hero-date {
+  color: #4a5568;
+  text-shadow: none;
+}
+html[data-theme="light"] .section-title {
+  color: #2c5282;
+}
+html[data-theme="light"] .muted {
+  color: #718096;
+}
+html[data-theme="light"] .badge {
+  background: rgba(66, 153, 225, 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(66, 153, 225, 0.2);
+}
+html[data-theme="dark"] {
+  /* GALAXY THEME (Default Dark) */
+  --bg-deep: #050816;
+  --bg-gradient: radial-gradient(circle at 20% 30%, #0B0F2A 0%, #050816 60%, #02040a 100%);
+  
+  --surface: rgba(255, 255, 255, 0.03);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --surface-strong: rgba(13, 17, 40, 0.85);
+  
+  --text: #ffffff;
+  --text-soft: #DDE6FF;
+  --muted: #8892b0;
+  
+  --primary: #4DA3FF;
+  --primary-glow: rgba(77, 163, 255, 0.4);
+  --secondary: #8A5CFF;
+  --accent: #E6F1FF;
+  --success: #00E5FF;
+  --danger: #FF3366;
+  
+  --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  --glass: backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-glow: 0 0 20px rgba(77, 163, 255, 0.05);
+}
+/* Ensure body background uses the new variables */
+html[data-theme="dark"] body {
+  background: var(--bg-deep);
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(77, 163, 255, 0.08) 0%, transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(138, 92, 255, 0.08) 0%, transparent 25%),
+    var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--text-soft);
+}
+/* ADDED: Smooth transition for commonly themed elements */
+body, .card, .navbar, .modal-content, .list-item, .chat-messages {
+  transition: background .3s ease, box-shadow .3s ease, color .3s ease, border-color .3s ease;
+}
