@@ -3,12 +3,12 @@
   "regions": ["sin1"],
   "builds": [
     { "src": "api/router.js", "use": "@vercel/node" },
-    { "src": "cute-futura/public/**", "use": "@vercel/static" }
+    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "public", "buildCommand": "node scripts/copy_public.js" } }
   ],
   "rewrites": [
-    { "source": "/", "destination": "/cute-futura/public/index.html" },
+    { "source": "/", "destination": "/index.html" },
     { "source": "/api/(.*)", "destination": "/api/router.js?path=$1" },
-    { "source": "/(.*)", "destination": "/cute-futura/public/$1" }
+    { "source": "/(.*)", "destination": "/$1" }
   ],
   "cleanUrls": true,
   "headers": [
