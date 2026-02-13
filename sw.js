@@ -66,7 +66,14 @@ self.addEventListener('fetch', e => {
 
   if (e.request.mode === 'navigate') {
     e.respondWith(
-      fetch(url.href).catch(async () => {
+      fetch(e.request).then(async (res) => {
+        if (res && (res.redirected || (res.status >= 300 && res.status < 400))) {
+          return fetch(res.url);
+        }
+        return res;
+      }).catch(async () => {
+        const cached = await caches.match(e.request);
+        if (cached) return cached;
         const cachedIndex = await caches.match('/index.html');
         return cachedIndex || Response.error();
       })
@@ -76,15 +83,16 @@ self.addEventListener('fetch', e => {
 
   e.respondWith(
     caches.match(e.request).then(cached => {
-      const fetchPromise = fetch(url.href).then(res => {
+      const fetchPromise = fetch(e.request).then(async (res) => {
+        if (res && (res.redirected || (res.status >= 300 && res.status < 400))) {
+          return fetch(res.url);
+        }
         if (res && res.status === 200 && res.type === 'basic') {
           const copy = res.clone();
           caches.open(CACHE_NAME).then(c => c.put(e.request, copy));
         }
         return res;
-      }).catch(err => {
-        console.error('Fetch failed:', err);
-      });
+      }).catch(() => cached);
       return cached || fetchPromise;
     })
   );
