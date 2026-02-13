@@ -1,102 +1,64 @@
 # CuteFutura PWA
 
-Personal organizer with simple password login, JWT auth, Neon PostgreSQL, and Vercel serverless backend.
+Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless di Vercel, dan Neon PostgreSQL.
 
 ## Tech Stack
-
-- Frontend: HTML5, CSS3, Vanilla JS, PWA (manifest + service worker)
-- Backend: Vercel Serverless Functions (Node.js, pg, jsonwebtoken, bcryptjs)
+- Frontend: HTML, CSS, Vanilla JS, PWA (manifest + service worker)
+- Backend: Vercel Functions (Node.js, pg, jsonwebtoken, bcryptjs)
 - DB: Neon PostgreSQL
 
-## File Structure
-
+## Struktur Proyek Aktual
 ```
-cute-futura/
-├── public/
-│   ├── login.html
-│   ├── index.html
-│   ├── memories.html
-│   ├── anniversary.html
-│   ├── daily-tasks.html
-│   ├── college-assignments.html
-│   ├── chat.html
-│   ├── settings.html
-│   ├── manifest.json
-│   ├── sw.js
-│   └── icons/ (192.png, 512.png – placeholders)
-├── src/
-│   ├── css/
-│   │   ├── style.css
-│   │   └── themes.css
-│   └── js/
-│       ├── main.js
-│       ├── api.js
-│       ├── login.js
-│       ├── memories.js
-│       ├── anniversary.js
-│       ├── tasks.js
-│       ├── assignments.js
-│       ├── chat.js
-│       └── settings.js
-├── api/
-│   ├── login.js
-│   ├── memories.js
-│   ├── tasks.js
-│   ├── assignments.js
-│   └── anniversary.js
-├── db/schema.sql
-├── vercel.json
+.
+├── api/                 # Serverless functions
+├── css/                 # Stylesheets (disalin ke public/css saat build)
+├── js/                  # Frontend scripts (disalin ke public/js saat build)
+├── icons/               # Icons
+├── public/              # Folder hasil build untuk static (dibuat otomatis)
+├── scripts/             # Tools lokal & CI (build, audit, server)
+├── db/                  # Schema SQL
+├── *.html               # Halaman HTML di root (disalin ke public/ saat build)
 ├── package.json
+├── vercel.json
 └── README.md
 ```
 
-## Database Schema
+## Pengembangan Lokal
+- Prasyarat: Node 20.x (disarankan), Windows gunakan `npm.cmd`
+- Pasang dependencies:
+  - `npm.cmd install`
+- Jalankan server dev (menyalin aset ke `public` lalu serve + API):
+  - `npm.cmd run dev`
+  - Buka `http://localhost:3000/login.html`
+- Uji login:
+  - Username: `Zaldy` atau `Nesya`
+  - Password: sesuai `APP_PASSWORD_HASH` (contoh lokal: `123456`)
+- Mode static (tanpa API, fallback Mock aktif):
+  - `npm.cmd run build && npm.cmd start`
 
-```
-CREATE TABLE memories (id SERIAL PRIMARY KEY, title TEXT, media_type TEXT, media_data TEXT, note TEXT, created_at TIMESTAMP DEFAULT NOW());
-CREATE TABLE tasks (id SERIAL PRIMARY KEY, title TEXT, completed BOOLEAN DEFAULT FALSE);
-CREATE TABLE assignments (id SERIAL PRIMARY KEY, title TEXT, deadline DATE, completed BOOLEAN DEFAULT FALSE);
-CREATE TABLE anniversary (id INTEGER PRIMARY KEY DEFAULT 1, date DATE, note TEXT);
-```
+## Auth Flow (Ringkas)
+- `login.html` POST ke `/api/login`, menyimpan JWT di `localStorage.token`
+- `js/api.js` menambahkan header `Authorization: Bearer <token>` dan fallback ke Mock jika backend tidak tersedia
+- Logout menghapus token dan redirect ke login
 
-## Auth Flow
-
-- login.html posts password to `/api/login` and stores the returned JWT in `localStorage.token`.
-- Protected pages load `main.js`, which checks `localStorage.token`. API wrapper sends `Authorization: Bearer <token>`. On 401, it redirects to login.
-- Logout clears the token and redirects to login.
-
-## Deployment
-
-### Environment Variables
-
-- `DATABASE_URL` – Neon connection string
-- `APP_PASSWORD_HASH` – bcrypt hash of your chosen password
-- `JWT_SECRET` – random string
-
-### Manual Setup
-
-1. Create a Neon PostgreSQL database and copy the connection URL.
-2. Generate a password hash:
+## Koneksi Neon di Vercel (Langkah demi langkah)
+1. Buat project database di Neon.
+2. Buat user/password dan dapatkan Connection String:
+   - Format: `postgresql://<user>:<password>@<host>/<database>?sslmode=require`
+3. Jalankan schema (opsional via Neon SQL editor atau psql):
    ```
-   node -e "console.log(require('bcryptjs').hashSync('yourpassword', 10))"
+50→   psql "<ZN_DATABASE_URL>" -f db/schema.sql
    ```
-3. In Vercel project settings, add environment variables:
-   - `DATABASE_URL`
-   - `APP_PASSWORD_HASH`
-   - `JWT_SECRET`
-4. Run the schema on Neon:
-   ```
-   psql "<DATABASE_URL>" -f db/schema.sql
-   ```
-   Or paste the SQL into Neon’s SQL editor.
+4. Di Vercel Project Settings → Environment Variables, tambahkan:
+53→   - `ZN_DATABASE_URL` → connection string Neon (dengan `sslmode=require`)
+   - `APP_PASSWORD_HASH` → hash bcrypt password Anda
+     - Buat hash: `node scripts/generate-hash.js yourpassword`
+   - `JWT_SECRET` → string acak/kuat
 5. Deploy:
-   ```
-   vercel --prod
-   ```
-6. Replace icon placeholders with real PNGs in `public/icons/`.
+   - `vercel --prod` atau gunakan tombol Deploy di dashboard Vercel
+6. Verifikasi health:
+   - GET `https://<your-vercel-domain>/api/health` harus status `ok` jika DB dan env benar
 
-## Notes
-
-- All endpoints require `Authorization: Bearer <token>`.
-- JWT expires in 7 days.
-- Chat is stored only in localStorage.
+## Catatan
+- Endpoint API membutuhkan `Authorization: Bearer <token>`
+- Di lokal tanpa DB, beberapa fitur yang butuh DB akan fallback ke Mock (UI tetap berfungsi)

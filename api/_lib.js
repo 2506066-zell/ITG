@@ -1,8 +1,8 @@
 import { Pool } from 'pg';
 import jwt from 'jsonwebtoken';
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.ZN_DATABASE_URL || process.env.DATABASE_URL;
 if (!databaseUrl) {
-  throw new Error('DATABASE_URL is not defined');
+  throw new Error('ZN_DATABASE_URL is not defined');
 }
 if (!global._pool) {
   global._pool = new Pool({

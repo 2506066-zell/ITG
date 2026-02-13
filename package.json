@@ -9,15 +9,20 @@
     "deploy:preview": "vercel deploy --prebuilt",
     "deploy:prod": "vercel deploy --prebuilt --prod",
     "build:public": "node scripts/build_public.js",
+    "build": "npm run build:public",
     "preaudit:css": "npm run build:public",
     "audit:css": "node scripts/css-audit.js",
     "serve:ci": "node scripts/serve_static_ci.js",
-    "check:css": "node scripts/css-fetch-check.js"
+    "check:css": "node scripts/css-fetch-check.js",
+    "dev": "npm run build:public && node scripts/local_server.js",
+    "start": "node scripts/serve_static_ci.js"
   },
   "dependencies": {
     "pg": "^8.11.3",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "vercel": "^33.7.0"
