@@ -2,7 +2,7 @@ import { withErrorHandling, sendJson, pool } from './_lib.js';
 export default withErrorHandling(async function handler(req, res) {
   if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
   const env = {
-    zn_database_url: !!process.env.ZN_DATABASE_URL || !!process.env.DATABASE_URL,
+    zn_database_url: !!process.env.ZN_DATABASE_URL || !!process.env.NZ_DATABASE_URL || !!process.env.DATABASE_URL,
     jwt_secret: !!process.env.JWT_SECRET,
     app_password_hash: !!process.env.APP_PASSWORD_HASH,
     node_env: process.env.NODE_ENV || ''
