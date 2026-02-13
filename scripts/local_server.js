@@ -42,7 +42,8 @@ const routes = [
   { path: '/api/chat', file: '../api/chat.js' },
   { path: '/api/health', file: '../api/health.js' },
   { path: '/api/monthly', file: '../api/monthly.js' },
-  { path: '/api/monthly_stats', file: '../api/monthly_stats.js' }
+  { path: '/api/monthly_stats', file: '../api/monthly_stats.js' },
+  { path: '/api/evaluations', file: '../api/evaluations.js' }
 ];
 
 routes.forEach(route => {

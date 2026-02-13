@@ -112,6 +112,7 @@ function renderGoals() {
         <div>
           <div class="goal-title">${g.title}</div>
           <span class="goal-cat">${g.category}</span>
+          <span style="font-size:12px;opacity:0.6">by ${g.created_by || 'Unknown'}</span>
         </div>
         <button class="btn danger small delete-btn" style="padding:4px 8px"><i class="fa-solid fa-trash"></i></button>
       </div>
@@ -174,7 +175,7 @@ function renderEvals() {
       <div style="font-size:32px">${moods[e.mood] || '❓'}</div>
       <div style="flex:1">
         <div style="font-size:12px;color:var(--muted);margin-bottom:4px">
-          ${new Date(e.created_at).toLocaleString()}
+          ${new Date(e.created_at).toLocaleString()} • ${e.user_id || ''}
         </div>
         <div style="font-size:14px;line-height:1.4">${e.note}</div>
       </div>
