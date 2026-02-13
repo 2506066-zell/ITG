@@ -1,0 +1,354 @@
+﻿﻿<!doctype html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="icon" href="icons/192.png">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <title>NZ • Goals</title>
+  <style>
+    /* Page Specific Critical CSS */
+    body {
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .page-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .page-header {
+      padding: 16px 20px 8px;
+      background: var(--bg);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* Content */
+    .content-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      padding-bottom: 80px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 4px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Goal Item */
+    .goal-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      position: relative;
+    }
+
+    .goal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .goal-title {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    .goal-cat {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .progress-track {
+      background: rgba(255, 255, 255, 0.1);
+      height: 6px;
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 12px 0 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--primary);
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+
+    .goal-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Mood Selector */
+    .mood-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .mood-btn {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      border: 2px solid transparent;
+    }
+
+    .mood-btn.selected {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: var(--primary);
+      transform: scale(1.05);
+    }
+
+    /* FAB */
+    .fab {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: var(--primary);
+      color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 8px 20px rgba(100, 255, 218, 0.3);
+      cursor: pointer;
+      z-index: 10;
+      transition: transform 0.2s;
+    }
+
+    .fab:active {
+      transform: scale(0.95);
+    }
+
+    /* Sheet */
+    .sheet-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.3s;
+    }
+
+    .sheet-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #15192b;
+      border-radius: 20px 20px 0 0;
+      padding: 24px;
+      transform: translateY(100%);
+      transition: 0.3s cubic-bezier(0.1, 0.7, 0.1, 1);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .sheet.active {
+      transform: translateY(0);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: var(--text);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="page-container">
+    <header class="page-header">
+      <div class="header-title">Targets</div>
+      <a href="index.html" style="color:var(--text)"><i class="fa-solid fa-xmark"></i></a>
+    </header>
+
+    <div class="content-scroll">
+      <div class="tabs">
+        <div class="tab-btn active" data-tab="goals">Goals</div>
+        <div class="tab-btn" data-tab="evaluations">Evaluations</div>
+      </div>
+
+      <!-- GOALS TAB -->
+      <div id="tab-goals" class="tab-content active">
+        <div id="goals-list">
+          <!-- Injected -->
+        </div>
+      </div>
+
+      <!-- EVALUATIONS TAB -->
+      <div id="tab-evaluations" class="tab-content">
+        <div id="evals-list">
+          <!-- Injected -->
+        </div>
+      </div>
+    </div>
+
+    <!-- FAB -->
+    <div class="fab" id="fab-add"><i class="fa-solid fa-plus"></i></div>
+
+    <!-- SHEET -->
+    <div class="sheet-overlay" id="sheet-overlay">
+      <div class="sheet" id="sheet">
+        <div style="width:40px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;margin:0 auto 20px"></div>
+        <h3 style="margin:0 0 20px;font-size:18px" id="sheet-title">New Goal</h3>
+
+        <!-- GOAL FORM -->
+        <form id="goal-form" style="display:none">
+          <div class="form-group">
+            <label class="form-label">Title</label>
+            <input type="text" name="title" class="form-input" placeholder="What do you want to achieve?" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select name="category" class="form-input">
+              <option value="Personal">Personal</option>
+              <option value="Academic">Academic</option>
+              <option value="Career">Career</option>
+              <option value="Health">Health</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target Date</label>
+            <input type="date" name="deadline" class="form-input">
+          </div>
+          <button type="submit" class="btn" style="width:100%">Create Goal</button>
+        </form>
+
+        <!-- EVAL FORM -->
+        <form id="eval-form" style="display:none">
+          <div class="form-group">
+            <label class="form-label">How are you feeling?</label>
+            <div class="mood-grid">
+              <div class="mood-btn" data-val="1">😫</div>
+              <div class="mood-btn" data-val="2">😕</div>
+              <div class="mood-btn" data-val="3">😐</div>
+              <div class="mood-btn" data-val="4">🙂</div>
+              <div class="mood-btn" data-val="5">🤩</div>
+            </div>
+            <input type="hidden" name="mood" id="mood-input" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Daily Note</label>
+            <textarea name="note" class="form-input" rows="3" placeholder="Highlights of the day..."
+              required></textarea>
+          </div>
+          <button type="submit" class="btn" style="width:100%">Save Log</button>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="js/goals.js"></script>
+</body>
+
+</html>

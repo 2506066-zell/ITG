@@ -1,0 +1,36 @@
+﻿﻿<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="icon" href="icons/192.png">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
+  <title>NZ • Login</title>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
+    <div class="nav-actions"></div>
+  </nav>
+  <div class="container">
+    <div class="card" style="max-width:420px;margin:40px auto;">
+      <div class="section-title center">Sign in</div>
+      <form id="login-form" class="list">
+        <select class="input" name="username" required>
+          <option value="" disabled selected>Siapa kamu?</option>
+          <option value="Zaldy">Zaldy</option>
+          <option value="Nesya">Nesya</option>
+        </select>
+        <input class="input" type="password" name="password" placeholder="Kode Rahasia (bebas)" required>
+        <button class="btn" type="submit"><i class="fa-solid fa-lock"></i> Login</button>
+      </form>
+      <div id="login-msg" class="muted center" style="margin-top:10px;"></div>
+    </div>
+    <div class="footer">NZ</div>
+  </div>
+  <script type="module" src="js/login.js"></script>
+</body>
+</html>

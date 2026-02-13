@@ -1,0 +1,23 @@
+{
+  "name": "kitaa-root",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "vercel-build": "node scripts/copy_public.js",
+    "deploy": "vercel --prod",
+    "deploy:preview": "vercel deploy --prebuilt",
+    "deploy:prod": "vercel deploy --prebuilt --prod"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "vercel": "^33.7.0"
+  },
+  "engines": {
+    "node": "20.x"
+  }
+}

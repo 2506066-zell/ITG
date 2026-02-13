@@ -1,0 +1,23 @@
+name: CSS Audit
+on:
+  push:
+  pull_request:
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install
+        run: npm ci
+      - name: Run CSS Audit
+        run: npm run audit:css
+      - name: Serve public and check MIME
+        run: |
+          npm run serve:ci &
+          sleep 2
+          npm run check:css
