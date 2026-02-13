@@ -3,7 +3,7 @@
   "regions": ["sin1"],
   "builds": [
     { "src": "api/router.js", "use": "@vercel/node" },
-    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "public", "buildCommand": "node scripts/copy_public.js" } }
+    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "public", "buildCommand": "node scripts/build_public.js" } }
   ],
   "rewrites": [
     { "source": "/", "destination": "/index.html" },

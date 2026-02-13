@@ -1,0 +1,59 @@
+﻿﻿<!doctype html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="icon" href="icons/192.png">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
+  <title>NZ • Anniversary</title>
+</head>
+
+<body>
+  <nav class="navbar">
+    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
+    <div class="nav-actions">
+      <a class="btn" href="index.html"><i class="fa-solid fa-house"></i> Home</a>
+      <a class="btn" href="settings.html"><i class="fa-solid fa-gear"></i> Settings</a>
+    </div>
+  </nav>
+  <div class="container">
+    <a class="btn back-home" href="index.html"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
+    <div class="card" style="max-width:640px;margin:0 auto;">
+      <div class="section-title">Anniversary Countdown</div>
+
+      <div id="countdown" class="countdown">
+        <div class="time-box">
+          <span id="d">00</span>
+          <label>Days</label>
+        </div>
+        <div class="time-box">
+          <span id="h">00</span>
+          <label>Hours</label>
+        </div>
+        <div class="time-box">
+          <span id="m">00</span>
+          <label>Mins</label>
+        </div>
+        <div class="time-box">
+          <span id="s">00</span>
+          <label>Secs</label>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-top:2rem">Settings</div>
+      <form id="anniv-form" class="list">
+        <input id="anniv-date" class="input" type="date" required>
+        <textarea id="anniv-note" class="input" placeholder="Note"></textarea>
+        <button class="btn" type="submit"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+      </form>
+    </div>
+    <div class="footer">NZ</div>
+  </div>
+  <script type="module" src="js/anniversary.js"></script>
+</body>
+
+</html>

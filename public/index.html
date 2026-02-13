@@ -1,0 +1,194 @@
+﻿﻿<!doctype html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f1220">
+  <link rel="apple-touch-icon" href="icons/192.png">
+
+  <!-- PERFORMANCE OPTIMIZATION -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="icon" href="icons/192.png">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
+  <title>NZ • Home</title>
+</head>
+
+<body>
+  <!-- GALAXY BACKGROUND -->
+  <div class="galaxy-bg">
+    <div class="nebula nebula-1"></div>
+    <div class="nebula nebula-2"></div>
+    <div class="nebula nebula-3"></div>
+    <div class="stars-sm"></div>
+    <div class="stars-md"></div>
+
+    <!-- Dynamic Icons -->
+    <i class="bg-icon planet fa-solid fa-globe"></i>
+    <i class="bg-icon galaxy fa-solid fa-hurricane"></i>
+    <i class="bg-icon moon fa-solid fa-moon"></i>
+  </div>
+
+  <nav class="navbar">
+    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
+    <div class="nav-actions">
+      <a class="btn" href="settings.html"><i class="fa-solid fa-gear"></i> Settings</a>
+    </div>
+  </nav>
+  <div class="container">
+
+    <!-- HERO TIMER START -->
+    <div class="card" style="text-align:center; margin-bottom: 2rem;">
+      <div class="section-title">Grow Together</div>
+      <div id="countdown" class="countdown">
+        <div class="time-box">
+          <span id="t-days">00</span>
+          <label>Hari</label>
+        </div>
+        <div class="time-box">
+          <span id="t-hours">00</span>
+          <label>Jam</label>
+        </div>
+        <div class="time-box">
+          <span id="t-minutes">00</span>
+          <label>Menit</label>
+        </div>
+        <div class="time-box">
+          <span id="t-seconds">00</span>
+          <label>Detik</label>
+        </div>
+      </div>
+      <div class="muted">Since 23 November 2025</div>
+    </div>
+    <!-- HERO TIMER END -->
+
+    <!-- WEEKLY CONTRIBUTION STATS -->
+    <div class="card" style="margin-bottom: 2rem;">
+      <div class="section-title"><i class="fa-solid fa-chart-line"></i> Weekly Contribution</div>
+      <div id="weekly-stats" class="stats-container">
+        <div class="skeleton skeleton-line" style="width:100%"></div>
+        <div class="skeleton skeleton-line" style="width:80%"></div>
+      </div>
+    </div>
+
+    <div class="grid home-grid">
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-sparkles"></i> Memories</div>
+        <div class="muted">Store titles, media references, and notes.</div>
+        <a class="btn" href="memories.html">Open</a>
+      </div>
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-list-check"></i> Daily Tasks</div>
+        <div class="muted">Simple checklist.</div>
+        <a class="btn" href="daily-tasks.html">Open</a>
+      </div>
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-calendar-check"></i> Monthly Habits</div>
+        <div class="muted">Track consistency & streaks.</div>
+        <a class="btn" href="monthly-todos.html">Open</a>
+      </div>
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-graduation-cap"></i> College Assignments</div>
+        <div class="muted">Deadlines and status.</div>
+        <a class="btn" href="college-assignments.html">Open</a>
+      </div>
+      <div class="card">
+        <div class="section-title"><i class="fa-regular fa-calendar-days"></i> Class Schedule</div>
+        <div class="muted">Weekly timetable.</div>
+        <a class="btn" href="schedule.html">Open</a>
+      </div>
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-calendar-heart"></i> Anniversary</div>
+        <div class="muted">Set the special date and note.</div>
+        <a class="btn" href="anniversary.html">Open</a>
+      </div>
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-message-heart"></i> Chat</div>
+        <div class="muted">Local-only messages.</div>
+        <a class="btn" href="chat.html">Open</a>
+      </div>
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-bullseye"></i> Goals</div>
+        <div class="muted">Targets and evaluations.</div>
+        <a class="btn" href="goals.html">Open</a>
+      </div>
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-gear"></i> Settings</div>
+        <div class="muted">Theme and logout.</div>
+        <a class="btn" href="settings.html">Open</a>
+      </div>
+    </div>
+    <div class="footer">NZ</div>
+  </div>
+  <script type="module">
+    import { initProtected } from './js/main.js';
+    import { get } from './js/api.js';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      initProtected();
+
+      // Load Weekly Stats
+      const statsContainer = document.getElementById('weekly-stats');
+      try {
+        const data = await get('/stats');
+        if (data && data.stats) {
+          statsContainer.innerHTML = '';
+          const max = data.combined || 1;
+
+          data.stats.forEach(s => {
+            const user = s.user || 'Unknown';
+            const score = Number(s.total_score);
+            const percent = Math.round((score / max) * 100);
+
+            const row = document.createElement('div');
+            row.style.marginBottom = '12px';
+            row.innerHTML = `
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:14px">
+                <span style="font-weight:600">${user}</span>
+                <span style="color:var(--primary)">${score} pts</span>
+              </div>
+              <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden">
+                <div style="height:100%;background:var(--primary);width:0%;transition:width 1s ease" class="bar-fill"></div>
+              </div>
+            `;
+            statsContainer.appendChild(row);
+
+            // Animate bar
+            setTimeout(() => {
+              row.querySelector('.bar-fill').style.width = `${percent}%`;
+            }, 100);
+          });
+
+          if (data.stats.length === 0) {
+            statsContainer.innerHTML = '<div class="muted center">No activity this week yet.</div>';
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        statsContainer.innerHTML = '<div class="muted center">Failed to load stats.</div>';
+      }
+    });
+
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then(reg => console.log('SW registered:', reg))
+          .catch(err => console.log('SW registration failed:', err));
+      });
+    }
+
+    // OPTIMIZATION: Only load particles on desktop
+    if (window.innerWidth >= 768 && navigator.hardwareConcurrency > 4) {
+      import('./js/particles.js');
+    }
+  </script>
+</body>
+
+</html>

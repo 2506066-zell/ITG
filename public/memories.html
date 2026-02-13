@@ -1,0 +1,70 @@
+﻿﻿﻿﻿<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="icon" href="icons/192.png">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
+  <title>NZ • Memories</title>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
+    <div class="nav-actions">
+      <a class="btn" href="index.html"><i class="fa-solid fa-house"></i> Home</a>
+      <a class="btn" href="settings.html"><i class="fa-solid fa-gear"></i> Settings</a>
+    </div>
+  </nav>
+  <div class="container">
+    <a class="btn back-home" href="index.html"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
+    <div class="grid">
+      <div class="card">
+        <div class="section-title">Create Memory</div>
+        <form id="create-memory" class="list">
+          <input class="input" name="title" placeholder="Title" required>
+          
+          <!-- Photo Upload UI -->
+          <div style="position:relative;">
+            <input type="file" id="photo-input" accept="image/*" style="display:none">
+            <button type="button" class="btn secondary" style="width:100%" onclick="document.getElementById('photo-input').click()">
+              <i class="fa-solid fa-camera"></i> Upload Photo
+            </button>
+            <div id="photo-preview-container" style="display:none; margin-top:10px; position:relative;">
+              <img id="photo-preview" src="" style="width:100%; border-radius:10px; max-height:200px; object-fit:cover;">
+              <button type="button" id="remove-photo" class="btn danger small" style="position:absolute; top:5px; right:5px;">
+                <i class="fa-solid fa-times"></i>
+              </button>
+            </div>
+          </div>
+          <!-- End Photo Upload -->
+
+          <textarea class="input" name="note" placeholder="Note"></textarea>
+          <button class="btn" type="submit"><i class="fa-solid fa-plus"></i> Add</button>
+        </form>
+      </div>
+      <div class="card">
+        <div class="section-title">Memories</div>
+        <div id="memories-list" class="list"></div>
+      </div>
+    </div>
+    <div id="modal-edit" class="modal-overlay">
+      <div class="modal">
+        <div class="section-title">Edit Memory</div>
+        <div class="list">
+          <input class="input" name="title" placeholder="Judul">
+          <textarea class="input" name="note" placeholder="Catatan"></textarea>
+          <div class="actions">
+            <button class="btn" id="modal-save"><i class="fa-solid fa-floppy-disk"></i> Simpan</button>
+            <button class="btn danger" id="modal-close"><i class="fa-solid fa-xmark"></i> Tutup</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">NZ</div>
+  </div>
+  <script type="module" src="js/memories.js"></script>
+</body>
+</html>
