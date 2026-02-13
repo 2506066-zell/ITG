@@ -22,6 +22,8 @@ const state = {
 let userOverride = false;
 let autoSyncTimer = null;
 let daySyncTimer = null;
+let moodResolve = null;
+let moodReject = null;
 
 const els = {
     monthPicker: document.getElementById('month-picker'),
@@ -374,37 +376,42 @@ window.handleDayClick = async (box) => {
     const wasCompleted = box.dataset.completed === 'true';
     const newStatus = !wasCompleted;
 
-    // Optimistic Update
-    if (newStatus) {
-        box.classList.add('completed');
-        box.classList.add('flash-effect');
-        setTimeout(() => box.classList.remove('flash-effect'), 500);
-    } else {
-        box.classList.remove('completed');
-    }
-    box.dataset.completed = newStatus;
-
     try {
-        await post('/monthly', {
-            action: 'toggle_log',
-            todo_id: todoId,
-            date: date,
-            completed: newStatus,
-            tz_offset_min: new Date().getTimezoneOffset()
-        });
         if (newStatus) {
-            openMoodPrompt(`Selesai kebiasaan (${date})`);
+            const mood = await waitForMood(`Selesai kebiasaan (${date})`);
+            await post('/monthly', {
+                action: 'toggle_log',
+                todo_id: todoId,
+                date: date,
+                completed: newStatus,
+                tz_offset_min: new Date().getTimezoneOffset()
+            });
+            await post('/evaluations', {
+                mood: mood.mood,
+                note: mood.note || '',
+                date: new Date().toISOString()
+            });
+            box.classList.add('completed');
+            box.classList.add('flash-effect');
+            setTimeout(() => box.classList.remove('flash-effect'), 500);
+            box.dataset.completed = true;
+        } else {
+            await post('/monthly', {
+                action: 'toggle_log',
+                todo_id: todoId,
+                date: date,
+                completed: newStatus,
+                tz_offset_min: new Date().getTimezoneOffset()
+            });
+            box.classList.remove('completed');
+            box.dataset.completed = false;
         }
         
         // Refresh stats silently to update percentages
         loadStats();
     } catch (err) {
         console.error(err);
-        // Revert
-        if (wasCompleted) box.classList.add('completed');
-        else box.classList.remove('completed');
-        box.dataset.completed = wasCompleted;
-        alert('Failed to update status');
+        showToast('Gagal memproses', 'error');
     }
 };
 
@@ -434,18 +441,14 @@ function setupMoodEvents() {
     });
     document.getElementById('mood-cancel')?.addEventListener('click', () => {
         closeMoodPrompt();
+        if (moodReject) moodReject(new Error('cancel'));
     });
     els.moodForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const val = els.moodValueEl.value;
         if (!val) { showToast('Pilih mood', 'error'); return; }
-        const body = { mood: val, note: els.moodNoteEl.value, date: new Date().toISOString() };
-        try {
-            await post('/evaluations', body);
-            showToast('Mood disimpan', 'success');
-        } catch (err) {
-            showToast('Gagal menyimpan', 'error');
-        }
+        const data = { mood: val, note: els.moodNoteEl.value };
+        if (moodResolve) moodResolve(data);
         closeMoodPrompt();
     });
 }
@@ -462,4 +465,12 @@ function openMoodPrompt(note) {
 function closeMoodPrompt() {
     els.moodOverlay.classList.remove('active');
     els.moodSheet.classList.remove('active');
+}
+
+function waitForMood(note) {
+    openMoodPrompt(note);
+    return new Promise((resolve, reject) => {
+        moodResolve = resolve;
+        moodReject = reject;
+    });
 }
