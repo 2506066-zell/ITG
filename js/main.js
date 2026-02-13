@@ -3,7 +3,7 @@ function requireAuth() {
   if (!t) location.href = '/login';
 }
 function registerSW() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' });
 }
 function loadTheme() {
   const t = localStorage.getItem('theme') || 'dark';

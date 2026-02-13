@@ -1,6 +1,7 @@
 const CACHE_NAME = 'cf-v10';
 const ASSETS = [
   '/',
+  '/login',
   'login.html',
   'index.html',
   'memories.html',
