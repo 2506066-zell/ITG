@@ -8,9 +8,19 @@
   "rewrites": [
     { "source": "/", "destination": "/index.html" },
     { "source": "/api/(.*)", "destination": "/api/router.js?path=$1" },
+    { "source": "/login", "destination": "/login.html" },
+    { "source": "/memories", "destination": "/memories.html" },
+    { "source": "/anniversary", "destination": "/anniversary.html" },
+    { "source": "/daily-tasks", "destination": "/daily-tasks.html" },
+    { "source": "/college-assignments", "destination": "/college-assignments.html" },
+    { "source": "/goals", "destination": "/goals.html" },
+    { "source": "/schedule", "destination": "/schedule.html" },
+    { "source": "/chat", "destination": "/chat.html" },
+    { "source": "/settings", "destination": "/settings.html" },
+    { "source": "/monthly-todos", "destination": "/monthly-todos.html" },
     { "source": "/(.*)", "destination": "/$1" }
   ],
-  "cleanUrls": true,
+  "cleanUrls": false,
   "headers": [
     {
       "source": "/(.*)",

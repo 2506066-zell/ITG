@@ -7,7 +7,7 @@ const authHeader = () => {
 const handle401 = (res) => {
   if (res.status === 401) {
     localStorage.removeItem('token');
-    location.href = '/login';
+    location.href = '/login.html';
   }
 };
 
