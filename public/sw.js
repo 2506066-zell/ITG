@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cf-v9';
+const CACHE_NAME = 'cf-v10';
 const ASSETS = [
   '/',
   'login.html',
