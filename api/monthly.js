@@ -79,21 +79,25 @@ export default withErrorHandling(async function handler(req, res) {
     const { action } = b;
 
     if (action === 'create_todo') {
-      const { user_id, title } = b;
-      const d = new Date();
-      const systemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const { user_id, title, month, tz_offset_min } = b;
+      const now = new Date();
+      const dLocal = typeof tz_offset_min === 'number'
+        ? new Date(now.getTime() - (tz_offset_min * 60000))
+        : now;
+      const systemMonth = `${dLocal.getFullYear()}-${String(dLocal.getMonth() + 1).padStart(2, '0')}`;
+      const validMonth = (typeof month === 'string' && /^\d{4}-\d{2}$/.test(month)) ? month : systemMonth;
       if (!title || !user_id) { res.status(400).json({ error: 'Invalid data' }); return; }
       
       const r = await pool.query(
         'INSERT INTO monthly_todos (user_id, month, title) VALUES ($1, $2, $3) RETURNING *',
-        [user_id, systemMonth, title]
+        [user_id, validMonth, title]
       );
       sendJson(res, 200, r.rows[0]);
       return;
     }
 
     if (action === 'toggle_log') {
-      const { todo_id, date, completed } = b; // date is YYYY-MM-DD
+      const { todo_id, date, completed, tz_offset_min } = b; // date is YYYY-MM-DD
       if (!todo_id || !date) { res.status(400).json({ error: 'Invalid data' }); return; }
 
       // Check if month is archived (optional constraint check here or frontend)
@@ -102,9 +106,12 @@ export default withErrorHandling(async function handler(req, res) {
       if (todoRes.rowCount === 0) { res.status(404).json({ error: 'Todo not found' }); return; }
       
       const todoMonth = todoRes.rows[0].month;
-      const d = new Date();
-      const currentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const now = new Date();
+      const dLocal = typeof tz_offset_min === 'number'
+        ? new Date(now.getTime() - (tz_offset_min * 60000))
+        : now;
+      const currentMonth = `${dLocal.getFullYear()}-${String(dLocal.getMonth() + 1).padStart(2, '0')}`;
+      const todayStr = `${dLocal.getFullYear()}-${String(dLocal.getMonth() + 1).padStart(2, '0')}-${String(dLocal.getDate()).padStart(2, '0')}`;
       // Strict enforcement: only current month and today's date can be toggled
       if (todoMonth !== currentMonth) {
         res.status(403).json({ error: 'Only current month can be modified' });

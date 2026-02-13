@@ -16,10 +16,12 @@ const state = {
     todos: [],
     stats: null,
     monthsList: [],
-    archiveUser: 'Zaldy'
+    archiveUser: 'Zaldy',
+    currentDate: localDate()
 };
 let userOverride = false;
 let autoSyncTimer = null;
+let daySyncTimer = null;
 
 const els = {
     monthPicker: document.getElementById('month-picker'),
@@ -122,6 +124,7 @@ function init() {
     // Initial Load
     loadAll();
     startMonthAutoSync();
+    startDayAutoSync();
 }
 
 function loadAll() {
@@ -237,6 +240,19 @@ function startMonthAutoSync() {
     }, 60000);
 }
 
+function startDayAutoSync() {
+    if (daySyncTimer) return;
+    daySyncTimer = setInterval(() => {
+        const d = localDate();
+        if (d !== state.currentDate) {
+            state.currentDate = d;
+            // Re-render to pindahkan highlight "today" ke tanggal baru
+            renderTodos();
+            renderStats();
+        }
+    }, 60000);
+}
+
 function renderTodos() {
     if (!Array.isArray(state.todos) || state.todos.length === 0) {
         els.todoList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-style:italic">No monthly habits yet. Create one!</div>';
@@ -322,7 +338,8 @@ async function handleCreate(e) {
             action: 'create_todo',
             title,
             user_id: state.user,
-            month: new Date().toISOString().slice(0, 7)
+            month: localMonth(),
+            tz_offset_min: new Date().getTimezoneOffset()
         });
         
         els.modalOverlay.classList.remove('active');
@@ -345,7 +362,9 @@ window.handleDayClick = async (box) => {
     }
     // Hanya hari ini yang bisa di-toggle
     const todayStr = localDate();
-    if (box.dataset.date !== todayStr) {
+    const boxDate = (box.dataset.date || '').trim();
+    const isTodayVisual = box.classList.contains('today');
+    if (!isTodayVisual || boxDate !== todayStr) {
         showToast('Hanya hari ini yang bisa di-check', 'error');
         return;
     }
@@ -370,7 +389,8 @@ window.handleDayClick = async (box) => {
             action: 'toggle_log',
             todo_id: todoId,
             date: date,
-            completed: newStatus
+            completed: newStatus,
+            tz_offset_min: new Date().getTimezoneOffset()
         });
         if (newStatus) {
             openMoodPrompt(`Selesai kebiasaan (${date})`);

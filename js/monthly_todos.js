@@ -2,9 +2,18 @@
 import { get, post, del } from './api.js';
 import { initProtected, normalizeLinks, showToast } from './main.js';
 
+function localMonth() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function localDate() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const state = {
     user: 'Zaldy', // Default user
-    month: new Date().toISOString().slice(0, 7), // Current YYYY-MM
+    month: localMonth(), // Current YYYY-MM (local)
     todos: [],
     stats: null
 };
@@ -78,7 +87,7 @@ function loadAll() {
 }
 
 function updateArchiveState() {
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonth();
     const isCurrent = state.month === currentMonth;
     // Hanya izinkan membuat habit di bulan sistem saat ini
     if (!isCurrent) {
@@ -133,7 +142,7 @@ function renderTodos() {
 
     const daysInMonth = new Date(state.month.split('-')[0], state.month.split('-')[1], 0).getDate();
     const today = new Date();
-    const currentMonthStr = today.toISOString().slice(0, 7);
+    const currentMonthStr = localMonth();
     const isCurrentMonth = state.month === currentMonthStr;
     const currentDay = today.getDate();
     const isPastMonth = state.month < currentMonthStr;
@@ -210,7 +219,8 @@ async function handleCreate(e) {
             action: 'create_todo',
             title,
             user_id: state.user,
-            month: new Date().toISOString().slice(0, 7)
+            month: localMonth(),
+            tz_offset_min: new Date().getTimezoneOffset()
         });
         
         els.modalOverlay.classList.remove('active');
@@ -226,14 +236,16 @@ async function handleCreate(e) {
 // Global Handlers
 window.handleDayClick = async (box) => {
     // Check read-only state
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonth();
     if (state.month < currentMonth) {
         alert('Past months are read-only.');
         return;
     }
     // Hanya hari ini yang bisa di-toggle
-    const todayStr = new Date().toISOString().slice(0, 10);
-    if (box.dataset.date !== todayStr) {
+    const todayStr = localDate();
+    const boxDate = (box.dataset.date || '').trim();
+    const isTodayVisual = box.classList.contains('today');
+    if (!isTodayVisual || boxDate !== todayStr) {
         showToast('Hanya hari ini yang bisa di-check', 'error');
         return;
     }
@@ -258,7 +270,8 @@ window.handleDayClick = async (box) => {
             action: 'toggle_log',
             todo_id: todoId,
             date: date,
-            completed: newStatus
+            completed: newStatus,
+            tz_offset_min: new Date().getTimezoneOffset()
         });
         if (newStatus) {
             openMoodPrompt(`Selesai kebiasaan (${date})`);
