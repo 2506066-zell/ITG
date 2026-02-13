@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { readBody } from './_lib.js';
 export default async function handler(req, res) {
@@ -7,20 +6,12 @@ export default async function handler(req, res) {
     return;
   }
   const body = req.body || await readBody(req);
-  const { username, password } = body;
+  const { username } = body;
   
   // Validate username
   const allowedUsers = ['Zaldy', 'Nesya'];
   if (!username || !allowedUsers.includes(username)) {
     res.status(401).json({ error: 'Invalid username' });
-    return;
-  }
-
-  const hash = process.env.APP_PASSWORD_HASH || '';
-  await new Promise(r => setTimeout(r, 300));
-  const ok = hash && await bcrypt.compare(password || '', hash);
-  if (!ok) {
-    res.status(401).json({ error: 'Unauthorized' });
     return;
   }
   const secret = process.env.JWT_SECRET || '';

@@ -11,7 +11,6 @@ function init() {
     
     const f = new FormData(form);
     const username = (f.get('username') || '').toString().trim();
-    const password = (f.get('password') || '').toString();
 
     const msg = document.querySelector('#login-msg');
     if (msg) msg.textContent = '';
@@ -21,15 +20,9 @@ function init() {
       if (btn) btn.disabled = false;
       return;
     }
-    if (!password || password.length < 4) {
-      if (msg) msg.textContent = 'Password minimal 4 karakter';
-      showToast('Password minimal 4 karakter', 'error');
-      if (btn) btn.disabled = false;
-      return;
-    }
 
     try {
-      const res = await apiFetch('/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+      const res = await apiFetch('/login', { method: 'POST', body: JSON.stringify({ username }) });
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem('token', data.token);
@@ -37,8 +30,8 @@ function init() {
         showToast(`Selamat datang, ${username}!`, 'success');
         setTimeout(() => location.href = '/', 500);
       } else if (res.status === 401) {
-        if (msg) msg.textContent = 'Password salah';
-        showToast('Password salah', 'error');
+        if (msg) msg.textContent = 'Username tidak valid';
+        showToast('Username tidak valid', 'error');
       } else {
         if (msg) msg.textContent = 'Backend error';
         showToast('Backend error', 'error');
