@@ -2,8 +2,17 @@ function requireAuth() {
   const t = localStorage.getItem('token');
   if (!t) location.href = '/login.html';
 }
-function registerSW() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' });
+async function disableSW() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    if (window.caches && caches.keys) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch (_) {}
 }
 function loadTheme() {
   const t = localStorage.getItem('theme') || 'dark';
@@ -38,7 +47,7 @@ export function showToast(text, type = 'info', timeout = 2500) {
 }
 export function initProtected() {
   requireAuth();
-  registerSW();
+  disableSW();
   loadTheme();
   startHeroTimer();
 }
@@ -92,7 +101,7 @@ function startHeroTimer() {
 }
 export function logout() {
   localStorage.removeItem('token');
-  location.href = '/login';
+  location.href = '/login.html';
 }
 
 export function normalizeLinks() {}
