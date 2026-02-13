@@ -87,7 +87,8 @@ function updateUserTabs() {
 async function loadTodos() {
     els.todoList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div>';
     try {
-        state.todos = await get(`/monthly?month=${state.month}&user=${state.user}`);
+        const data = await get(`/monthly?month=${state.month}&user=${state.user}`);
+        state.todos = Array.isArray(data) ? data : [];
         renderTodos();
     } catch (err) {
         console.error(err);
@@ -105,7 +106,8 @@ async function loadTodos() {
 
 async function loadStats() {
     try {
-        state.stats = await get(`/monthly_stats?month=${state.month}`);
+        const s = await get(`/monthly_stats?month=${state.month}`);
+        state.stats = s && s.users ? s : { users: { Zaldy: {}, Nesya: {} }, combined: 0 };
         renderStats();
     } catch (err) {
         console.error(err);
@@ -113,7 +115,7 @@ async function loadStats() {
 }
 
 function renderTodos() {
-    if (!state.todos || state.todos.length === 0) {
+    if (!Array.isArray(state.todos) || state.todos.length === 0) {
         els.todoList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-style:italic">No monthly habits yet. Create one!</div>';
         return;
     }
@@ -171,8 +173,8 @@ function renderTodos() {
 
 function renderStats() {
     if (!state.stats) return;
-    
-    const { users, combined } = state.stats;
+    const users = (state.stats && state.stats.users) || {};
+    const combined = state.stats && typeof state.stats.combined === 'number' ? state.stats.combined : 0;
     const z = users.Zaldy || {};
     const n = users.Nesya || {};
     

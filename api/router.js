@@ -3,7 +3,7 @@ import { parse } from 'url';
 const cache = new Map();
 async function load(name) {
   if (cache.has(name)) return cache.get(name);
-  const mod = await import(`../cute-futura/api/${name}.js`);
+  const mod = await import(`./${name}.js`);
   const fn = mod.default || mod.handler || mod;
   cache.set(name, fn);
   return fn;

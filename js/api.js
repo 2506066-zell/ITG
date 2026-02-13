@@ -207,6 +207,130 @@ async function mockFetch(path, options) {
       data = { ok: true };
     }
   }
+  else if (path.startsWith('/monthly_stats')) {
+    const qs = new URLSearchParams(path.split('?')[1] || '');
+    const month = qs.get('month');
+    const users = ['Zaldy', 'Nesya'];
+    const stats = {};
+    if (!month) {
+      status = 400;
+      data = { error: 'Missing month' };
+    } else {
+      const [y, m] = month.split('-');
+      const daysInMonth = new Date(y, m, 0).getDate();
+      users.forEach(u => {
+        const key = `monthly_${month}_${u}`;
+        const todos = db(key, []);
+        const totalTodos = todos.length;
+        const totalPossible = totalTodos * daysInMonth;
+        const totalCompleted = todos.reduce((acc, t) => acc + (Array.isArray(t.completed_days) ? t.completed_days.length : 0), 0);
+        let maxUserStreak = 0;
+        todos.forEach(t => {
+          const days = Array.isArray(t.completed_days) ? [...t.completed_days].sort((a,b)=>a-b) : [];
+          let cur = 0, max = 0, prev = -1;
+          days.forEach(d => {
+            if (d === prev + 1) cur++; else cur = 1;
+            if (cur > max) max = cur;
+            prev = d;
+          });
+          if (max > maxUserStreak) maxUserStreak = max;
+        });
+        stats[u] = {
+          completion_rate: totalPossible ? Math.round((totalCompleted / totalPossible) * 100) : 0,
+          streak: maxUserStreak,
+          total_completed: totalCompleted,
+          total_possible: totalPossible
+        };
+      });
+      const combined = Math.round((users.reduce((acc,u)=>acc + stats[u].completion_rate,0))/users.length);
+      data = { users: stats, combined };
+    }
+  }
+  else if (path.startsWith('/monthly')) {
+    const qs = new URLSearchParams(path.split('?')[1] || '');
+    const methodQSMonth = qs.get('month');
+    const methodQSUser = qs.get('user');
+    if (method === 'GET') {
+      if (!methodQSMonth || !methodQSUser) {
+        status = 400;
+        data = { error: 'Missing month or user' };
+      } else {
+        const key = `monthly_${methodQSMonth}_${methodQSUser}`;
+        const todos = db(key, []);
+        data = todos.map(t => ({ id: t.id, title: t.title, completed_days: Array.isArray(t.completed_days) ? t.completed_days : [] }));
+      }
+    }
+    if (method === 'POST') {
+      const action = body.action;
+      if (action === 'create_todo') {
+        const { user_id, month, title } = body;
+        if (!title || !month || !user_id) {
+          status = 400;
+          data = { error: 'Invalid data' };
+        } else {
+          const key = `monthly_${month}_${user_id}`;
+          const todos = db(key, []);
+          const newTodo = { id: Date.now(), title, completed_days: [] };
+          todos.push(newTodo);
+          save(key, todos);
+          data = newTodo;
+        }
+      } else if (action === 'toggle_log') {
+        const { todo_id, date, completed } = body;
+        const month = (date || '').slice(0,7);
+        const day = parseInt((date || '').slice(8,10), 10);
+        let affectedKey = null;
+        const users = ['Zaldy','Nesya'];
+        for (const u of users) {
+          const key = `monthly_${month}_${u}`;
+          const todos = db(key, []);
+          const idx = todos.findIndex(t => t.id == todo_id);
+          if (idx >= 0) {
+            affectedKey = key;
+            const cd = new Set(Array.isArray(todos[idx].completed_days) ? todos[idx].completed_days : []);
+            if (completed) cd.add(day); else cd.delete(day);
+            todos[idx].completed_days = Array.from(cd).sort((a,b)=>a-b);
+            save(key, todos);
+            data = { ok: true };
+            break;
+          }
+        }
+        if (!affectedKey) {
+          status = 404;
+          data = { error: 'Todo not found' };
+        }
+      } else {
+        status = 400;
+        data = { error: 'Unknown action' };
+      }
+    }
+    if (method === 'DELETE') {
+      const id = qs.get('id');
+      if (!id) {
+        status = 400;
+        data = { error: 'Missing id' };
+      } else {
+        const users = ['Zaldy','Nesya'];
+        let deleted = false;
+        const currentMonth = new Date().toISOString().slice(0,7);
+        users.forEach(u => {
+          const keyPrefix = `monthly_`;
+          const keys = [keyPrefix + currentMonth + '_' + u];
+          keys.forEach(key => {
+            let todos = db(key, []);
+            const before = todos.length;
+            todos = todos.filter(t => t.id != id);
+            if (todos.length !== before) {
+              save(key, todos);
+              deleted = true;
+            }
+          });
+        });
+        data = deleted ? { ok: true } : { error: 'Not found' };
+        status = deleted ? 200 : 404;
+      }
+    }
+  }
   else {
     status = 404;
     data = { error: 'Not Found (Mock)' };
