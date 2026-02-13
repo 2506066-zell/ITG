@@ -50,6 +50,31 @@
       color: var(--primary);
       border-color: rgba(100, 255, 218, 0.3);
     }
+    html[data-theme="light"] .filter-chip {
+      background: rgba(120,154,153,0.12);
+      border: 1px solid rgba(120,154,153,0.25);
+      color: var(--text);
+    }
+    html[data-theme="light"] .filter-chip.active {
+      background: rgba(120,154,153,0.2);
+      color: var(--primary);
+      border-color: rgba(120,154,153,0.4);
+    }
+    html[data-theme="light"] .form-input {
+      background: rgba(255,255,255,0.6);
+      border: 1px solid rgba(120,154,153,0.25);
+      color: var(--text);
+    }
+    html[data-theme="light"] .prio-btn {
+      border: 1px solid rgba(120,154,153,0.25);
+      color: var(--muted);
+      background: rgba(255,255,255,0.2);
+    }
+    html[data-theme="light"] .prio-btn.active {
+      background: rgba(120,154,153,0.2);
+      color: var(--text);
+      border-color: var(--primary);
+    }
 
     /* Task List (Virtualized Container) */
     .task-list-container {
@@ -161,7 +186,7 @@
     
     .bottom-sheet {
       position: absolute; bottom: 0; left: 0; right: 0;
-      background: #15192b; /* Slightly lighter than bg */
+      background: var(--surface-strong);
       border-top-left-radius: 20px;
       border-top-right-radius: 20px;
       padding: 24px;
@@ -169,12 +194,12 @@
       transition: transform 0.3s cubic-bezier(0.1, 0.7, 0.1, 1);
       max-height: 85vh;
       overflow-y: auto;
-      border-top: 1px solid rgba(255,255,255,0.1);
+      border-top: 1px solid rgba(120,154,153,0.25);
     }
     .bottom-sheet.active { transform: translateY(0); }
     
     .sheet-handle {
-      width: 40px; height: 4px; background: rgba(255,255,255,0.2);
+      width: 40px; height: 4px; background: rgba(120,154,153,0.3);
       border-radius: 2px; margin: 0 auto 20px;
     }
 

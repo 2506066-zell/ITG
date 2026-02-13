@@ -61,7 +61,8 @@ export default withErrorHandling(async function handler(req, res) {
 
     if (action === 'create_todo') {
       const { user_id, title } = b;
-      const systemMonth = new Date().toISOString().slice(0, 7);
+      const d = new Date();
+      const systemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (!title || !user_id) { res.status(400).json({ error: 'Invalid data' }); return; }
       
       const r = await pool.query(
@@ -82,8 +83,9 @@ export default withErrorHandling(async function handler(req, res) {
       if (todoRes.rowCount === 0) { res.status(404).json({ error: 'Todo not found' }); return; }
       
       const todoMonth = todoRes.rows[0].month;
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const d = new Date();
+      const currentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       // Strict enforcement: only current month and today's date can be toggled
       if (todoMonth !== currentMonth) {
         res.status(403).json({ error: 'Only current month can be modified' });
@@ -117,7 +119,8 @@ export default withErrorHandling(async function handler(req, res) {
     if (check.rowCount === 0) { res.status(404).json({ error: 'Not found' }); return; }
     
     const todoMonth = check.rows[0].month;
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const d = new Date();
+    const currentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     if (todoMonth < currentMonth) {
         res.status(403).json({ error: 'Cannot delete archived todos' });
         return;

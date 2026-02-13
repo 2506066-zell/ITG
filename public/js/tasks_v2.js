@@ -434,17 +434,19 @@ function openSheet(task = null) {
     if (task.deadline) document.getElementById('task-deadline').value = task.deadline.slice(0,16); // format for datetime-local
     if (task.assigned_to) document.getElementById('task-assigned').value = task.assigned_to;
     
-    const prio = task.priority || 'medium';
+    const prio = (task.priority || 'medium').toLowerCase();
     document.getElementById('task-priority').value = prio;
-    document.querySelector(`.prio-btn[data-val="${prio}"]`).classList.add('active');
+    const btn = document.querySelector(`.prio-btn[data-val="${prio}"]`) || document.querySelector('.prio-btn[data-val="medium"]');
+    if (btn) btn.classList.add('active');
   } else {
     document.getElementById('task-id').value = '';
-    document.querySelector('.prio-btn[data-val="medium"]').classList.add('active');
+    const btn = document.querySelector('.prio-btn[data-val="medium"]');
+    if (btn) btn.classList.add('active');
     // Default assigned to current user? Handled by backend if null.
   }
   
-  sheetOverlay.classList.add('active');
-  sheet.classList.add('active');
+  if (sheetOverlay) sheetOverlay.classList.add('active');
+  if (sheet) sheet.classList.add('active');
 }
 
 function closeSheet() {
@@ -466,7 +468,7 @@ function setupEventListeners() {
   });
 
   // FAB
-  fabEl.addEventListener('click', () => openSheet(null));
+  if (fabEl) fabEl.addEventListener('click', () => openSheet(null));
   const qaBtn = document.getElementById('quick-add-btn');
   const qaInput = document.getElementById('quick-add-input');
   function parseQuick(text) {
@@ -504,8 +506,9 @@ function setupEventListeners() {
   }
 
   // Sheet
-  document.getElementById('sheet-cancel').addEventListener('click', closeSheet);
-  sheetOverlay.addEventListener('click', (e) => {
+  const sheetCancel = document.getElementById('sheet-cancel');
+  if (sheetCancel) sheetCancel.addEventListener('click', closeSheet);
+  if (sheetOverlay) sheetOverlay.addEventListener('click', (e) => {
     if (e.target === sheetOverlay) closeSheet();
   });
 
@@ -519,7 +522,7 @@ function setupEventListeners() {
   });
 
   // Form Submit
-  taskForm.addEventListener('submit', async (e) => {
+  if (taskForm) taskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(taskForm);
     const data = Object.fromEntries(fd.entries());

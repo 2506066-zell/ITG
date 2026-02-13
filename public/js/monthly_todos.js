@@ -2,9 +2,17 @@
 import { get, post, del } from './api.js';
 import { initProtected, normalizeLinks, showToast } from './main.js';
 
+function localMonth() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function localDate() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 const state = {
-    user: 'Zaldy', // Default user
-    month: new Date().toISOString().slice(0, 7), // Current YYYY-MM
+    user: 'Zaldy',
+    month: localMonth(),
     todos: [],
     stats: null
 };
@@ -78,7 +86,7 @@ function loadAll() {
 }
 
 function updateArchiveState() {
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentMonth = localMonth();
     const isCurrent = state.month === currentMonth;
     // Hanya izinkan membuat habit di bulan sistem saat ini
     if (!isCurrent) {
@@ -133,7 +141,7 @@ function renderTodos() {
 
     const daysInMonth = new Date(state.month.split('-')[0], state.month.split('-')[1], 0).getDate();
     const today = new Date();
-    const currentMonthStr = today.toISOString().slice(0, 7);
+    const currentMonthStr = localMonth();
     const isCurrentMonth = state.month === currentMonthStr;
     const currentDay = today.getDate();
     const isPastMonth = state.month < currentMonthStr;
@@ -232,7 +240,7 @@ window.handleDayClick = async (box) => {
         return;
     }
     // Hanya hari ini yang bisa di-toggle
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = localDate();
     if (box.dataset.date !== todayStr) {
         showToast('Hanya hari ini yang bisa di-check', 'error');
         return;

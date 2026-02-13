@@ -338,7 +338,8 @@ async function mockFetch(path, options) {
       const action = body.action;
       if (action === 'create_todo') {
         const { user_id, title } = body;
-        const systemMonth = new Date().toISOString().slice(0,7);
+        const d = new Date();
+        const systemMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
         if (!title || !user_id) {
           status = 400;
           data = { error: 'Invalid data' };
@@ -354,8 +355,9 @@ async function mockFetch(path, options) {
         const { todo_id, date, completed } = body;
         const month = (date || '').slice(0,7);
         const day = parseInt((date || '').slice(8,10), 10);
-        const todayStr = new Date().toISOString().slice(0,10);
-        const currentMonth = new Date().toISOString().slice(0,7);
+        const d = new Date();
+        const todayStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const currentMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
         if (date !== todayStr || month !== currentMonth) {
           status = 403;
           data = { error: 'Only today in current month can be toggled' };
@@ -394,7 +396,8 @@ async function mockFetch(path, options) {
       } else {
         const users = ['Zaldy','Nesya'];
         let deleted = false;
-        const currentMonth = new Date().toISOString().slice(0,7);
+        const d = new Date();
+        const currentMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
         users.forEach(u => {
           const keyPrefix = `monthly_`;
           const keys = [keyPrefix + currentMonth + '_' + u];
@@ -442,8 +445,8 @@ export async function apiFetch(path, options = {}) {
     const type = res.headers.get('content-type');
     const isHtml = type && type.includes('text/html');
     
-    // Fail if: 404, 405 (Method Not Allowed), or HTML response (implies route missing/static server)
-    if ((res.status === 404 || res.status === 405) || isHtml) {
+    // Fail if: 500+ server errors, 404/405, or HTML response (implies route missing/static server)
+    if (res.status >= 500 || (res.status === 404 || res.status === 405) || isHtml) {
        // Specifically throw to trigger catch block for Mock
        throw new Error(`Backend unreachable: ${res.status}`);
     }

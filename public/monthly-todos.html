@@ -131,6 +131,74 @@
     .prio-selector{display:flex;gap:8px}
     .prio-btn{flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--muted);font-size:12px;text-align:center;cursor:pointer}
     .prio-btn.active{background:rgba(255,255,255,.1);color:var(--text);border-color:var(--primary)}
+    
+    /* Light Mode Overrides for Readability */
+    html[data-theme="light"] .monthly-header {
+      background: rgba(255,255,255,0.6);
+      border-bottom: 1px solid rgba(120,154,153,0.25);
+    }
+    html[data-theme="light"] .user-tabs {
+      background: rgba(255,255,255,0.3);
+      border: 1px solid rgba(120,154,153,0.25);
+    }
+    html[data-theme="light"] .user-tab { color: var(--muted); }
+    html[data-theme="light"] .user-tab.active {
+      background: linear-gradient(135deg, rgba(255,184,163,0.35), rgba(120,154,153,0.25));
+      color: var(--text);
+      box-shadow: 0 0 12px rgba(120,154,153,0.2);
+      border: 1px solid rgba(120,154,153,0.3);
+    }
+    html[data-theme="light"] .todo-card {
+      border: 1px solid rgba(120,154,153,0.25);
+      background: rgba(255,255,255,0.35);
+    }
+    html[data-theme="light"] .day-box {
+      border: 1px solid rgba(120,154,153,0.25);
+      background: rgba(255,255,255,0.3);
+      color: var(--muted);
+    }
+    html[data-theme="light"] .day-box:hover { 
+      border-color: var(--primary); 
+      box-shadow: 0 0 8px rgba(120,154,153,0.25); 
+    }
+    html[data-theme="light"] .day-box.today { 
+      border-color: var(--secondary); 
+      color: var(--secondary); 
+      box-shadow: 0 0 10px rgba(255,184,163,0.25); 
+    }
+    html[data-theme="light"] .day-box.completed { 
+      background: var(--primary); 
+      color: #fff; 
+      border-color: var(--primary);
+      box-shadow: 0 0 12px rgba(120,154,153,0.35);
+      text-shadow: 0 0 4px rgba(0,0,0,0.3);
+    }
+    html[data-theme="light"] .day-box.disabled { 
+      opacity: 0.5; 
+      pointer-events: none; 
+      cursor: default;
+    }
+    html[data-theme="light"] .analytics-section { 
+      border-top: 1px solid rgba(120,154,153,0.2); 
+    }
+    html[data-theme="light"] .stat-label { color: var(--muted); }
+    html[data-theme="light"] .stat-val { color: var(--text); }
+    html[data-theme="light"] .fab { 
+      background: linear-gradient(135deg, var(--secondary), var(--primary)); 
+      color: #385B58; 
+      border: 1px solid rgba(120,154,153,0.25);
+      box-shadow: 0 8px 20px rgba(120,154,153,0.28);
+    }
+    html[data-theme="light"] .modal-overlay { background: rgba(0,0,0,0.3); }
+    html[data-theme="light"] .modal { 
+      background: var(--surface-strong); 
+      border: 1px solid rgba(120,154,153,0.25); 
+    }
+    html[data-theme="light"] .bottom-sheet { 
+      background: var(--surface-strong); 
+      border-top: 1px solid rgba(120,154,153,0.25);
+    }
+    html[data-theme="light"] .sheet-handle { background: rgba(120,154,153,0.3); }
   </style>
 </head>
 <body>
