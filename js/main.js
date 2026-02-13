@@ -2,7 +2,7 @@ function requireAuth() {
   const t = localStorage.getItem('token');
   if (!t) location.href = '/login.html';
 }
-async function disableSW() {
+export async function disableSW() {
   try {
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();

@@ -1,6 +1,7 @@
 import { post } from './api.js';
-import { showToast } from './main.js';
+import { showToast, disableSW } from './main.js';
 function init() {
+  disableSW();
   const form = document.querySelector('#login-form');
   if (!form) return;
   form.addEventListener('submit', async e => {
