@@ -63,11 +63,19 @@ self.addEventListener('fetch', e => {
   // unless we want to cache them explicitly. For now, let's keep it simple.
   if (url.origin !== self.location.origin) return;
 
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(url.href).catch(async () => {
+        const cachedIndex = await caches.match('/index.html');
+        return cachedIndex || Response.error();
+      })
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(e.request).then(cached => {
-      // Network Fetch in background to update cache
-      const fetchPromise = fetch(e.request).then(res => {
-        // Update cache if response is valid
+      const fetchPromise = fetch(url.href).then(res => {
         if (res && res.status === 200 && res.type === 'basic') {
           const copy = res.clone();
           caches.open(CACHE_NAME).then(c => c.put(e.request, copy));
@@ -75,10 +83,7 @@ self.addEventListener('fetch', e => {
         return res;
       }).catch(err => {
         console.error('Fetch failed:', err);
-        // Fallback logic could go here
       });
-
-      // Return cached response immediately if available, else wait for network
       return cached || fetchPromise;
     })
   );
