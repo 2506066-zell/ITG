@@ -18,7 +18,7 @@ function init() {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', data.user || username);
         showToast(`Selamat datang, ${username}!`, 'success');
-        setTimeout(() => location.href = 'index.html', 500);
+        setTimeout(() => location.href = '/', 500);
       } else {
         throw new Error('No token');
       }

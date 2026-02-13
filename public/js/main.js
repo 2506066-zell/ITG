@@ -1,6 +1,6 @@
 function requireAuth() {
   const t = localStorage.getItem('token');
-  if (!t) location.href = '/login.html';
+  if (!t) location.href = '/login';
 }
 function registerSW() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
@@ -40,6 +40,7 @@ export function initProtected() {
   requireAuth();
   registerSW();
   loadTheme();
+  normalizeLinks();
   startHeroTimer();
 }
 
@@ -92,9 +93,19 @@ function startHeroTimer() {
 }
 export function logout() {
   localStorage.removeItem('token');
-  location.href = '/login.html';
+  location.href = '/login';
 }
 
+function normalizeLinks() {
+  const as = Array.from(document.querySelectorAll('a[href$=".html"]'));
+  as.forEach(a => {
+    const href = a.getAttribute('href') || '';
+    let path = href.replace(/\.html$/i, '');
+    if (path === 'index' || path === './index' || path === '/index') path = '/';
+    if (!path.startsWith('/')) path = '/' + path;
+    a.setAttribute('href', path);
+  });
+}
 // Global listener for Demo Mode
 document.addEventListener('demo-mode-active', () => {
   showToast('Backend offline. Demo Mode aktif (data lokal).', 'error', 5000);
