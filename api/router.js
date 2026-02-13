@@ -22,7 +22,8 @@ const routes = new Set([
   'chat',
   'monthly',
   'monthly_stats',
-  'health'
+  'health',
+  'evaluations'
 ]);
 
 export default async function handler(req, res) {
