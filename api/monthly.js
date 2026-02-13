@@ -10,8 +10,27 @@ export default withErrorHandling(async function handler(req, res) {
 
   if (req.method === 'GET') {
     const url = new URL(req.url, 'http://x');
+    const list = url.searchParams.get('list'); // months
     const month = url.searchParams.get('month'); // YYYY-MM
     const user_id = url.searchParams.get('user'); // Zaldy or Nesya
+    
+    if (list === 'months') {
+      const uid = url.searchParams.get('user');
+      let monthsRes;
+      if (uid) {
+        monthsRes = await pool.query(
+          'SELECT month FROM monthly_todos WHERE user_id = $1 GROUP BY month ORDER BY month DESC',
+          [uid]
+        );
+      } else {
+        monthsRes = await pool.query(
+          'SELECT month FROM monthly_todos GROUP BY month ORDER BY month DESC'
+        );
+      }
+      const months = monthsRes.rows.map(r => r.month);
+      sendJson(res, 200, { months }, 60);
+      return;
+    }
     
     if (!month || !user_id) {
       res.status(400).json({ error: 'Missing month or user' });

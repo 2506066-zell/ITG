@@ -106,6 +106,24 @@
     }
     .fab:hover { transform: scale(1.05) rotate(90deg); box-shadow: 0 0 30px var(--primary-glow); }
     
+    /* Archive Panel */
+    .archive-toggle { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:10px; border: 1px solid rgba(255,255,255,0.1); color: var(--text); cursor:pointer; }
+    .archive-panel { display:none; margin-top:12px; padding:10px; border-radius:12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); }
+    .archive-panel.active { display:block; }
+    .archive-filter { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+    .archive-user-chip { padding:6px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); color: var(--text); cursor:pointer; font-size:12px; }
+    .archive-user-chip.active { background: var(--secondary); color:#fff; border-color: var(--secondary); }
+    .archive-year { font-weight:700; color: var(--muted); margin:8px 0 4px; }
+    .archive-chips { display:flex; gap:8px; flex-wrap:wrap; }
+    .archive-chip { padding:6px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.1); color: var(--text); cursor:pointer; font-size:12px; }
+    .archive-chip.active { background: var(--primary); color:#fff; border-color: var(--primary); }
+    
+    html[data-theme="light"] .archive-toggle { border-color: rgba(120,154,153,0.25); }
+    html[data-theme="light"] .archive-panel { background: rgba(255,255,255,0.35); border-color: rgba(120,154,153,0.25); }
+    html[data-theme="light"] .archive-user-chip { border-color: rgba(120,154,153,0.25); }
+    html[data-theme="light"] .archive-user-chip.active { background: var(--secondary); color: #385B58; border-color: rgba(120,154,153,0.35); }
+    html[data-theme="light"] .archive-chip { border-color: rgba(120,154,153,0.25); }
+    html[data-theme="light"] .archive-chip.active { background: var(--secondary); color: #385B58; border-color: rgba(120,154,153,0.35); }
     /* New Task Modal */
     .modal-overlay {
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -209,6 +227,7 @@
       <div class="header-controls">
         <a href="/" style="color:var(--text)"><i class="fa-solid fa-arrow-left"></i> Back</a>
         <input type="month" id="month-picker" class="month-selector">
+        <div id="archive-toggle" class="archive-toggle"><i class="fa-solid fa-box-archive"></i> Archive</div>
       </div>
       
       <div class="user-tabs">
@@ -219,6 +238,7 @@
 
     <!-- CONTENT -->
     <div class="content-area">
+      <div id="archive-panel" class="archive-panel"></div>
       <div id="todo-list" class="todo-grid">
         <!-- Injected JS -->
       </div>
