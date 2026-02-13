@@ -366,7 +366,7 @@ export async function apiFetch(path, options = {}) {
        throw new Error(`Backend unreachable: ${res.status}`);
     }
     
-    handle401(res);
+    if (path !== '/login') handle401(res);
     return res;
   } catch (err) {
     clearTimeout(timeoutId);

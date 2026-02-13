@@ -1,4 +1,4 @@
-import { post } from './api.js';
+import { apiFetch } from './api.js';
 import { showToast, disableSW } from './main.js';
 function init() {
   disableSW();
@@ -29,20 +29,24 @@ function init() {
     }
 
     try {
-      const data = await post('/login', { username, password });
-      if (data.token) {
+      const res = await apiFetch('/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+      if (res.ok) {
+        const data = await res.json();
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', data.user || username);
         showToast(`Selamat datang, ${username}!`, 'success');
         setTimeout(() => location.href = '/', 500);
+      } else if (res.status === 401) {
+        if (msg) msg.textContent = 'Password salah';
+        showToast('Password salah', 'error');
       } else {
-        throw new Error('No token');
+        if (msg) msg.textContent = 'Backend error';
+        showToast('Backend error', 'error');
       }
     } catch (err) {
       const codeText = (err && err.message) || '';
       const isTimeout = codeText.includes('abort') || codeText.includes('timeout');
-      const isUnauthorized = codeText.includes('401') || codeText.toLowerCase().includes('unauthorized');
-      const text = isUnauthorized ? 'Password salah' : (isTimeout ? 'Server timeout' : 'Backend error');
+      const text = isTimeout ? 'Server timeout' : 'Backend error';
       if (msg) msg.textContent = text;
       showToast(text, 'error');
     }
