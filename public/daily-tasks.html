@@ -77,6 +77,8 @@
     }
     .task-item.completed { opacity: 0.6; }
     .task-item:active { transform: scale(0.99); background: var(--surface-strong); }
+    .task-item.urgent { border-color: var(--accent); box-shadow: 0 0 8px rgba(100,255,218,0.2); }
+    .task-item.overdue { border-color: var(--danger); box-shadow: 0 0 6px rgba(255,77,77,0.2); }
     
     .task-check {
       width: 20px; height: 20px;
@@ -232,7 +234,7 @@
       <div class="header-top">
         <div class="header-title">Today's Tasks</div>
         <div class="header-actions">
-          <a href="/" style="color:var(--text)"><i class="fa-solid fa-xmark"></i></a>
+          <a class="btn secondary small" href="/"><i class="fa-solid fa-xmark"></i></a>
         </div>
       </div>
       <div class="header-stats">
@@ -251,6 +253,9 @@
       <div class="filter-chip" data-filter="completed">Completed</div>
       <div style="width:1px;background:rgba(255,255,255,0.1);margin:0 4px"></div>
       <div class="filter-chip" id="sort-trigger"><i class="fa-solid fa-sort"></i> Sort</div>
+      <div style="flex:1"></div>
+      <input id="quick-add-input" class="form-input" style="max-width:260px;height:32px;padding:6px 10px;font-size:12px" placeholder="Quick Add: Belajar besok 10:00">
+      <button id="quick-add-btn" class="btn" style="height:32px;padding:6px 10px;font-size:12px;margin-left:8px">Add</button>
     </div>
 
     <!-- TASK LIST -->

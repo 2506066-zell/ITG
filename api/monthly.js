@@ -60,12 +60,13 @@ export default withErrorHandling(async function handler(req, res) {
     const { action } = b;
 
     if (action === 'create_todo') {
-      const { user_id, month, title } = b;
-      if (!title || !month || !user_id) { res.status(400).json({ error: 'Invalid data' }); return; }
+      const { user_id, title } = b;
+      const systemMonth = new Date().toISOString().slice(0, 7);
+      if (!title || !user_id) { res.status(400).json({ error: 'Invalid data' }); return; }
       
       const r = await pool.query(
         'INSERT INTO monthly_todos (user_id, month, title) VALUES ($1, $2, $3) RETURNING *',
-        [user_id, month, title]
+        [user_id, systemMonth, title]
       );
       sendJson(res, 200, r.rows[0]);
       return;
@@ -82,14 +83,17 @@ export default withErrorHandling(async function handler(req, res) {
       
       const todoMonth = todoRes.rows[0].month;
       const currentMonth = new Date().toISOString().slice(0, 7);
-      
-      // Allow current and future? Or strict current only?
-      // "At month change: All previous month todos move to archived state... Read-only"
-      if (todoMonth < currentMonth) {
-        res.status(403).json({ error: 'Cannot modify archived month' });
+      const todayStr = new Date().toISOString().slice(0, 10);
+      // Strict enforcement: only current month and today's date can be toggled
+      if (todoMonth !== currentMonth) {
+        res.status(403).json({ error: 'Only current month can be modified' });
         return;
       }
-
+      if (date !== todayStr) {
+        res.status(403).json({ error: 'Only today can be toggled' });
+        return;
+      }
+      
       // Upsert Log
       const r = await pool.query(
         `INSERT INTO monthly_todo_logs (monthly_todo_id, date, completed, completed_at)

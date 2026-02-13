@@ -278,7 +278,6 @@
   </div>
 
   <!-- BOTTOM SHEET FORM -->
-  <div class="bottom-sheet-overlay" id="sheet-overlay">
     <div class="bottom-sheet" id="sheet">
       <div class="sheet-handle"></div>
       <h3 style="margin:0 0 20px;font-size:18px" id="sheet-title">New Task</h3>
@@ -318,6 +317,34 @@
         <div class="sheet-actions">
           <button type="button" class="btn secondary btn-block" id="sheet-cancel">Cancel</button>
           <button type="submit" class="btn btn-block">Save Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="bottom-sheet-overlay" id="mood-overlay">
+    <div class="bottom-sheet" id="mood-sheet">
+      <div class="sheet-handle"></div>
+      <h3 style="margin:0 0 20px;font-size:18px">Catat Mood Setelah Selesai</h3>
+      <form id="mood-form">
+        <div class="form-group">
+          <label class="form-label">Bagaimana perasaan Anda?</label>
+          <div class="prio-selector" id="mood-grid" style="gap:8px">
+            <button type="button" class="prio-btn" data-val="1">😫</button>
+            <button type="button" class="prio-btn" data-val="2">😕</button>
+            <button type="button" class="prio-btn" data-val="3">😐</button>
+            <button type="button" class="prio-btn" data-val="4">🙂</button>
+            <button type="button" class="prio-btn" data-val="5">🤩</button>
+          </div>
+          <input type="hidden" name="mood" id="mood-value" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Catatan (opsional)</label>
+          <textarea name="note" id="mood-note" class="form-input" placeholder="Contoh: Selesai tugas, rasanya lega"></textarea>
+        </div>
+        <div class="sheet-actions">
+          <button type="button" class="btn secondary btn-block" id="mood-cancel">Lewati</button>
+          <button type="submit" class="btn btn-block">Simpan</button>
         </div>
       </form>
     </div>

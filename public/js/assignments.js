@@ -2,6 +2,23 @@ import { initProtected, showToast } from './main.js';
 import { get, post, put, del } from './api.js';
 
 let timerInterval;
+let notifyInterval;
+const LS_KEYS = {
+  owners: 'assignment_owners',
+  started: 'assignment_started',
+  snooze: 'assignment_snooze',
+  notified: 'assignment_last_notified'
+};
+function getMap(key) { const s = localStorage.getItem(key); return s ? JSON.parse(s) : {}; }
+function setMap(key, m) { localStorage.setItem(key, JSON.stringify(m)); }
+function getOwner(id) { const m = getMap(LS_KEYS.owners); return m[id] || 'Zaldy'; }
+function setOwner(id, user) { const m = getMap(LS_KEYS.owners); m[id] = user; setMap(LS_KEYS.owners, m); }
+function isStarted(id) { const m = getMap(LS_KEYS.started); return !!m[id]; }
+function setStarted(id, v) { const m = getMap(LS_KEYS.started); if (v) m[id] = Date.now(); else delete m[id]; setMap(LS_KEYS.started, m); }
+function getSnoozeUntil(id) { const m = getMap(LS_KEYS.snooze); return m[id] || 0; }
+function setSnoozeUntil(id, ts) { const m = getMap(LS_KEYS.snooze); if (ts) m[id] = ts; else delete m[id]; setMap(LS_KEYS.snooze, m); }
+function getLastNotified(id) { const m = getMap(LS_KEYS.notified); return m[id] || 0; }
+function setLastNotified(id, ts) { const m = getMap(LS_KEYS.notified); m[id] = ts; setMap(LS_KEYS.notified, m); }
 
 function formatCountdown(ms) {
   if (ms <= 0) return 'Overdue';
@@ -21,12 +38,13 @@ async function requestNotificationPermission() {
   }
 }
 
-function sendNotification(title, timeLeft) {
+function sendNotification(title, timeLeft, owner) {
   if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('Tugas Urgent!', {
+    const n = new Notification(`Tugas ${owner}`, {
       body: `"${title}" sisa waktu ${timeLeft}`,
       icon: '/icons/192.png'
     });
+    n.onclick = () => window.focus();
   }
 }
 
@@ -41,15 +59,20 @@ function updateTimers() {
     el.textContent = formatCountdown(diff);
     
     const parent = el.closest('.list-item');
+    const id = el.dataset.id;
+    const snoozeUntil = getSnoozeUntil(id);
+    if (isStarted(id) || snoozeUntil > now) {
+      parent.classList.remove('urgent');
+      return;
+    }
     // Urgent logic: < 12 hours (12 * 60 * 60 * 1000 = 43200000)
     if (diff > 0 && diff < 43200000) {
       if (!parent.classList.contains('urgent')) {
         parent.classList.add('urgent');
-        // Trigger notification only once per session logic could be added here
-        // For now simple check to avoid spamming
-        if (!el.dataset.notified) {
-           sendNotification(el.dataset.title, formatCountdown(diff));
-           el.dataset.notified = 'true';
+        const last = getLastNotified(id);
+        if (!last || (Date.now() - last) > 1800000) {
+          sendNotification(el.dataset.title, formatCountdown(diff), getOwner(id));
+          setLastNotified(id, Date.now());
         }
       }
     } else if (diff <= 0) {
@@ -58,6 +81,33 @@ function updateTimers() {
     } else {
       parent.classList.remove('urgent');
       parent.classList.remove('overdue');
+    }
+  });
+}
+
+function checkReminders(list) {
+  const now = Date.now();
+  const TH48 = 48 * 3600 * 1000;
+  const TH24 = 24 * 3600 * 1000;
+  const TH2 = 2 * 3600 * 1000;
+  list.forEach(a => {
+    if (!a.deadline) return;
+    if (a.completed) return;
+    const id = String(a.id);
+    if (isStarted(id)) return;
+    const snoozeUntil = getSnoozeUntil(id);
+    if (snoozeUntil > now) return;
+    const dl = new Date(a.deadline).getTime();
+    const diff = dl - now;
+    if (diff <= 0) return;
+    const last = getLastNotified(id);
+    let should = false;
+    if (diff <= TH48 && diff > TH24 && now - last > 3600000) should = true;
+    else if (diff <= TH24 && diff > TH2 && now - last > 3600000) should = true;
+    else if (diff <= TH2 && now - last > 1800000) should = true;
+    if (should) {
+      sendNotification(a.title, formatCountdown(diff), getOwner(id));
+      setLastNotified(id, now);
     }
   });
 }
@@ -109,6 +159,19 @@ async function load() {
     title.textContent = a.title;
     header.appendChild(title);
 
+    const ownerSel = document.createElement('select');
+    ownerSel.className = 'input small';
+    ownerSel.dataset.id = String(a.id);
+    ownerSel.dataset.action = 'owner';
+    ['Zaldy', 'Nesya'].forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u;
+      opt.textContent = u;
+      ownerSel.appendChild(opt);
+    });
+    ownerSel.value = getOwner(String(a.id));
+    header.appendChild(ownerSel);
+
     left.appendChild(header);
 
     if (a.description) {
@@ -137,6 +200,7 @@ async function load() {
       timer.className = 'countdown-timer badge';
       timer.dataset.deadline = a.deadline;
       timer.dataset.title = a.title;
+      timer.dataset.id = String(a.id);
       timer.textContent = '...';
       info.appendChild(timer);
     }
@@ -144,6 +208,21 @@ async function load() {
 
     const actions = document.createElement('div');
     actions.className = 'actions';
+    if (!isCompleted) {
+      const startBtn = document.createElement('button');
+      startBtn.className = 'btn small';
+      startBtn.dataset.id = String(a.id);
+      startBtn.dataset.action = 'start';
+      startBtn.textContent = isStarted(String(a.id)) ? 'Started' : 'Start';
+      actions.appendChild(startBtn);
+
+      const snoozeBtn = document.createElement('button');
+      snoozeBtn.className = 'btn small';
+      snoozeBtn.dataset.id = String(a.id);
+      snoozeBtn.dataset.action = 'snooze';
+      snoozeBtn.textContent = 'Snooze 1h';
+      actions.appendChild(snoozeBtn);
+    }
     const delBtn = document.createElement('button');
     delBtn.className = 'btn danger small';
     delBtn.dataset.id = String(a.id);
@@ -172,6 +251,10 @@ async function load() {
   if (timerInterval) clearInterval(timerInterval);
   updateTimers(); // Initial call
   timerInterval = setInterval(updateTimers, 1000); // Update every second
+  const activeData = active;
+  if (notifyInterval) clearInterval(notifyInterval);
+  checkReminders(activeData);
+  notifyInterval = setInterval(() => checkReminders(activeData), 60000);
 }
 
 async function create(e) {
@@ -218,6 +301,21 @@ async function actions(e) {
     await put('/assignments', { id, completed: btn.checked });
     showToast(btn.checked ? 'Tugas selesai' : 'Tugas dibuka kembali', 'info');
   }
+   if (act === 'owner') {
+     setOwner(id, btn.value);
+     showToast(`Pemilik tugas: ${btn.value}`, 'info');
+   }
+   if (act === 'start') {
+     const newVal = !isStarted(id);
+     setStarted(id, newVal);
+     btn.textContent = newVal ? 'Started' : 'Start';
+     showToast(newVal ? 'Mulai mengerjakan' : 'Berhenti menandai', 'info');
+   }
+   if (act === 'snooze') {
+     const until = Date.now() + 3600000;
+     setSnoozeUntil(id, until);
+     showToast('Di-snooze 1 jam', 'info');
+   }
   load();
 }
 
@@ -226,15 +324,15 @@ function init() {
   
   // Delegate events for both lists
   const handleListClick = (e) => {
-    if (e.target.tagName === 'INPUT') actions(e); // Checkbox change
-    else actions(e); // Button click (via closest in actions)
+    if (e.target.tagName === 'INPUT') actions(e);
+    else actions(e);
   };
 
   document.querySelector('#assignments-active').addEventListener('click', handleListClick);
-  document.querySelector('#assignments-active').addEventListener('change', handleListClick); // For checkbox
+  document.querySelector('#assignments-active').addEventListener('change', handleListClick);
   
   document.querySelector('#assignments-completed').addEventListener('click', handleListClick);
-  document.querySelector('#assignments-completed').addEventListener('change', handleListClick); // For checkbox
+  document.querySelector('#assignments-completed').addEventListener('change', handleListClick);
   
   load();
 }

@@ -10,6 +10,16 @@
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • College Assignments</title>
+  <style>
+    .bottom-sheet-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:100;opacity:0;pointer-events:none;transition:opacity .3s}
+    .bottom-sheet-overlay.active{opacity:1;pointer-events:auto}
+    .bottom-sheet{position:absolute;bottom:0;left:0;right:0;background:#15192b;border-top-left-radius:20px;border-top-right-radius:20px;padding:24px;transform:translateY(100%);transition:transform .3s cubic-bezier(.1,.7,.1,1);max-height:85vh;overflow-y:auto;border-top:1px solid rgba(255,255,255,.1)}
+    .bottom-sheet.active{transform:translateY(0)}
+    .sheet-handle{width:40px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 20px}
+    .prio-selector{display:flex;gap:8px}
+    .prio-btn{flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--muted);font-size:12px;text-align:center;cursor:pointer}
+    .prio-btn.active{background:rgba(255,255,255,.1);color:var(--text);border-color:var(--primary)}
+  </style>
 </head>
 
 <body>
@@ -48,6 +58,33 @@
       </div>
     </div>
     <div class="footer">NZ</div>
+  </div>
+  <div class="bottom-sheet-overlay" id="mood-overlay">
+    <div class="bottom-sheet" id="mood-sheet">
+      <div class="sheet-handle"></div>
+      <h3 style="margin:0 0 20px;font-size:18px">Catat Mood Setelah Selesai</h3>
+      <form id="mood-form">
+        <div class="form-group">
+          <label class="form-label">Bagaimana perasaan Anda?</label>
+          <div class="prio-selector" id="mood-grid" style="gap:8px">
+            <button type="button" class="prio-btn" data-val="1">😫</button>
+            <button type="button" class="prio-btn" data-val="2">😕</button>
+            <button type="button" class="prio-btn" data-val="3">😐</button>
+            <button type="button" class="prio-btn" data-val="4">🙂</button>
+            <button type="button" class="prio-btn" data-val="5">🤩</button>
+          </div>
+          <input type="hidden" name="mood" id="mood-value" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Catatan (opsional)</label>
+          <textarea name="note" id="mood-note" class="input" placeholder="Contoh: Selesai tugas, rasanya lega"></textarea>
+        </div>
+        <div class="sheet-actions" style="display:flex;gap:12px;margin-top:12px">
+          <button type="button" class="btn secondary" id="mood-cancel" style="flex:1">Lewati</button>
+          <button type="submit" class="btn" style="flex:1">Simpan</button>
+        </div>
+      </form>
+    </div>
   </div>
   <script type="module" src="js/assignments.js"></script>
 </body>

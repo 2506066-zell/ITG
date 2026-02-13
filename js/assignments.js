@@ -2,6 +2,7 @@ import { initProtected, showToast } from './main.js';
 import { get, post, put, del } from './api.js';
 
 let timerInterval;
+let moodOverlay, moodSheet, moodForm, moodGrid, moodValueEl, moodNoteEl;
 
 function formatCountdown(ms) {
   if (ms <= 0) return 'Overdue';
@@ -217,6 +218,10 @@ async function actions(e) {
   if (act === 'toggle') {
     await put('/assignments', { id, completed: btn.checked });
     showToast(btn.checked ? 'Tugas selesai' : 'Tugas dibuka kembali', 'info');
+    if (btn.checked) {
+      const title = btn.closest('.list-item')?.querySelector('strong')?.textContent || '';
+      openMoodPrompt(`Selesai tugas kuliah: ${title}`);
+    }
   }
   load();
 }
@@ -237,6 +242,54 @@ function init() {
   document.querySelector('#assignments-completed').addEventListener('change', handleListClick); // For checkbox
   
   load();
+  moodOverlay = document.getElementById('mood-overlay');
+  moodSheet = document.getElementById('mood-sheet');
+  moodForm = document.getElementById('mood-form');
+  moodGrid = document.getElementById('mood-grid');
+  moodValueEl = document.getElementById('mood-value');
+  moodNoteEl = document.getElementById('mood-note');
+  setupMoodEvents();
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+function setupMoodEvents() {
+  if (!moodGrid) return;
+  moodGrid.querySelectorAll('.prio-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      moodValueEl.value = b.dataset.val;
+    });
+  });
+  document.getElementById('mood-cancel')?.addEventListener('click', () => {
+    closeMoodPrompt();
+  });
+  moodForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const val = moodValueEl.value;
+    if (!val) { showToast('Pilih mood', 'error'); return; }
+    const body = { mood: val, note: moodNoteEl.value, date: new Date().toISOString() };
+    try {
+      await post('/evaluations', body);
+      showToast('Mood disimpan', 'success');
+    } catch (err) {
+      showToast('Gagal menyimpan', 'error');
+    }
+    closeMoodPrompt();
+  });
+}
+
+function openMoodPrompt(note) {
+  if (!moodOverlay) return;
+  moodValueEl.value = '';
+  moodNoteEl.value = note || '';
+  moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
+  moodOverlay.classList.add('active');
+  moodSheet.classList.add('active');
+}
+
+function closeMoodPrompt() {
+  moodOverlay.classList.remove('active');
+  moodSheet.classList.remove('active');
+}

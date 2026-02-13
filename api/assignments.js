@@ -2,6 +2,7 @@ import { pool, readBody, verifyToken, withErrorHandling, sendJson } from './_lib
 export default withErrorHandling(async function handler(req, res) {
   const v = verifyToken(req, res);
   if (!v) return;
+  const user = v.user;
   if (req.method === 'GET') {
     const r = await pool.query('SELECT * FROM assignments ORDER BY deadline NULLS LAST, id DESC');
     sendJson(res, 200, r.rows, 30);
@@ -28,16 +29,39 @@ export default withErrorHandling(async function handler(req, res) {
     const { id, title, deadline, completed } = b;
     const idNum = Number(id);
     if (!idNum) { res.status(400).json({ error: 'Invalid id' }); return; }
+
+    // Load current row to determine transitions
+    const cur = await pool.query('SELECT * FROM assignments WHERE id=$1', [idNum]);
+    if (cur.rowCount === 0) { res.status(404).json({ error: 'Not found' }); return; }
+    const row = cur.rows[0];
+
     const fields = [];
     const vals = [];
     let i = 1;
+
     if (title !== undefined) { fields.push(`title=$${i++}`); vals.push(title); }
     if (deadline !== undefined) {
       const dl = deadline ? new Date(deadline) : null;
       if (deadline && isNaN(dl)) { res.status(400).json({ error: 'Invalid deadline' }); return; }
       fields.push(`deadline=$${i++}`); vals.push(dl || null);
     }
-    if (completed !== undefined) { fields.push(`completed=$${i++}`); vals.push(completed); }
+    if (completed !== undefined) { 
+      fields.push(`completed=$${i++}`); 
+      vals.push(completed); 
+      if (completed === true && !row.completed) {
+        fields.push(`completed_at=NOW()`); 
+        fields.push(`completed_by=$${i++}`); 
+        vals.push(user);
+      } else if (completed === false && row.completed) {
+        fields.push(`completed_at=NULL`);
+        fields.push(`completed_by=NULL`);
+      }
+    }
+
+    // Tracking column
+    fields.push(`updated_by=$${i++}`);
+    vals.push(user);
+
     vals.push(idNum);
     const r = await pool.query(`UPDATE assignments SET ${fields.join(', ')} WHERE id=$${i} RETURNING *`, vals);
     sendJson(res, 200, r.rows[0]);

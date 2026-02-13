@@ -1,6 +1,6 @@
 
 import { get, post, del } from './api.js';
-import { initProtected, normalizeLinks } from './main.js';
+import { initProtected, normalizeLinks, showToast } from './main.js';
 
 const state = {
     user: 'Zaldy', // Default user
@@ -17,6 +17,12 @@ const els = {
     modalOverlay: document.getElementById('modal-overlay'),
     modalCancel: document.getElementById('modal-cancel'),
     createForm: document.getElementById('create-form'),
+    moodOverlay: document.getElementById('mood-overlay'),
+    moodSheet: document.getElementById('mood-sheet'),
+    moodForm: document.getElementById('mood-form'),
+    moodGrid: document.getElementById('mood-grid'),
+    moodValueEl: document.getElementById('mood-value'),
+    moodNoteEl: document.getElementById('mood-note'),
     // Stats
     zRate: document.getElementById('stat-z-rate'),
     zStreak: document.getElementById('stat-z-streak'),
@@ -50,13 +56,16 @@ function init() {
     els.fab.addEventListener('click', () => {
         els.modalOverlay.classList.add('active');
         els.createForm.querySelector('input').focus();
+        els.monthPicker.disabled = true;
     });
 
     els.modalCancel.addEventListener('click', () => {
         els.modalOverlay.classList.remove('active');
+        els.monthPicker.disabled = false;
     });
 
     els.createForm.addEventListener('submit', handleCreate);
+    setupMoodEvents();
 
     // Initial Load
     loadAll();
@@ -70,10 +79,9 @@ function loadAll() {
 
 function updateArchiveState() {
     const currentMonth = new Date().toISOString().slice(0, 7);
-    const isPast = state.month < currentMonth;
-    
-    // Hide/Show FAB based on if it's past month
-    if (isPast) {
+    const isCurrent = state.month === currentMonth;
+    // Hanya izinkan membuat habit di bulan sistem saat ini
+    if (!isCurrent) {
         els.fab.style.display = 'none';
     } else {
         els.fab.style.display = 'flex';
@@ -142,6 +150,7 @@ function renderTodos() {
             let classes = ['day-box'];
             if (isCurrentMonth && d === currentDay) classes.push('today');
             if (isCompleted) classes.push('completed');
+            if (!isCurrentMonth || d !== currentDay) classes.push('disabled');
             
             daysHtml += `<div class="${classes.join(' ')}" 
                 data-id="${todo.id}" 
@@ -201,11 +210,12 @@ async function handleCreate(e) {
             action: 'create_todo',
             title,
             user_id: state.user,
-            month: state.month
+            month: new Date().toISOString().slice(0, 7)
         });
         
         els.modalOverlay.classList.remove('active');
         e.target.reset();
+        els.monthPicker.disabled = false;
         loadAll(); // Reload everything
     } catch (err) {
         console.error(err);
@@ -219,6 +229,12 @@ window.handleDayClick = async (box) => {
     const currentMonth = new Date().toISOString().slice(0, 7);
     if (state.month < currentMonth) {
         alert('Past months are read-only.');
+        return;
+    }
+    // Hanya hari ini yang bisa di-toggle
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (box.dataset.date !== todayStr) {
+        showToast('Hanya hari ini yang bisa di-check', 'error');
         return;
     }
 
@@ -244,6 +260,9 @@ window.handleDayClick = async (box) => {
             date: date,
             completed: newStatus
         });
+        if (newStatus) {
+            openMoodPrompt(`Selesai kebiasaan (${date})`);
+        }
         
         // Refresh stats silently to update percentages
         loadStats();
@@ -271,3 +290,44 @@ window.deleteTodo = async (id) => {
 
 // Start
 init();
+
+function setupMoodEvents() {
+    if (!els.moodGrid) return;
+    els.moodGrid.querySelectorAll('.prio-btn').forEach(b => {
+        b.addEventListener('click', () => {
+            els.moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+            els.moodValueEl.value = b.dataset.val;
+        });
+    });
+    document.getElementById('mood-cancel')?.addEventListener('click', () => {
+        closeMoodPrompt();
+    });
+    els.moodForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const val = els.moodValueEl.value;
+        if (!val) { showToast('Pilih mood', 'error'); return; }
+        const body = { mood: val, note: els.moodNoteEl.value, date: new Date().toISOString() };
+        try {
+            await post('/evaluations', body);
+            showToast('Mood disimpan', 'success');
+        } catch (err) {
+            showToast('Gagal menyimpan', 'error');
+        }
+        closeMoodPrompt();
+    });
+}
+
+function openMoodPrompt(note) {
+    if (!els.moodOverlay) return;
+    els.moodValueEl.value = '';
+    els.moodNoteEl.value = note || '';
+    els.moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
+    els.moodOverlay.classList.add('active');
+    els.moodSheet.classList.add('active');
+}
+
+function closeMoodPrompt() {
+    els.moodOverlay.classList.remove('active');
+    els.moodSheet.classList.remove('active');
+}

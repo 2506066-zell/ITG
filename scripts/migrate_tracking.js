@@ -115,6 +115,29 @@ async function run() {
     // Indexes to keep queries simple & efficient for 2 users
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to) WHERE is_deleted = FALSE;`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by) WHERE is_deleted = FALSE;`);
+    
+    // Additional: Ensure assignments have completion tracking
+    console.log('Ensuring assignments completion tracking columns...');
+    await pool.query(`
+      DO $$ 
+      BEGIN 
+        BEGIN
+          ALTER TABLE assignments ADD COLUMN completed_at TIMESTAMP;
+        EXCEPTION
+          WHEN duplicate_column THEN RAISE NOTICE 'column completed_at already exists in assignments';
+        END;
+      END $$;
+    `);
+    await pool.query(`
+      DO $$ 
+      BEGIN 
+        BEGIN
+          ALTER TABLE assignments ADD COLUMN completed_by VARCHAR(50);
+        EXCEPTION
+          WHEN duplicate_column THEN RAISE NOTICE 'column completed_by already exists in assignments';
+        END;
+      END $$;
+    `);
   } catch (err) {
     console.error('Migration failed:', err);
   } finally {

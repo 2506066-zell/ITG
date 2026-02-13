@@ -18,12 +18,19 @@ const sheetOverlay = document.getElementById('sheet-overlay');
 const sheet = document.getElementById('sheet');
 const multiToolbar = document.getElementById('multi-toolbar');
 const taskForm = document.getElementById('task-form');
+const moodOverlay = document.getElementById('mood-overlay');
+const moodSheet = document.getElementById('mood-sheet');
+const moodForm = document.getElementById('mood-form');
+const moodGrid = document.getElementById('mood-grid');
+const moodValueEl = document.getElementById('mood-value');
+const moodNoteEl = document.getElementById('mood-note');
 
 // Init
 async function init() {
   initProtected();
   setupEventListeners();
   await loadTasks();
+  setupMoodEvents();
 }
 
 // Load Data
@@ -303,6 +310,9 @@ async function toggleComplete(task) {
     await put('/tasks', { id: task.id, completed: task.completed, version: task.version });
     showToast(task.completed ? 'Task completed' : 'Task reopened', 'success');
     loadTasks(); // Sync version
+    if (task.completed) {
+      openMoodPrompt(`Selesai tugas: ${task.title}`);
+    }
   } catch (e) {
     // Revert
     task.completed = !task.completed;
@@ -395,6 +405,47 @@ function closeSheet() {
   document.activeElement?.blur();
 }
 
+function setupMoodEvents() {
+  if (!moodGrid) return;
+  moodGrid.querySelectorAll('.prio-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      moodValueEl.value = b.dataset.val;
+    });
+  });
+  document.getElementById('mood-cancel')?.addEventListener('click', () => {
+    closeMoodPrompt();
+  });
+  moodForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const val = moodValueEl.value;
+    if (!val) { showToast('Pilih mood', 'error'); return; }
+    const body = { mood: val, note: moodNoteEl.value, date: new Date().toISOString() };
+    try {
+      await post('/evaluations', body);
+      showToast('Mood disimpan', 'success');
+    } catch (err) {
+      showToast('Gagal menyimpan', 'error');
+    }
+    closeMoodPrompt();
+  });
+}
+
+function openMoodPrompt(note) {
+  if (!moodOverlay) return;
+  moodValueEl.value = '';
+  moodNoteEl.value = note || '';
+  moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
+  moodOverlay.classList.add('active');
+  moodSheet.classList.add('active');
+}
+
+function closeMoodPrompt() {
+  moodOverlay.classList.remove('active');
+  moodSheet.classList.remove('active');
+}
+
 // Event Listeners
 function setupEventListeners() {
   // Filter Chips
@@ -467,6 +518,7 @@ function setupEventListeners() {
       exitMultiSelectMode();
       loadTasks();
       showToast('Tasks completed');
+      openMoodPrompt('Selesai beberapa tugas');
   });
 }
 

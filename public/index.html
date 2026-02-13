@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en" data-theme="dark">
 
 <head>
@@ -38,7 +38,7 @@
   <nav class="navbar">
     <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
     <div class="nav-actions">
-      <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
+      <a class="btn secondary" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
     </div>
   </nav>
   <div class="container">
@@ -76,52 +76,60 @@
         <div class="skeleton skeleton-line" style="width:80%"></div>
       </div>
     </div>
+    
+    <div class="card" style="margin-bottom: 2rem;">
+      <div class="section-title"><i class="fa-regular fa-face-smile"></i> Weekly Mood Recap</div>
+      <div id="weekly-mood" class="stats-container">
+        <div class="skeleton skeleton-line" style="width:100%"></div>
+        <div class="skeleton skeleton-line" style="width:80%"></div>
+      </div>
+    </div>
 
     <div class="grid home-grid">
       <div class="card">
         <div class="section-title"><i class="fa-solid fa-sparkles"></i> Memories</div>
         <div class="muted">Store titles, media references, and notes.</div>
-        <a class="btn" href="/memories">Open</a>
+        <a class="btn primary" href="/memories">Open</a>
       </div>
       <div class="card">
         <div class="section-title"><i class="fa-solid fa-list-check"></i> Daily Tasks</div>
         <div class="muted">Simple checklist.</div>
-        <a class="btn" href="/daily-tasks">Open</a>
+        <a class="btn primary" href="/daily-tasks">Open</a>
       </div>
       <div class="card">
         <div class="section-title"><i class="fa-solid fa-calendar-check"></i> Monthly Habits</div>
         <div class="muted">Track consistency & streaks.</div>
-        <a class="btn" href="/monthly-todos">Open</a>
+        <a class="btn primary" href="/monthly-todos">Open</a>
       </div>
       <div class="card">
         <div class="section-title"><i class="fa-solid fa-graduation-cap"></i> College Assignments</div>
         <div class="muted">Deadlines and status.</div>
-        <a class="btn" href="/college-assignments">Open</a>
+        <a class="btn primary" href="/college-assignments">Open</a>
       </div>
       <div class="card">
         <div class="section-title"><i class="fa-regular fa-calendar-days"></i> Class Schedule</div>
         <div class="muted">Weekly timetable.</div>
-        <a class="btn" href="/schedule">Open</a>
+        <a class="btn primary" href="/schedule">Open</a>
       </div>
       <div class="card">
         <div class="section-title"><i class="fa-solid fa-calendar-heart"></i> Anniversary</div>
         <div class="muted">Set the special date and note.</div>
-        <a class="btn" href="/anniversary">Open</a>
+        <a class="btn primary" href="/anniversary">Open</a>
       </div>
       <div class="card">
         <div class="section-title"><i class="fa-solid fa-message-heart"></i> Chat</div>
         <div class="muted">Local-only messages.</div>
-        <a class="btn" href="/chat">Open</a>
+        <a class="btn primary" href="/chat">Open</a>
       </div>
       <div class="card">
         <div class="section-title"><i class="fa-solid fa-bullseye"></i> Goals</div>
         <div class="muted">Targets and evaluations.</div>
-        <a class="btn" href="/goals">Open</a>
+        <a class="btn primary" href="/goals">Open</a>
       </div>
       <div class="card">
         <div class="section-title"><i class="fa-solid fa-gear"></i> Settings</div>
         <div class="muted">Theme and logout.</div>
-        <a class="btn" href="/settings">Open</a>
+        <a class="btn primary" href="/settings">Open</a>
       </div>
     </div>
     <div class="footer">NZ</div>
@@ -172,6 +180,54 @@
       } catch (err) {
         console.error(err);
         statsContainer.innerHTML = '<div class="muted center">Failed to load stats.</div>';
+      }
+      
+      const moodContainer = document.getElementById('weekly-mood');
+      try {
+        const w = await get('/weekly');
+        if (w && w.users) {
+          moodContainer.innerHTML = '';
+          const users = Object.keys(w.users);
+          const emoji = n => ({1:'😫',2:'😕',3:'😐',4:'🙂',5:'🤩'}[Math.round(n)] || '😐');
+          users.forEach(u => {
+            const info = w.users[u];
+            const header = document.createElement('div');
+            header.style.display = 'flex';
+            header.style.justifyContent = 'space-between';
+            header.style.marginBottom = '8px';
+            header.innerHTML = `
+              <span style="font-weight:600">${u}</span>
+              <span style="color:var(--primary)">corr ${info.correlation ?? 'n/a'}</span>
+            `;
+            moodContainer.appendChild(header);
+            const row = document.createElement('div');
+            row.style.display = 'grid';
+            row.style.gridTemplateColumns = 'repeat(7, 1fr)';
+            row.style.gap = '6px';
+            info.per_day.forEach(p => {
+              const cell = document.createElement('div');
+              cell.style.padding = '8px';
+              cell.style.border = '1px solid rgba(255,255,255,0.1)';
+              cell.style.borderRadius = '8px';
+              cell.style.textAlign = 'center';
+              const m = p.mood !== null ? emoji(p.mood) : '—';
+              const bar = `<div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;margin-top:6px"><div style="height:100%;background:var(--secondary);width:${Math.min(100, p.activities*20)}%"></div></div>`;
+              cell.innerHTML = `${m}${bar}`;
+              row.appendChild(cell);
+            });
+            moodContainer.appendChild(row);
+            const summary = document.createElement('div');
+            summary.className = 'muted';
+            summary.style.fontSize = '12px';
+            summary.style.marginTop = '6px';
+            const t = info.totals || {};
+            summary.textContent = `T ${t.tasks || 0} • M ${t.monthly || 0} • A ${t.assignments || 0}`;
+            moodContainer.appendChild(summary);
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        moodContainer.innerHTML = '<div class="muted center">Failed to load weekly mood.</div>';
       }
     });
 

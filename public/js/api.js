@@ -24,6 +24,8 @@ async function mockFetch(path, options) {
   const method = options.method || 'GET';
   const body = options.body ? JSON.parse(options.body) : {};
   const url = path.replace('/api', '') || path; // Handle with or without /api prefix if needed (here path is relative to /api in apiFetch)
+  const auth = options.headers && options.headers.Authorization;
+  const userFromToken = auth && auth.startsWith('Bearer mock-jwt-') ? auth.replace('Bearer mock-jwt-','') : 'Zaldy';
 
   // Helpers for LocalStorage Mock DB
   const db = (key, def) => {
@@ -77,7 +79,9 @@ async function mockFetch(path, options) {
         description: body.description || '', 
         deadline: body.deadline, 
         completed: false,
-        completed_at: null
+        completed_at: null,
+        user_id: userFromToken,
+        completed_by: null
       };
       list.push(item);
       save('assignments', list);
@@ -89,7 +93,8 @@ async function mockFetch(path, options) {
           return { 
             ...i, 
             completed: body.completed,
-            completed_at: body.completed ? (i.completed_at || new Date().toISOString()) : null
+            completed_at: body.completed ? (i.completed_at || new Date().toISOString()) : null,
+            completed_by: body.completed ? userFromToken : null
           };
         }
         return i;
@@ -170,7 +175,8 @@ async function mockFetch(path, options) {
         date: body.date, 
         mood: body.mood, 
         note: body.note,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        user_id: userFromToken
       };
       evals.push(e);
       save('evaluations', evals);
@@ -182,6 +188,74 @@ async function mockFetch(path, options) {
       save('evaluations', evals);
       data = { ok: true };
     }
+  }
+  else if (path.startsWith('/weekly')) {
+    const days = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      days.push(d.toISOString().slice(0,10));
+    }
+    const users = ['Zaldy','Nesya'];
+    const evals = db('evaluations', []);
+    const monthlyFor = (month, user) => db(`monthly_${month}_${user}`, []);
+    function avg(arr) { return arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length) : null; }
+    function pearson(xs, ys) {
+      const n = xs.length;
+      if (!n) return null;
+      let sx=0, sy=0, sxx=0, syy=0, sxy=0;
+      for (let i=0;i<n;i++){ const x=xs[i], y=ys[i]; sx+=x; sy+=y; sxx+=x*x; syy+=y*y; sxy+=x*y; }
+      const num = n*sxy - sx*sy;
+      const den = Math.sqrt((n*sxx - sx*sx)*(n*syy - sy*sy));
+      if (!den) return null;
+      return Number((num/den).toFixed(3));
+    }
+    const usersOut = {};
+    const assignments = db('assignments', []);
+    users.forEach(u => {
+      let totalTasks = 0;
+      let totalMonthly = 0;
+      let totalAssignments = 0;
+      const perDay = days.map(d => {
+        const ms = evals.filter(e => e.user_id === u && e.created_at.slice(0,10) === d).map(e => Number(e.mood));
+        const mood = avg(ms);
+        const actsAssignments = assignments.filter(a => a.completed_by === u && (a.completed_at || '').slice(0,10) === d).length;
+        totalAssignments += actsAssignments;
+        const mStr = d.slice(0,7);
+        const todos = monthlyFor(mStr, u);
+        const dayNum = parseInt(d.slice(8,10),10);
+        const actsMonthly = todos.reduce((acc,t)=>acc + (Array.isArray(t.completed_days) && t.completed_days.includes(dayNum) ? 1 : 0), 0);
+        totalMonthly += actsMonthly;
+        const activities = ms.length + actsAssignments + actsMonthly;
+        return { date: d, mood, activities };
+      });
+      const xs = perDay.filter(p => p.mood !== null).map(p => Number(p.mood));
+      const ys = perDay.filter(p => p.mood !== null).map(p => Number(p.activities));
+      const corr = pearson(xs, ys);
+      const avgMood = xs.length ? Number((xs.reduce((a,b)=>a+b,0)/xs.length).toFixed(2)) : null;
+      const totalActivities = perDay.reduce((a,b)=>a + Number(b.activities),0);
+      usersOut[u] = { per_day: perDay, correlation: corr, avg_mood: avgMood, total_activities: totalActivities, totals: { tasks: totalTasks, monthly: totalMonthly, assignments: totalAssignments } };
+    });
+    const combinedXs = days.flatMap(d => users.map(u => {
+      const ms = evals.filter(e => e.user_id === u && e.created_at.slice(0,10) === d).map(e => Number(e.mood));
+      const m = avg(ms);
+      return m;
+    })).filter(m => m !== null).map(Number);
+    const combinedYs = days.flatMap(d => users.map(u => {
+      const cntEval = evals.filter(e => e.user_id === u && e.created_at.slice(0,10) === d).length;
+      const cntAssignments = assignments.filter(a => a.completed_by === u && (a.completed_at || '').slice(0,10) === d).length;
+      const mStr = d.slice(0,7);
+      const todos = monthlyFor(mStr, u);
+      const dayNum = parseInt(d.slice(8,10),10);
+      const cntMonthly = todos.reduce((acc,t)=>acc + (Array.isArray(t.completed_days) && t.completed_days.includes(dayNum) ? 1 : 0), 0);
+      const cnt = cntEval + cntAssignments;
+      const ms = evals.filter(e => e.user_id === u && e.created_at.slice(0,10) === d).map(e => Number(e.mood));
+      const m = avg(ms);
+      return m !== null ? (cnt + cntMonthly) : null;
+    })).filter(a => a !== null).map(Number);
+    const combinedCorr = pearson(combinedXs, combinedYs);
+    data = { days, users: usersOut, combined: { correlation: combinedCorr } };
   }
   else if (path.startsWith('/schedule')) {
     let schedule = db('schedule', []);
@@ -263,12 +337,13 @@ async function mockFetch(path, options) {
     if (method === 'POST') {
       const action = body.action;
       if (action === 'create_todo') {
-        const { user_id, month, title } = body;
-        if (!title || !month || !user_id) {
+        const { user_id, title } = body;
+        const systemMonth = new Date().toISOString().slice(0,7);
+        if (!title || !user_id) {
           status = 400;
           data = { error: 'Invalid data' };
         } else {
-          const key = `monthly_${month}_${user_id}`;
+          const key = `monthly_${systemMonth}_${user_id}`;
           const todos = db(key, []);
           const newTodo = { id: Date.now(), title, completed_days: [] };
           todos.push(newTodo);
@@ -279,6 +354,13 @@ async function mockFetch(path, options) {
         const { todo_id, date, completed } = body;
         const month = (date || '').slice(0,7);
         const day = parseInt((date || '').slice(8,10), 10);
+        const todayStr = new Date().toISOString().slice(0,10);
+        const currentMonth = new Date().toISOString().slice(0,7);
+        if (date !== todayStr || month !== currentMonth) {
+          status = 403;
+          data = { error: 'Only today in current month can be toggled' };
+          return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+        }
         let affectedKey = null;
         const users = ['Zaldy','Nesya'];
         for (const u of users) {
