@@ -1,5 +1,6 @@
 
 import { get, post, del } from './api.js';
+import { initProtected, normalizeLinks } from './main.js';
 
 const state = {
     user: 'Zaldy', // Default user
@@ -27,6 +28,8 @@ const els = {
 };
 
 function init() {
+    initProtected();
+    normalizeLinks();
     // Set initial month value
     els.monthPicker.value = state.month;
 

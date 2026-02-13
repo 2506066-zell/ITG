@@ -96,7 +96,7 @@ export function logout() {
   location.href = '/login';
 }
 
-function normalizeLinks() {
+export function normalizeLinks() {
   const as = Array.from(document.querySelectorAll('a[href$=".html"]'));
   as.forEach(a => {
     const href = a.getAttribute('href') || '';

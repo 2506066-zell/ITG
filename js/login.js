@@ -1,6 +1,7 @@
 import { post } from './api.js';
-import { showToast } from './main.js';
+import { showToast, normalizeLinks } from './main.js';
 function init() {
+  normalizeLinks();
   const form = document.querySelector('#login-form');
   if (!form) return;
   form.addEventListener('submit', async e => {
