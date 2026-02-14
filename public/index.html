@@ -84,6 +84,16 @@
         <div class="skeleton skeleton-line" style="width:80%"></div>
       </div>
     </div>
+    
+    <div class="card" style="margin-bottom: 2rem;">
+      <div class="section-title"><i class="fa-solid fa-chart-bar"></i> Tren Harian Tugas Kuliah</div>
+      <div class="stats-container">
+        <div class="muted small" style="margin-bottom:6px">7 hari terakhir</div>
+        <div id="assignments-trend" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">
+          <div class="skeleton skeleton-line" style="width:100%"></div>
+        </div>
+      </div>
+    </div>
 
     <div class="grid home-grid">
       <div class="card">
@@ -228,6 +238,47 @@
       } catch (err) {
         console.error(err);
         moodContainer.innerHTML = '<div class="muted center">Failed to load weekly mood.</div>';
+      }
+      
+      const trendEl = document.getElementById('assignments-trend');
+      try {
+        const data = await get('/assignments');
+        const user = localStorage.getItem('user') || '';
+        const done = Array.isArray(data) ? data.filter(a => a.completed && a.completed_at) : [];
+        const byUser = user ? done.filter(a => (a.completed_by || '') === user) : done;
+        const days = [];
+        const base = new Date();
+        for (let i = 6; i >= 0; i++) {
+          const d = new Date(base);
+          d.setDate(base.getDate() - i);
+          days.push(d.toISOString().slice(0,10));
+        }
+        const counts = days.map(d => byUser.filter(a => (a.completed_at || '').slice(0,10) === d).length);
+        const max = Math.max(1, ...counts);
+        trendEl.innerHTML = '';
+        counts.forEach(cnt => {
+          const cell = document.createElement('div');
+          cell.style.textAlign = 'center';
+          const barBox = document.createElement('div');
+          barBox.style.height = '40px';
+          barBox.style.display = 'flex';
+          barBox.style.alignItems = 'flex-end';
+          barBox.style.justifyContent = 'center';
+          const bar = document.createElement('div');
+          bar.style.width = '12px';
+          bar.style.height = `${Math.max(4, Math.round((cnt / max) * 40))}px`;
+          bar.style.background = 'var(--secondary)';
+          bar.style.borderRadius = '3px';
+          barBox.appendChild(bar);
+          const num = document.createElement('div');
+          num.className = 'muted small';
+          num.textContent = String(cnt);
+          cell.appendChild(barBox);
+          cell.appendChild(num);
+          trendEl.appendChild(cell);
+        });
+      } catch (err) {
+        console.error(err);
       }
     });
 

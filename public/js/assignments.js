@@ -118,6 +118,10 @@ async function load() {
 
   const activeList = document.querySelector('#assignments-active');
   const completedList = document.querySelector('#assignments-completed');
+  const el1d = document.getElementById('stat-1d');
+  const el3d = document.getElementById('stat-3d');
+  const el5d = document.getElementById('stat-5d');
+  const trendEl = document.getElementById('stat-trend');
   
   // Skeleton
   activeList.innerHTML = `<div class="list-item"><div class="skeleton skeleton-line" style="width:70%"></div></div>`;
@@ -129,7 +133,67 @@ async function load() {
 
   if (!data.length) {
     activeList.innerHTML = '<div class="empty center muted">Belum ada tugas.</div>';
+    if (el1d) el1d.textContent = '0 tugas';
+    if (el3d) el3d.textContent = '0 tugas';
+    if (el5d) el5d.textContent = '0 tugas';
+    if (trendEl) trendEl.innerHTML = '';
     return;
+  }
+
+  try {
+    const currentUser = localStorage.getItem('user') || '';
+    const now = Date.now();
+    const daysToMs = (d) => d * 24 * 60 * 60 * 1000;
+    const done = data.filter(a => a.completed && a.completed_at);
+    const byUser = currentUser ? done.filter(a => (a.completed_by || '') === currentUser) : done;
+    const within = (a, days) => {
+      const t = new Date(a.completed_at).getTime();
+      return (now - t) <= daysToMs(days);
+    };
+    const c1 = byUser.filter(a => within(a, 1)).length;
+    const c3 = byUser.filter(a => within(a, 3)).length;
+    const c5 = byUser.filter(a => within(a, 5)).length;
+    if (el1d) el1d.textContent = `${c1} tugas`;
+    if (el3d) el3d.textContent = `${c3} tugas`;
+    if (el5d) el5d.textContent = `${c5} tugas`;
+    if (trendEl) {
+      const days = [];
+      const base = new Date();
+      for (let i = 6; i >= 0; i++) {
+        const d = new Date(base);
+        d.setDate(base.getDate() - i);
+        days.push(d.toISOString().slice(0,10));
+      }
+      const counts = days.map(d => byUser.filter(a => (a.completed_at || '').slice(0,10) === d).length);
+      trendEl.innerHTML = '';
+      const max = Math.max(1, ...counts);
+      counts.forEach(cnt => {
+        const cell = document.createElement('div');
+        cell.style.textAlign = 'center';
+        const barBox = document.createElement('div');
+        barBox.style.height = '40px';
+        barBox.style.display = 'flex';
+        barBox.style.alignItems = 'flex-end';
+        barBox.style.justifyContent = 'center';
+        const bar = document.createElement('div');
+        bar.style.width = '12px';
+        bar.style.height = `${Math.max(4, Math.round((cnt / max) * 40))}px`;
+        bar.style.background = 'var(--secondary)';
+        bar.style.borderRadius = '3px';
+        barBox.appendChild(bar);
+        const num = document.createElement('div');
+        num.className = 'muted small';
+        num.textContent = String(cnt);
+        cell.appendChild(barBox);
+        cell.appendChild(num);
+        trendEl.appendChild(cell);
+      });
+    }
+  } catch (_) {
+    if (el1d) el1d.textContent = '—';
+    if (el3d) el3d.textContent = '—';
+    if (el5d) el5d.textContent = '—';
+    if (trendEl) trendEl.innerHTML = '';
   }
 
   // Sort: Active by deadline (asc), Completed by completed_at (desc)

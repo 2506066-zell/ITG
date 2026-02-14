@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en" data-theme="dark">
 
 <head>
@@ -72,6 +72,14 @@
     <div class="card" style="margin-bottom: 2rem;">
       <div class="section-title"><i class="fa-solid fa-chart-line"></i> Weekly Contribution</div>
       <div id="weekly-stats" class="stats-container">
+        <div class="skeleton skeleton-line" style="width:100%"></div>
+        <div class="skeleton skeleton-line" style="width:80%"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 2rem;">
+      <div class="section-title"><i class="fa-regular fa-face-smile"></i> Weekly Mood Recap</div>
+      <div id="weekly-mood" class="stats-container">
         <div class="skeleton skeleton-line" style="width:100%"></div>
         <div class="skeleton skeleton-line" style="width:80%"></div>
       </div>
@@ -172,6 +180,58 @@
       } catch (err) {
         console.error(err);
         statsContainer.innerHTML = '<div class="muted center">Failed to load stats.</div>';
+      }
+
+      const moodContainer = document.getElementById('weekly-mood');
+      if (moodContainer) {
+        try {
+          const w = await get('/weekly');
+          moodContainer.innerHTML = '';
+          if (!w || !w.users || Object.keys(w.users).length === 0) {
+            moodContainer.innerHTML = '<div class="muted center">Belum ada data mood mingguan.</div>';
+          } else {
+            const users = Object.keys(w.users);
+            const emoji = n => ({1:'😫',2:'😕',3:'😐',4:'🙂',5:'🤩'}[Math.round(n)] || '😐');
+            users.forEach(u => {
+              const info = w.users[u];
+              const header = document.createElement('div');
+              header.style.display = 'flex';
+              header.style.justifyContent = 'space-between';
+              header.style.marginBottom = '8px';
+              header.innerHTML = `
+                <span style="font-weight:600">${u}</span>
+                <span style="color:var(--primary)">corr ${info.correlation ?? 'n/a'}</span>
+              `;
+              moodContainer.appendChild(header);
+              const row = document.createElement('div');
+              row.style.display = 'grid';
+              row.style.gridTemplateColumns = 'repeat(7, 1fr)';
+              row.style.gap = '6px';
+              info.per_day.forEach(p => {
+                const cell = document.createElement('div');
+                cell.style.padding = '8px';
+                cell.style.border = '1px solid rgba(255,255,255,0.1)';
+                cell.style.borderRadius = '8px';
+                cell.style.textAlign = 'center';
+                const m = p.mood !== null ? emoji(p.mood) : '—';
+                const bar = `<div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;margin-top:6px"><div style="height:100%;background:var(--secondary);width:${Math.min(100, p.activities*20)}%"></div></div>`;
+                cell.innerHTML = `${m}${bar}`;
+                row.appendChild(cell);
+              });
+              moodContainer.appendChild(row);
+              const summary = document.createElement('div');
+              summary.className = 'muted';
+              summary.style.fontSize = '12px';
+              summary.style.marginTop = '6px';
+              const t = info.totals || {};
+              summary.textContent = `T ${t.tasks || 0} • M ${t.monthly || 0} • A ${t.assignments || 0}`;
+              moodContainer.appendChild(summary);
+            });
+          }
+        } catch (err) {
+          console.error(err);
+          moodContainer.innerHTML = '<div class="muted center">Gagal memuat weekly mood.</div>';
+        }
       }
     });
 
