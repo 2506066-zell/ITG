@@ -1,0 +1,388 @@
+/* 🌌 LOGIN FUTURISTIK: COSMIC ROMANCE */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700;900&family=Sora:wght@300;400;600&display=swap');
+
+:root {
+    --neon-blue: #64ffda;
+    --neon-purple: #8a5cff;
+    --neon-orange: #ff8c42;
+    --glass-white: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --deep-space: #050816;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background: var(--deep-space);
+    font-family: 'Sora', sans-serif;
+    color: #fff;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 🌀 GALAXY BACKGROUND (Procedural) */
+.galaxy-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    background: radial-gradient(circle at 50% 50%, #0b0f2a 0%, #050816 100%);
+}
+
+.nebula {
+    position: absolute;
+    width: 100vw;
+    height: 100vw;
+    filter: blur(100px);
+    opacity: 0.4;
+    mix-blend-mode: screen;
+    pointer-events: none;
+}
+
+.nebula-1 {
+    top: -20%;
+    left: -10%;
+    background: radial-gradient(circle, var(--neon-purple), transparent 70%);
+    animation: drift 30s infinite alternate;
+}
+
+.nebula-2 {
+    bottom: -20%;
+    right: -10%;
+    background: radial-gradient(circle, var(--neon-blue), transparent 70%);
+    animation: drift 45s infinite alternate-reverse;
+}
+
+@keyframes drift {
+    from {
+        transform: translate(0, 0) scale(1);
+    }
+
+    to {
+        transform: translate(50px, 30px) scale(1.2);
+    }
+}
+
+/* 💖 ROMANTIC TYPING SECTION */
+.romantic-container {
+    text-align: center;
+    margin-bottom: 2rem;
+    z-index: 10;
+}
+
+.romantic-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    letter-spacing: 0.3em;
+    color: var(--neon-blue);
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 0 10px rgba(100, 255, 218, 0.5);
+}
+
+.nesya-name {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 3rem;
+    font-weight: 900;
+    color: #fff;
+}
+
+.nesya-char {
+    display: inline-block;
+    opacity: 0;
+    transform: scale(0);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+}
+
+.nesya-char:hover {
+    transform: scale(1.1) translateY(-5px);
+    text-shadow: 0 0 25px var(--neon-blue);
+    color: var(--neon-blue);
+}
+
+.nesya-char.show {
+    animation: char-burst 0.8s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards;
+}
+
+/* 💬 MESSAGE DISPLAY PANEL */
+.message-display {
+    min-height: 40px;
+    margin-bottom: 20px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: #fff;
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+    transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    padding: 12px 24px;
+    border-radius: 50px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: inline-block;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+}
+
+.message-display.active {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+/* Special Animation for Letter Y Message */
+.message-display.special-y {
+    font-style: italic;
+    letter-spacing: 0.15em;
+    background: rgba(138, 92, 255, 0.05);
+    border-color: rgba(138, 92, 255, 0.2);
+    animation: gentle-pulse 4s infinite ease-in-out;
+}
+
+@keyframes gentle-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 15px rgba(138, 92, 255, 0.1);
+    }
+
+    50% {
+        box-shadow: 0 0 30px rgba(138, 92, 255, 0.2);
+    }
+}
+
+/* Wave Ripple Effect */
+.ripple {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(100, 255, 218, 0.4);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: ripple-wave 0.8s ease-out forwards;
+}
+
+@keyframes ripple-wave {
+    from {
+        width: 0;
+        height: 0;
+        opacity: 1;
+    }
+
+    to {
+        width: 200px;
+        height: 200px;
+        opacity: 0;
+    }
+}
+
+@keyframes char-burst {
+    0% {
+        transform: scale(0) rotate(0deg);
+        opacity: 0;
+        filter: brightness(5);
+    }
+
+    50% {
+        transform: scale(1.5) rotate(10deg);
+        opacity: 1;
+        filter: brightness(2);
+        text-shadow: 0 0 30px var(--neon-purple);
+    }
+
+    100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+        filter: brightness(1);
+        text-shadow: 0 0 15px var(--neon-purple);
+    }
+}
+
+/* 🎟️ LOGIN CARD */
+.login-card {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    padding: 2.5rem;
+    background: var(--glass-white);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    z-index: 20;
+    transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.login-card:hover {
+    border-color: rgba(138, 92, 255, 0.4);
+}
+
+.login-card::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, transparent, var(--glass-border), transparent);
+    border-radius: 24px;
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* 🖋️ FORM ELEMENTS */
+.input-group {
+    position: relative;
+    margin-bottom: 1.5rem;
+}
+
+.input-label {
+    position: absolute;
+    top: 50%;
+    left: 18px;
+    transform: translateY(-50%);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.9rem;
+    pointer-events: none;
+    transition: all 0.3s ease;
+}
+
+.modern-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 15px 18px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 1rem;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+}
+
+.modern-input:focus {
+    outline: none;
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 15px rgba(100, 255, 218, 0.2);
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.modern-input:focus~.input-label,
+.modern-input:not(:placeholder-shown)~.input-label {
+    top: -10px;
+    left: 12px;
+    background: var(--neon-purple);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #fff;
+    font-weight: 700;
+}
+
+/* 🚀 BUTTON */
+.btn-login {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--neon-purple), var(--neon-blue));
+    border: none;
+    border-radius: 12px;
+    color: #fff;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 10px 20px rgba(138, 92, 255, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-login:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 30px rgba(100, 255, 218, 0.4);
+    filter: brightness(1.1);
+}
+
+.btn-login:active {
+    transform: scale(0.98);
+}
+
+.btn-login::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn-login:active::after {
+    width: 300px;
+    height: 300px;
+    opacity: 0;
+}
+
+/* 🌟 CURSOR TRAIL (JS driven) */
+.cursor-trail {
+    position: fixed;
+    width: 8px;
+    height: 8px;
+    background: var(--neon-blue);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    filter: blur(2px);
+    box-shadow: 0 0 10px var(--neon-blue);
+    opacity: 0.6;
+}
+
+/* SKELETON LOAD */
+.loading-ring {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 10px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 480px) {
+    .login-card {
+        padding: 1.5rem;
+        max-width: 90%;
+    }
+
+    .nesya-name {
+        font-size: 2rem;
+    }
+}
