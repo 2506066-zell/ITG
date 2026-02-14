@@ -127,3 +127,10 @@ window.addEventListener('beforeinstallprompt', (e) => {
   // Dispatch event so other pages can react
   document.dispatchEvent(new CustomEvent('pwa-installable'));
 });
+
+if (typeof window !== 'undefined') {
+  if (!window.__galaxyLoaded && window.innerWidth >= 768 && navigator.hardwareConcurrency > 4) {
+    window.__galaxyLoaded = 1;
+    import('./particles.js');
+  }
+}

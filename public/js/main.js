@@ -47,11 +47,21 @@ export function showToast(text, type = 'info', timeout = 2500) {
 }
 export function initProtected() {
   requireAuth();
-  disableSW();
   loadTheme();
+  registerSW();
   startHeroTimer();
 }
 
+export async function registerSW() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) {
+        await navigator.serviceWorker.register('/sw.js');
+      }
+    }
+  } catch (_) {}
+}
 function startHeroTimer() {
   const heroTimer = document.getElementById('countdown'); // Updated selector
   if (!heroTimer) return;
@@ -118,3 +128,10 @@ window.addEventListener('beforeinstallprompt', (e) => {
   // Dispatch event so other pages can react
   document.dispatchEvent(new CustomEvent('pwa-installable'));
 });
+
+if (typeof window !== 'undefined') {
+  if (!window.__galaxyLoaded && window.innerWidth >= 768 && navigator.hardwareConcurrency > 4) {
+    window.__galaxyLoaded = 1;
+    import('./particles.js');
+  }
+}
