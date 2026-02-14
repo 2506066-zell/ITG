@@ -130,8 +130,20 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 if (typeof window !== 'undefined') {
+  const pref = localStorage.getItem('galaxy_enabled');
+  const enabled = pref === null ? true : pref === 'true';
+  if (enabled && !window.__galaxyLoaded && window.innerWidth >= 768 && navigator.hardwareConcurrency > 4) {
+    import('./particles.js');
+  }
+}
+
+export function setGalaxyEnabled(v) {
+  localStorage.setItem('galaxy_enabled', v ? 'true' : 'false');
+  if (!v) {
+    if (window.__galaxyCleanup) window.__galaxyCleanup();
+    return;
+  }
   if (!window.__galaxyLoaded && window.innerWidth >= 768 && navigator.hardwareConcurrency > 4) {
-    window.__galaxyLoaded = 1;
     import('./particles.js');
   }
 }

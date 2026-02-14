@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cf-v10';
+const CACHE_NAME = 'cf-v11';
 const ASSETS = [
   '/',
   '/login',
@@ -15,6 +15,7 @@ const ASSETS = [
   'manifest.json',
   'css/style.css',
   'css/themes.css',
+  'Space.jpg',
   'js/main.js',
   'js/api.js',
   'js/login.js',

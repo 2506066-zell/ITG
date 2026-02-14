@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<!doctype html>
+﻿﻿﻿﻿﻿﻿﻿﻿<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
@@ -6,7 +6,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes.css">
-  <link rel="icon" href="icons/192.png">
+  <link rel="icon" href="Space.jpg">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • Settings</title>
 </head>
@@ -35,6 +35,37 @@
           <i class="fa-solid fa-download"></i> Install App
         </button>
         <div class="muted small">Version 1.0.0 (PWA Ready)</div>
+      </div>
+      <div class="card">
+        <div class="section-title">Background</div>
+        <label class="list-item" style="display:flex;align-items:center;gap:12px;cursor:pointer">
+          <input type="checkbox" id="galaxy-toggle">
+          <span>Galaxy Background</span>
+        </label>
+      </div>
+      <div class="card">
+        <div class="section-title">3D Planet Positions</div>
+        <div id="space3d-panel">
+          <div id="space3d-wrap" style="position:relative;width:100%;height:360px;border:var(--glass-border);border-radius:var(--radius-lg);overflow:hidden;background:var(--bg-deep)">
+            <canvas id="space3d-canvas"></canvas>
+            <div id="space3d-fps" class="muted small" style="position:absolute;top:8px;right:8px">FPS: --</div>
+          </div>
+          <div class="list" style="margin-top:12px" id="space3d-controls">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+              <button class="btn" id="space3d-add"><i class="fa-solid fa-plus"></i> Add Planet</button>
+              <button class="btn secondary" id="space3d-export"><i class="fa-solid fa-download"></i> Export</button>
+              <button class="btn secondary" id="space3d-import-btn"><i class="fa-solid fa-upload"></i> Import</button>
+              <input type="file" id="space3d-import" accept="application/json" style="display:none">
+              <button class="btn success" id="space3d-save"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+              <button class="btn danger" id="space3d-reset"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+              <label class="list-item" style="display:flex;align-items:center;gap:8px;margin-left:auto">
+                <input type="checkbox" id="space3d-apply">
+                <span>Terapkan ke Galaxy Background</span>
+              </label>
+            </div>
+            <div id="space3d-list"></div>
+          </div>
+        </div>
       </div>
       <div class="card">
         <div class="section-title">Session</div>
