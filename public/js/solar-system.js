@@ -27,6 +27,7 @@ let nodes = [];
 let mouseX = null, mouseY = null;
 let starCanvas, starCtx;
 let stars = [];
+let milkyCanvas = null, milkyCtx = null;
 let constellationAlpha = 0;
 let asteroids = [];
 let moon = { angle: Math.random() * Math.PI * 2, speed: 0.03, radius: 14, size: 4, el: null };
@@ -34,8 +35,8 @@ let lastPositions = {};
 let ellipseRatio = GLOBAL_ELLIPSE;
 let orbitMaxX = 0;
 let orbitMaxY = 0;
-let solarNebulaLevel = 0.25;
-let solarNebulaTarget = 0.25;
+let solarNebulaLevel = 0;
+let solarNebulaTarget = 0;
 const ASTRO = {
     mercury: { radiusKm: 2439.7, rotHours: 1407.6, au: 0.39 },
     venus: { radiusKm: 6051.8, rotHours: -5832, au: 0.72 },
@@ -135,6 +136,7 @@ function handleResize() {
         ellipseRatio = GLOBAL_ELLIPSE;
     }
     refineSizesAndDistances();
+    buildMilkyWayTexture();
     drawOrbits();
     generateStars();
     generateAsteroids();
@@ -223,8 +225,8 @@ function drawSolarNebula(t) {
     const py = -ry * 8;
     const sx = centerX - px;
     const sy = centerY - py;
-    solarNebulaLevel += (solarNebulaTarget - solarNebulaLevel) * 0.06;
-    solarNebulaTarget = Math.max(0.25, solarNebulaTarget * 0.985);
+    solarNebulaLevel += (solarNebulaTarget - solarNebulaLevel) * 0.08;
+    solarNebulaTarget = Math.max(0.0, solarNebulaTarget * 0.975);
     const L = solarNebulaLevel;
     const R = 220 + 120 * L;
     starCtx.save();
@@ -254,6 +256,66 @@ function drawSolarNebula(t) {
     starCtx.restore();
     starCtx.globalCompositeOperation = 'source-over';
 }
+function buildMilkyWayTexture() {
+    const w = starCanvas.width;
+    const h = starCanvas.height;
+    const gw = Math.max(w * 0.92, 900);
+    const gh = Math.max(h * 0.15, 140);
+    milkyCanvas = document.createElement('canvas');
+    milkyCanvas.width = Math.floor(gw);
+    milkyCanvas.height = Math.floor(gh);
+    milkyCtx = milkyCanvas.getContext('2d');
+    const img = milkyCtx.createImageData(milkyCanvas.width, milkyCanvas.height);
+    const cx = gh * 0.5;
+    for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < gw; x++) {
+            const i = (y * gw + x) * 4;
+            const v = Math.exp(-Math.pow((y - cx) / (gh * 0.22), 2));
+            const n1 = Math.sin(x * 0.012) + Math.cos(y * 0.024) + Math.sin((x + y) * 0.008);
+            const n2 = Math.sin(x * 0.06 + y * 0.03);
+            const nf = 0.5 + 0.5 * Math.max(-1, Math.min(1, 0.6 * n1 + 0.4 * n2));
+            const f = v * (0.65 + 0.35 * nf);
+            const warm = 0.4 + 0.6 * Math.exp(-Math.pow((y - cx) / (gh * 0.18), 2));
+            const r = Math.min(255, Math.round((120 * warm + 60) * f));
+            const g = Math.min(255, Math.round((140 + 20 * warm) * f));
+            const b = Math.min(255, Math.round(200 * f));
+            const a = Math.round(255 * Math.min(0.32, f * 0.25));
+            img.data[i] = r;
+            img.data[i + 1] = g;
+            img.data[i + 2] = b;
+            img.data[i + 3] = a;
+        }
+    }
+    milkyCtx.putImageData(img, 0, 0);
+    milkyCtx.globalCompositeOperation = 'multiply';
+    for (let i = 0; i < 18; i++) {
+        const yy = gh * (0.32 + Math.random() * 0.36);
+        const len = gw * (0.12 + Math.random() * 0.22);
+        const lw = 6 + Math.random() * 18;
+        const x0 = Math.random() * (gw - len);
+        milkyCtx.strokeStyle = 'rgba(20,20,30,0.55)';
+        milkyCtx.lineWidth = lw;
+        milkyCtx.beginPath();
+        milkyCtx.moveTo(x0, yy + Math.sin(x0 * 0.01) * 2);
+        milkyCtx.lineTo(x0 + len, yy + Math.sin((x0 + len) * 0.01) * 2);
+        milkyCtx.stroke();
+    }
+    milkyCtx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 90; i++) {
+        const sx = Math.random() * gw;
+        const sy = gh * (0.32 + Math.random() * 0.36) + (Math.random() - 0.5) * 12;
+        const sr = 0.6 + Math.random() * 1.6;
+        const g = milkyCtx.createRadialGradient(sx, sy, 0, sx, sy, sr * 3);
+        const a = 0.18 + Math.random() * 0.35;
+        g.addColorStop(0, `rgba(240,240,255,${a})`);
+        g.addColorStop(1, 'rgba(240,240,255,0)');
+        milkyCtx.fillStyle = g;
+        milkyCtx.beginPath();
+        milkyCtx.arc(sx, sy, sr * 3, 0, Math.PI * 2);
+        milkyCtx.fill();
+    }
+    milkyCtx.globalCompositeOperation = 'source-over';
+}
 function drawMilkyWay(t) {
     const rx = ((mouseX ?? centerX) / window.innerWidth) - 0.5;
     const ry = ((mouseY ?? centerY) / window.innerHeight) - 0.5;
@@ -261,18 +323,17 @@ function drawMilkyWay(t) {
     const py = -ry * 4;
     const w = starCanvas.width;
     const h = starCanvas.height;
+    if (!milkyCanvas) return;
     starCtx.save();
+    starCtx.globalCompositeOperation = 'screen';
     starCtx.translate(w * 0.5 + px, h * 0.6 + py);
-    starCtx.rotate(-0.35);
-    const gw = Math.max(w * 0.9, 800);
-    const gh = Math.max(h * 0.12, 120);
-    const grad = starCtx.createLinearGradient(-gw/2, 0, gw/2, 0);
-    grad.addColorStop(0, 'rgba(140,150,190,0)');
-    grad.addColorStop(0.5, 'rgba(160,170,210,0.10)');
-    grad.addColorStop(1, 'rgba(140,150,190,0)');
-    starCtx.fillStyle = grad;
-    starCtx.fillRect(-gw/2, -gh/2, gw, gh);
+    starCtx.rotate(-0.34);
+    const alpha = 0.85;
+    starCtx.globalAlpha = alpha;
+    starCtx.drawImage(milkyCanvas, -milkyCanvas.width / 2, -milkyCanvas.height / 2);
+    starCtx.globalAlpha = 1;
     starCtx.restore();
+    starCtx.globalCompositeOperation = 'source-over';
 }
 function generateAsteroids() {
     const count = 650;
@@ -538,7 +599,7 @@ function refineSizesAndDistances() {
         const jIndex = nodes.findIndex(p => p.name === 'jupiter');
         const minGapInner = 36;
         const minGapOuter = 26;
-        const minGapJupiter = 38;
+        const minGapJupiter = 42;
         for (let i = 1; i <= 3; i++) {
             if (radii[i] < radii[i - 1] + minGapInner) {
                 radii[i] = radii[i - 1] + minGapInner;

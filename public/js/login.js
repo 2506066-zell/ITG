@@ -16,12 +16,6 @@ function init() {
       card.classList.add('visible');
       overlay.classList.add('show');
     });
-    sun.addEventListener('mouseenter', () => {
-      window.dispatchEvent(new CustomEvent('sun-emit', { detail: { strength: 0.6 } }));
-    });
-    sun.addEventListener('mouseleave', () => {
-      window.dispatchEvent(new CustomEvent('sun-emit', { detail: { strength: 0.35 } }));
-    });
     overlay.addEventListener('click', () => {
       card.classList.remove('visible');
       overlay.classList.remove('show');
