@@ -4,9 +4,11 @@
  */
 
 // 1. CALIBRATION CONSTANTS (Center to Sun in reference image)
-const SUN_X_RATIO = 0.51;
-const SUN_Y_RATIO = 0.43;
-const GLOBAL_ELLIPSE = 0.52; // Vertical squash to match image perspective
+const SUN_X_RATIO = 0.505;
+const SUN_Y_RATIO = 0.44;
+const GLOBAL_ELLIPSE = 0.51; // Vertical squash to match image perspective
+
+console.log('🪐 Solar System Layer Initializing...');
 
 const PLANETS = [
     { name: 'mercury', radius: 90, speed: 0.015, size: 6, angle: Math.random() * Math.PI * 2 },
@@ -24,7 +26,12 @@ let centerX, centerY;
 let nodes = [];
 
 function init() {
+    console.log('🚀 Solar System Init - Sun at:', SUN_X_RATIO, SUN_Y_RATIO);
     const container = document.getElementById('solar-system-layer');
+    if (!container) {
+        console.error('❌ Solar System Layer Container NOT found!');
+        return;
+    }
     canvas = document.getElementById('orbit-canvas');
     ctx = canvas.getContext('2d');
 

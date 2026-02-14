@@ -59,57 +59,63 @@ function initVisuals() {
   const chars = document.querySelectorAll('.nesya-char');
   chars.forEach(char => char.classList.add('show'));
 
-  // --- ☄️ AUTONOMOUS 3D WANDERER LOGIC ---
-  let currentX = window.innerWidth / 2;
-  let currentY = window.innerHeight / 3;
-  let currentZ = 0;
-  let targetX = currentX;
-  let targetY = currentY;
-  let targetZ = 0;
-  let rotX = 0, rotY = 0;
+  // --- 🪐 STABLE CINEMATIC DRIFTER ---
+  let pos = { x: window.innerWidth / 2, y: window.innerHeight / 3, z: 0 };
+  let vel = { x: (Math.random() - 0.5) * 0.5, y: (Math.random() - 0.5) * 0.5, z: (Math.random() - 0.5) * 0.2 };
+  let rot = { x: 0, y: 0 };
 
-  // Mouse Influence
-  let mouseX = 0, mouseY = 0;
+  const STABILITY = 0.995; // High stability factor
+  const CONST_SPEED = 0.4; // Fixed cinematic speed
+
+  // Mouse Influence (Subtle Parallax)
+  let mouse = { x: 0, y: 0 };
   window.addEventListener('mousemove', e => {
-    mouseX = (e.clientX - window.innerWidth / 2) * 0.05;
-    mouseY = (e.clientY - window.innerHeight / 2) * 0.05;
+    mouse.x = (e.clientX - window.innerWidth / 2) * 0.05;
+    mouse.y = (e.clientY - window.innerHeight / 2) * 0.05;
   });
 
-  function updateTarget() {
-    // Wanders to random parts of the screen
-    const padding = 100;
-    targetX = padding + Math.random() * (window.innerWidth - padding * 2);
-    targetY = padding + Math.random() * (window.innerHeight - padding * 2);
-    targetZ = Math.random() * 100 - 50; // Forward/Backward
+  function driftLoop() {
+    // 1. Occasional smooth direction change
+    if (Math.random() < 0.005) {
+      vel.x += (Math.random() - 0.5) * 0.1;
+      vel.y += (Math.random() - 0.5) * 0.1;
+      vel.z += (Math.random() - 0.5) * 0.05;
+    }
 
-    setTimeout(updateTarget, 3000 + Math.random() * 4000);
-  }
-  updateTarget();
+    // 2. Normalize Velocity to keep it STABLE (Constant Speed)
+    const mag = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
+    vel.x = (vel.x / mag) * CONST_SPEED;
+    vel.y = (vel.y / mag) * CONST_SPEED;
+    vel.z = (vel.z / mag) * CONST_SPEED;
 
-  function animateWanderer() {
-    // Smooth Lerp
-    currentX += (targetX - currentX) * 0.005;
-    currentY += (targetY - currentY) * 0.005;
-    currentZ += (targetZ - currentZ) * 0.005;
+    // 3. Keep within viewport boundaries (Smooth Bounce)
+    const pad = 150;
+    if (pos.x < pad || pos.x > window.innerWidth - pad) vel.x *= -1;
+    if (pos.y < pad || pos.y > window.innerHeight - pad) vel.y *= -1;
+    if (pos.z < -120 || pos.z > 120) vel.z *= -1;
 
-    // Subtle 3D Rotation based on movement
-    rotX += ((targetY - currentY) * 0.1 - rotX) * 0.02;
-    rotY += ((currentX - targetX) * 0.1 - rotY) * 0.02;
+    // 4. Update Position
+    pos.x += vel.x;
+    pos.y += vel.y;
+    pos.z += vel.z;
+
+    // 5. Cinematic Rotation (Inertia based on drift)
+    rot.x += (vel.y * 5 - rot.x) * 0.02;
+    rot.y += (-vel.x * 5 - rot.y) * 0.02;
 
     if (container) {
-      // Offset from center because container is fixed 50/50
-      const offsetX = currentX - window.innerWidth / 2 + mouseX;
-      const offsetY = currentY - window.innerHeight / 2 + mouseY;
+      const offsetX = pos.x - window.innerWidth / 2 + mouse.x;
+      const offsetY = pos.y - window.innerHeight / 2 + mouse.y;
 
       container.style.transform = `
-        translate3d(${offsetX}px, ${offsetY}px, ${currentZ}px) 
-        rotateX(${rotX}deg) 
-        rotateY(${rotY}deg)
+        translate3d(${offsetX}px, ${offsetY}px, ${pos.z}px) 
+        rotateX(${rot.x}deg) 
+        rotateY(${rot.y}deg)
       `;
     }
-    requestAnimationFrame(animateWanderer);
+    requestAnimationFrame(driftLoop);
   }
-  animateWanderer();
+  driftLoop();
 
   // --- 💬 INTERACTION & MIST ---
   const display = document.getElementById('message-display');
