@@ -5,7 +5,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const publicDir = path.join(root, 'public');
 function rmDir(p) {
-  try { fs.rmSync(p, { recursive: true, force: true }); } catch {}
+  try { fs.rmSync(p, { recursive: true, force: true }); } catch { }
 }
 function cpDir(from, to) {
   if (!fs.existsSync(from)) return;
@@ -24,7 +24,7 @@ function main() {
   cpDir(path.join(root, 'css'), path.join(publicDir, 'css'));
   cpDir(path.join(root, 'js'), path.join(publicDir, 'js'));
   cpDir(path.join(root, 'icons'), path.join(publicDir, 'icons'));
-  const htmls = fs.readdirSync(root).filter(f => f.endsWith('.html'));
+  const htmls = fs.readdirSync(root).filter(f => f.endsWith('.html') || f.endsWith('.jpg') || f.endsWith('.svg'));
   for (const h of htmls) {
     cpFile(path.join(root, h), path.join(publicDir, h));
   }
