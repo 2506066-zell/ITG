@@ -8,10 +8,10 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="icon" href="icons/192.png">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • Goals</title>
   <style>
-    /* Page Specific Critical CSS */
+    /* Page Specific Critical CSS - Goals HUD */
     body {
       overflow: hidden;
       height: 100vh;
@@ -30,8 +30,10 @@
 
     /* Header */
     .page-header {
-      padding: 16px 20px 8px;
-      background: var(--bg);
+      padding: 24px 20px 16px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      border-bottom: 1px solid var(--glass-border);
       flex-shrink: 0;
       display: flex;
       align-items: center;
@@ -39,9 +41,11 @@
     }
 
     .header-title {
-      font-size: 20px;
+      font-family: var(--font-head);
+      font-size: 1.25rem;
       font-weight: 700;
-      color: var(--text);
+      color: hsl(var(--text-100));
+      letter-spacing: 0.1em;
     }
 
     /* Content */
@@ -49,34 +53,37 @@
       flex: 1;
       overflow-y: auto;
       padding: 20px;
-      padding-bottom: 80px;
+      padding-bottom: 100px;
     }
 
     /* Tabs */
     .tabs {
       display: flex;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--glass-bg);
       padding: 4px;
+      border: 1px solid var(--glass-border);
       border-radius: 12px;
-      margin-bottom: 20px;
+      margin-bottom: 25px;
     }
 
     .tab-btn {
       flex: 1;
-      padding: 8px;
+      padding: 10px;
       text-align: center;
       border-radius: 8px;
-      font-size: 13px;
+      font-family: var(--font-head);
+      font-size: 0.8rem;
       font-weight: 600;
-      color: var(--muted);
+      color: hsl(var(--text-500));
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.3s ease;
+      letter-spacing: 0.05em;
     }
 
     .tab-btn.active {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--text);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      background: hsla(var(--nebula-core), 0.15);
+      color: hsl(var(--nebula-core));
+      box-shadow: 0 4px 15px hsla(var(--nebula-core), 0.1);
     }
 
     .tab-content {
@@ -85,82 +92,80 @@
 
     .tab-content.active {
       display: block;
-      animation: fadeIn 0.3s;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      animation: slide-in-top 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     /* Goal Item */
     .goal-card {
-      background: var(--surface);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: var(--glass-bg);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-bottom: 15px;
+      border: 1px solid var(--glass-border);
       position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .goal-card:hover {
+      border-color: hsla(var(--nebula-core), 0.3);
+      transform: translateX(5px);
     }
 
     .goal-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
 
     .goal-title {
-      font-weight: 600;
-      font-size: 16px;
-      margin-bottom: 4px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: hsl(var(--text-100));
     }
 
     .goal-cat {
-      font-size: 10px;
-      padding: 2px 8px;
+      font-family: var(--font-head);
+      font-size: 0.65rem;
+      padding: 3px 10px;
       border-radius: 10px;
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--muted);
+      background: hsla(var(--nebula-core), 0.1);
+      color: hsl(var(--nebula-core));
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.1em;
+      border: 1px solid hsla(var(--nebula-core), 0.2);
     }
 
     .progress-track {
-      background: rgba(255, 255, 255, 0.1);
-      height: 6px;
-      border-radius: 3px;
+      background: hsla(0, 0%, 100%, 0.05);
+      height: 8px;
+      border-radius: 10px;
       overflow: hidden;
-      margin: 12px 0 8px;
+      margin: 15px 0 10px;
     }
 
     .progress-fill {
       height: 100%;
-      background: var(--primary);
+      background: linear-gradient(90deg, hsl(var(--nebula-core)), hsl(var(--nebula-pulse)));
       width: 0%;
-      transition: width 0.5s ease;
+      transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 10px hsla(var(--nebula-core), 0.4);
     }
 
     .goal-meta {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
-      color: var(--muted);
+      font-size: 0.8rem;
+      color: hsl(var(--text-500));
+      font-weight: 500;
     }
 
     /* Mood Selector */
     .mood-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
-      gap: 8px;
-      margin-bottom: 16px;
+      gap: 12px;
+      margin-bottom: 20px;
     }
 
     .mood-btn {
@@ -168,96 +173,54 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
-      background: rgba(255, 255, 255, 0.05);
+      font-size: 1.5rem;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
       border-radius: 12px;
       cursor: pointer;
-      transition: 0.2s;
-      border: 2px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .mood-btn:hover {
+      background: hsla(0, 0%, 100%, 0.05);
+      border-color: hsla(var(--nebula-pulse), 0.4);
     }
 
     .mood-btn.selected {
-      background: rgba(255, 255, 255, 0.15);
-      border-color: var(--primary);
-      transform: scale(1.05);
+      background: hsla(var(--nebula-pulse), 0.15);
+      border-color: hsl(var(--nebula-pulse));
+      transform: scale(1.1);
+      box-shadow: 0 0 15px hsla(var(--nebula-pulse), 0.2);
     }
 
     /* FAB */
     .fab {
       position: absolute;
-      bottom: 24px;
-      right: 24px;
-      width: 56px;
-      height: 56px;
-      border-radius: 16px;
-      background: var(--primary);
-      color: #000;
+      bottom: 30px;
+      right: 30px;
+      width: 60px;
+      height: 60px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, hsl(var(--nebula-core)), hsl(var(--nebula-pulse)));
+      color: hsl(var(--text-100));
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 24px;
-      box-shadow: 0 8px 20px rgba(100, 255, 218, 0.3);
+      box-shadow: 0 10px 25px hsla(var(--nebula-core), 0.4);
       cursor: pointer;
       z-index: 10;
-      transition: transform 0.2s;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
-    .fab:active {
-      transform: scale(0.95);
+    .fab:hover {
+      transform: scale(1.1) rotate(90deg);
     }
 
-    /* Sheet */
-    .sheet-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(4px);
-      z-index: 100;
-      opacity: 0;
-      pointer-events: none;
-      transition: 0.3s;
-    }
-
-    .sheet-overlay.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
+    /* Sheet Overrides */
     .sheet {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: #15192b;
-      border-radius: 20px 20px 0 0;
-      padding: 24px;
-      transform: translateY(100%);
-      transition: 0.3s cubic-bezier(0.1, 0.7, 0.1, 1);
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .sheet.active {
-      transform: translateY(0);
-    }
-
-    .form-group {
-      margin-bottom: 16px;
-    }
-
-    .form-label {
-      display: block;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 12px;
-      background: rgba(0, 0, 0, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      color: var(--text);
+      background: hsl(var(--space-900)) !important;
+      border-top: 1px solid hsla(var(--nebula-core), 0.3);
     }
   </style>
 </head>

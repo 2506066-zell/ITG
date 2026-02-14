@@ -12,7 +12,7 @@ export async function disableSW() {
       const keys = await caches.keys();
       await Promise.all(keys.map(k => caches.delete(k)));
     }
-  } catch (_) {}
+  } catch (_) { }
 }
 function loadTheme() {
   const t = localStorage.getItem('theme') || 'dark';
@@ -53,22 +53,9 @@ export function initProtected() {
 }
 
 function startHeroTimer() {
-  const heroTimer = document.getElementById('countdown'); // Updated selector
+  const heroTimer = document.getElementById('countdown');
   if (!heroTimer) return;
 
-  // If we want this to be dynamic based on anniversary date, we should fetch it.
-  // But for now, let's keep the hardcoded date as fallback or primary if user didn't set one.
-  // The user's screenshot showed 23 November 2025. 
-  // Wait, if it's "Grow Together" usually it's a past date (start of relationship).
-  // 2025 is future. Maybe they meant 2023 or 2024? 
-  // Or maybe it's a countdown TO a date.
-  // The text says "81 Hari", which matches roughly Nov 2025 from now (Feb 2026? Wait. 
-  // Env date is 2026-02-12. 
-  // Nov 2025 is in the past relative to Feb 2026.
-  // So diff = now - startDate is correct for "Together Since".
-  // If startDate is Nov 23, 2025 and today is Feb 12, 2026:
-  // Dec, Jan, Feb... roughly 80 days. Matches!
-  
   const startDate = new Date('2025-11-23T00:00:00').getTime();
   const elDays = document.getElementById('t-days');
   const elHours = document.getElementById('t-hours');
@@ -77,34 +64,30 @@ function startHeroTimer() {
 
   function updateHero() {
     const now = Date.now();
-    let diff = now - startDate;
-    
-    // Always use absolute difference for display
-    diff = Math.abs(diff);
-    
+    let diff = Math.abs(now - startDate);
+
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
+
     const pad = (n) => n.toString().padStart(2, '0');
-    
+
     if (elDays) elDays.textContent = pad(days);
     if (elHours) elHours.textContent = pad(hours);
     if (elMinutes) elMinutes.textContent = pad(minutes);
     if (elSeconds) elSeconds.textContent = pad(seconds);
-    
-    requestAnimationFrame(updateHero);
   }
-  
+
   updateHero();
+  setInterval(updateHero, 1000);
 }
 export function logout() {
   localStorage.removeItem('token');
   location.href = '/login.html';
 }
 
-export function normalizeLinks() {}
+export function normalizeLinks() { }
 // Global listener for Demo Mode
 document.addEventListener('demo-mode-active', () => {
   showToast('Backend offline. Demo Mode aktif (data lokal).', 'error', 5000);

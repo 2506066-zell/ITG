@@ -37,7 +37,7 @@ export default withErrorHandling(async function handler(req, res) {
   const users = ['Zaldy', 'Nesya'];
   const days = [];
   const now = new Date();
-  for (let i = 6; i >= 0; i++) {
+  for (let i = 6; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(now.getDate() - i);
     days.push(fmt(d));

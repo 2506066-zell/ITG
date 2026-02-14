@@ -1,4 +1,4 @@
-import { parse } from 'url';
+
 
 const cache = new Map();
 async function load(name) {
@@ -28,8 +28,8 @@ const routes = new Set([
 
 export default async function handler(req, res) {
   try {
-    const u = parse(req.url, true);
-    let p = (u.query.path || '').toString().trim();
+    const u = new URL(req.url, 'http://x');
+    let p = (u.searchParams.get('path') || '').toString().trim();
     p = p.replace(/^\/+|\/+$/g, '');
     const seg = p.split('/')[0];
     if (!seg || !routes.has(seg)) {
@@ -43,6 +43,7 @@ export default async function handler(req, res) {
   } catch (err) {
     res.statusCode = 500;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: 'Internal Server Error', details: err.message }));
+    console.error('Router error:', err);
+    res.end(JSON.stringify({ error: 'Internal Server Error' }));
   }
 }

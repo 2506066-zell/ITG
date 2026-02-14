@@ -7,7 +7,7 @@ if (!databaseUrl) {
 if (!global._pool) {
   global._pool = new Pool({
     connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false },
+    ssl: true,
     max: 5,
   });
   global._pool.on('error', (err) => {
