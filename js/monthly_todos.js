@@ -235,6 +235,7 @@ async function handleCreate(e) {
 
 // Global Handlers
 window.handleDayClick = async (box) => {
+    if (box.dataset.busy === '1') return;
     // Check read-only state
     const currentMonth = localMonth();
     if (state.month < currentMonth) {
@@ -256,6 +257,7 @@ window.handleDayClick = async (box) => {
     const newStatus = !wasCompleted;
 
     try {
+        box.dataset.busy = '1';
         if (newStatus) {
             const mood = await waitForMood(`Selesai kebiasaan (${date})`);
             await post('/monthly', {
@@ -291,6 +293,8 @@ window.handleDayClick = async (box) => {
     } catch (err) {
         console.error(err);
         showToast('Gagal memproses', 'error');
+    } finally {
+        box.dataset.busy = '';
     }
 };
 
