@@ -18,40 +18,53 @@ body {
 
 /* Header */
 .task-header {
-    padding: 24px 20px 16px;
+    padding: 32px 20px 24px;
     background: var(--glass-bg);
     backdrop-filter: blur(var(--glass-blur));
     border-bottom: 1px solid var(--glass-border);
     flex-shrink: 0;
+    text-align: center;
 }
 
 .header-top {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
+    position: relative;
 }
 
 .header-title {
     font-family: var(--font-head);
-    font-size: 1.25rem;
+    font-size: 1.5rem;
     color: hsl(var(--text-100));
-    letter-spacing: 0.1em;
+    letter-spacing: 0.2em;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.header-actions {
+    position: absolute;
+    right: 0;
 }
 
 .header-stats {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: hsl(var(--text-300));
-    font-weight: 500;
+    font-weight: 600;
     letter-spacing: 0.05em;
+    margin-top: 8px;
 }
 
 .progress-bar-bg {
-    height: 6px;
+    height: 4px;
     background: hsla(0, 0%, 100%, 0.05);
     border-radius: 10px;
     overflow: hidden;
-    margin-top: 10px;
+    margin-top: 16px;
+    max-width: 300px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .progress-bar-fill {
@@ -77,22 +90,25 @@ body {
 }
 
 .filter-chip {
-    padding: 8px 16px;
+    padding: 10px 18px;
     border-radius: 12px;
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: 0.8rem;
+    font-weight: 700;
     color: hsl(var(--text-500));
-    background: var(--glass-bg);
+    background: hsla(0, 0%, 100%, 0.02);
     border: 1px solid var(--glass-border);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
 }
 
 .filter-chip.active {
     background: hsla(var(--nebula-core), 0.15);
     color: hsl(var(--nebula-core));
     border-color: hsla(var(--nebula-core), 0.5);
-    box-shadow: 0 0 15px hsla(var(--nebula-core), 0.1);
+    box-shadow: 0 0 20px hsla(var(--nebula-core), 0.15);
+    transform: translateY(-1px);
 }
 
 /* Task List */
@@ -107,8 +123,9 @@ body {
 .task-item {
     display: flex;
     align-items: center;
+    /* Critical alignment */
     gap: 16px;
-    padding: 18px;
+    padding: 16px 20px;
     background: var(--glass-bg);
     border-radius: var(--radius-md);
     margin-bottom: 12px;
@@ -155,16 +172,18 @@ body {
 }
 
 .task-title {
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-weight: 600;
     color: hsl(var(--text-100));
-    margin-bottom: 6px;
-    line-height: 1.4;
+    margin-bottom: 4px;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
 }
 
 .task-item.completed .task-title {
     text-decoration: line-through;
     color: hsl(var(--text-500));
+    opacity: 0.7;
 }
 
 .task-meta {

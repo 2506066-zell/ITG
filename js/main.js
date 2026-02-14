@@ -2,17 +2,15 @@ function requireAuth() {
   const t = localStorage.getItem('token');
   if (!t) location.href = '/login.html';
 }
-export async function disableSW() {
-  try {
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r => r.unregister()));
+export async function registerSW() {
+  if ('serviceWorker' in navigator) {
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      console.log('SW Registered:', registration.scope);
+    } catch (err) {
+      console.error('SW Registration failed:', err);
     }
-    if (window.caches && caches.keys) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map(k => caches.delete(k)));
-    }
-  } catch (_) { }
+  }
 }
 function loadTheme() {
   const t = localStorage.getItem('theme') || 'dark';
@@ -47,9 +45,37 @@ export function showToast(text, type = 'info', timeout = 2500) {
 }
 export function initProtected() {
   requireAuth();
-  disableSW();
+  registerSW();
   loadTheme();
   startHeroTimer();
+  initParallax();
+}
+
+function initParallax() {
+  const bg = document.querySelector('.galaxy-bg');
+  if (!bg || window.innerWidth < 768) return;
+
+  const nebulae = document.querySelectorAll('.nebula');
+  const stars = document.querySelector('.stars-container');
+  const planets = document.querySelector('.planet-container');
+
+  window.addEventListener('mousemove', (e) => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 2; // -1 to 1
+    const y = (e.clientY / window.innerHeight - 0.5) * 2;
+
+    nebulae.forEach((n, i) => {
+      const depth = (i + 1) * 10;
+      n.style.transform = `translate(${x * depth}px, ${y * depth}px)`;
+    });
+
+    if (stars) {
+      stars.style.transform = `translate(${x * 5}px, ${y * 5}px) rotate(${x * 0.5}deg)`;
+    }
+
+    if (planets) {
+      planets.style.transform = `translate(${x * 20}px, ${y * 15}px)`;
+    }
+  });
 }
 
 function startHeroTimer() {
