@@ -7,12 +7,16 @@
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/login-futuristik.css">
+  <link rel="stylesheet" href="css/solar-system.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • Welcome</title>
 </head>
 
 <body class="login-page">
+  <div id="solar-system-layer">
+    <canvas id="orbit-canvas"></canvas>
+  </div>
   <div class="galaxy-canvas">
     <div class="nebula nebula-1"></div>
     <div class="nebula nebula-2"></div>
@@ -49,6 +53,7 @@
     <div id="login-msg" class="muted center" style="margin-top:15px; font-size: 0.8rem; letter-spacing: 0.1em;"></div>
   </div>
 
+  <script src="js/solar-system.js"></script>
   <script type="module" src="js/login.js"></script>
 </body>
 
