@@ -20,54 +20,7 @@
 </head>
 
 <body class="dashboard-page">
-  <!-- 🌌 CINEMATIC GALAXY BACKGROUND -->
-  <div class="galaxy-bg">
-    <!-- Nebulae -->
-    <div class="nebula nebula-orange"></div>
-    <div class="nebula nebula-blue"></div>
-    <div class="nebula nebula-purple"></div>
-
-    <!-- Starfield -->
-    <div class="stars-container">
-      <div class="stars-sm"></div>
-      <div class="stars-lg"></div>
-    </div>
-
-    <!-- Floating Planets -->
-    <div class="planet-container">
-      <!-- Planet 1 (Orange Gas Giant) -->
-      <svg class="planet-svg planet-1" viewBox="0 0 100 100">
-        <defs>
-          <radialGradient id="grad1" cx="30%" cy="30%" r="70%">
-            <stop offset="0%" style="stop-color:#ffcc80" />
-            <stop offset="50%" style="stop-color:#ff8c42" />
-            <stop offset="100%" style="stop-color:#4a2c11" />
-          </radialGradient>
-        </defs>
-        <circle cx="50%" cy="50%" r="48" fill="url(#grad1)" />
-        <path d="M 5,50 Q 50,70 95,50" stroke="rgba(255,255,255,0.1)" stroke-width="2" fill="none" />
-      </svg>
-
-      <!-- Planet 2 (Watery Blue) -->
-      <svg class="planet-svg planet-2" viewBox="0 0 100 100">
-        <defs>
-          <radialGradient id="grad2" cx="40%" cy="40%" r="60%">
-            <stop offset="0%" style="stop-color:#4da3ff" />
-            <stop offset="60%" style="stop-color:#0b0f2a" />
-            <stop offset="100%" style="stop-color:#050816" />
-          </radialGradient>
-        </defs>
-        <circle cx="50%" cy="50%" r="48" fill="url(#grad2)" />
-        <circle cx="50%" cy="50%" r="48" fill="transparent" stroke="rgba(77, 163, 255, 0.2)" stroke-width="1" />
-      </svg>
-
-      <!-- Planet 3 (Distant Mystery) -->
-      <svg class="planet-svg planet-3" viewBox="0 0 100 100">
-        <circle cx="50%" cy="50%" r="48" fill="#15192b" />
-        <circle cx="40%" cy="40%" r="48" fill="rgba(255,255,255,0.05)" />
-      </svg>
-    </div>
-  </div>
+  
 
   <nav class="navbar">
     <div class="brand">
@@ -80,6 +33,7 @@
   </nav>
 
   <main class="container">
+    <h1 style="font-family: var(--font-head); font-size: clamp(2.8rem, 8vw, 5.6rem); text-align:center; letter-spacing: 0.06em; margin: 10px 0 0; color: var(--text);">I LOVE U</h1>
 
     <!-- 🚀 HERO DASHBOARD: GROW TOGETHER -->
     <section class="hero-section">
@@ -308,9 +262,7 @@
       }
     });
 
-    if (window.innerWidth >= 768 && navigator.hardwareConcurrency > 4) {
-      import('./js/particles.js');
-    }
+    
   </script>
 </body>
 

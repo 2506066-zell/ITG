@@ -2,23 +2,7 @@ import { initProtected, showToast } from './main.js';
 import { get, post, put, del } from './api.js';
 
 let timerInterval;
-let notifyInterval;
-const LS_KEYS = {
-  owners: 'assignment_owners',
-  started: 'assignment_started',
-  snooze: 'assignment_snooze',
-  notified: 'assignment_last_notified'
-};
-function getMap(key) { const s = localStorage.getItem(key); return s ? JSON.parse(s) : {}; }
-function setMap(key, m) { localStorage.setItem(key, JSON.stringify(m)); }
-function getOwner(id) { const m = getMap(LS_KEYS.owners); return m[id] || 'Zaldy'; }
-function setOwner(id, user) { const m = getMap(LS_KEYS.owners); m[id] = user; setMap(LS_KEYS.owners, m); }
-function isStarted(id) { const m = getMap(LS_KEYS.started); return !!m[id]; }
-function setStarted(id, v) { const m = getMap(LS_KEYS.started); if (v) m[id] = Date.now(); else delete m[id]; setMap(LS_KEYS.started, m); }
-function getSnoozeUntil(id) { const m = getMap(LS_KEYS.snooze); return m[id] || 0; }
-function setSnoozeUntil(id, ts) { const m = getMap(LS_KEYS.snooze); if (ts) m[id] = ts; else delete m[id]; setMap(LS_KEYS.snooze, m); }
-function getLastNotified(id) { const m = getMap(LS_KEYS.notified); return m[id] || 0; }
-function setLastNotified(id, ts) { const m = getMap(LS_KEYS.notified); m[id] = ts; setMap(LS_KEYS.notified, m); }
+let moodOverlay, moodSheet, moodForm, moodGrid, moodValueEl, moodNoteEl;
 
 function formatCountdown(ms) {
   if (ms <= 0) return 'Overdue';
@@ -38,13 +22,12 @@ async function requestNotificationPermission() {
   }
 }
 
-function sendNotification(title, timeLeft, owner) {
+function sendNotification(title, timeLeft) {
   if ('Notification' in window && Notification.permission === 'granted') {
-    const n = new Notification(`Tugas ${owner}`, {
+    new Notification('Tugas Urgent!', {
       body: `"${title}" sisa waktu ${timeLeft}`,
       icon: '/icons/192.png'
     });
-    n.onclick = () => window.focus();
   }
 }
 
@@ -59,20 +42,15 @@ function updateTimers() {
     el.textContent = formatCountdown(diff);
     
     const parent = el.closest('.list-item');
-    const id = el.dataset.id;
-    const snoozeUntil = getSnoozeUntil(id);
-    if (isStarted(id) || snoozeUntil > now) {
-      parent.classList.remove('urgent');
-      return;
-    }
     // Urgent logic: < 12 hours (12 * 60 * 60 * 1000 = 43200000)
     if (diff > 0 && diff < 43200000) {
       if (!parent.classList.contains('urgent')) {
         parent.classList.add('urgent');
-        const last = getLastNotified(id);
-        if (!last || (Date.now() - last) > 1800000) {
-          sendNotification(el.dataset.title, formatCountdown(diff), getOwner(id));
-          setLastNotified(id, Date.now());
+        // Trigger notification only once per session logic could be added here
+        // For now simple check to avoid spamming
+        if (!el.dataset.notified) {
+           sendNotification(el.dataset.title, formatCountdown(diff));
+           el.dataset.notified = 'true';
         }
       }
     } else if (diff <= 0) {
@@ -81,33 +59,6 @@ function updateTimers() {
     } else {
       parent.classList.remove('urgent');
       parent.classList.remove('overdue');
-    }
-  });
-}
-
-function checkReminders(list) {
-  const now = Date.now();
-  const TH48 = 48 * 3600 * 1000;
-  const TH24 = 24 * 3600 * 1000;
-  const TH2 = 2 * 3600 * 1000;
-  list.forEach(a => {
-    if (!a.deadline) return;
-    if (a.completed) return;
-    const id = String(a.id);
-    if (isStarted(id)) return;
-    const snoozeUntil = getSnoozeUntil(id);
-    if (snoozeUntil > now) return;
-    const dl = new Date(a.deadline).getTime();
-    const diff = dl - now;
-    if (diff <= 0) return;
-    const last = getLastNotified(id);
-    let should = false;
-    if (diff <= TH48 && diff > TH24 && now - last > 3600000) should = true;
-    else if (diff <= TH24 && diff > TH2 && now - last > 3600000) should = true;
-    else if (diff <= TH2 && now - last > 1800000) should = true;
-    if (should) {
-      sendNotification(a.title, formatCountdown(diff), getOwner(id));
-      setLastNotified(id, now);
     }
   });
 }
@@ -121,7 +72,6 @@ async function load() {
   const el1d = document.getElementById('stat-1d');
   const el3d = document.getElementById('stat-3d');
   const el5d = document.getElementById('stat-5d');
-  const trendEl = document.getElementById('stat-trend');
   
   // Skeleton
   activeList.innerHTML = `<div class="list-item"><div class="skeleton skeleton-line" style="width:70%"></div></div>`;
@@ -133,13 +83,14 @@ async function load() {
 
   if (!data.length) {
     activeList.innerHTML = '<div class="empty center muted">Belum ada tugas.</div>';
+    // Tetap render statistik sebagai 0 jika tidak ada data
     if (el1d) el1d.textContent = '0 tugas';
     if (el3d) el3d.textContent = '0 tugas';
     if (el5d) el5d.textContent = '0 tugas';
-    if (trendEl) trendEl.innerHTML = '';
     return;
   }
 
+  // Stats: hitung penyelesaian dalam 1/3/5 hari terakhir untuk user saat ini
   try {
     const currentUser = localStorage.getItem('user') || '';
     const now = Date.now();
@@ -156,44 +107,10 @@ async function load() {
     if (el1d) el1d.textContent = `${c1} tugas`;
     if (el3d) el3d.textContent = `${c3} tugas`;
     if (el5d) el5d.textContent = `${c5} tugas`;
-    if (trendEl) {
-      const days = [];
-      const base = new Date();
-      for (let i = 6; i >= 0; i++) {
-        const d = new Date(base);
-        d.setDate(base.getDate() - i);
-        days.push(d.toISOString().slice(0,10));
-      }
-      const counts = days.map(d => byUser.filter(a => (a.completed_at || '').slice(0,10) === d).length);
-      trendEl.innerHTML = '';
-      const max = Math.max(1, ...counts);
-      counts.forEach(cnt => {
-        const cell = document.createElement('div');
-        cell.style.textAlign = 'center';
-        const barBox = document.createElement('div');
-        barBox.style.height = '40px';
-        barBox.style.display = 'flex';
-        barBox.style.alignItems = 'flex-end';
-        barBox.style.justifyContent = 'center';
-        const bar = document.createElement('div');
-        bar.style.width = '12px';
-        bar.style.height = `${Math.max(4, Math.round((cnt / max) * 40))}px`;
-        bar.style.background = 'var(--secondary)';
-        bar.style.borderRadius = '3px';
-        barBox.appendChild(bar);
-        const num = document.createElement('div');
-        num.className = 'muted small';
-        num.textContent = String(cnt);
-        cell.appendChild(barBox);
-        cell.appendChild(num);
-        trendEl.appendChild(cell);
-      });
-    }
   } catch (_) {
     if (el1d) el1d.textContent = '—';
     if (el3d) el3d.textContent = '—';
     if (el5d) el5d.textContent = '—';
-    if (trendEl) trendEl.innerHTML = '';
   }
 
   // Sort: Active by deadline (asc), Completed by completed_at (desc)
@@ -223,19 +140,6 @@ async function load() {
     title.textContent = a.title;
     header.appendChild(title);
 
-    const ownerSel = document.createElement('select');
-    ownerSel.className = 'input small';
-    ownerSel.dataset.id = String(a.id);
-    ownerSel.dataset.action = 'owner';
-    ['Zaldy', 'Nesya'].forEach(u => {
-      const opt = document.createElement('option');
-      opt.value = u;
-      opt.textContent = u;
-      ownerSel.appendChild(opt);
-    });
-    ownerSel.value = getOwner(String(a.id));
-    header.appendChild(ownerSel);
-
     left.appendChild(header);
 
     if (a.description) {
@@ -264,7 +168,6 @@ async function load() {
       timer.className = 'countdown-timer badge';
       timer.dataset.deadline = a.deadline;
       timer.dataset.title = a.title;
-      timer.dataset.id = String(a.id);
       timer.textContent = '...';
       info.appendChild(timer);
     }
@@ -272,21 +175,6 @@ async function load() {
 
     const actions = document.createElement('div');
     actions.className = 'actions';
-    if (!isCompleted) {
-      const startBtn = document.createElement('button');
-      startBtn.className = 'btn small';
-      startBtn.dataset.id = String(a.id);
-      startBtn.dataset.action = 'start';
-      startBtn.textContent = isStarted(String(a.id)) ? 'Started' : 'Start';
-      actions.appendChild(startBtn);
-
-      const snoozeBtn = document.createElement('button');
-      snoozeBtn.className = 'btn small';
-      snoozeBtn.dataset.id = String(a.id);
-      snoozeBtn.dataset.action = 'snooze';
-      snoozeBtn.textContent = 'Snooze 1h';
-      actions.appendChild(snoozeBtn);
-    }
     const delBtn = document.createElement('button');
     delBtn.className = 'btn danger small';
     delBtn.dataset.id = String(a.id);
@@ -315,10 +203,6 @@ async function load() {
   if (timerInterval) clearInterval(timerInterval);
   updateTimers(); // Initial call
   timerInterval = setInterval(updateTimers, 1000); // Update every second
-  const activeData = active;
-  if (notifyInterval) clearInterval(notifyInterval);
-  checkReminders(activeData);
-  notifyInterval = setInterval(() => checkReminders(activeData), 60000);
 }
 
 async function create(e) {
@@ -364,22 +248,11 @@ async function actions(e) {
   if (act === 'toggle') {
     await put('/assignments', { id, completed: btn.checked });
     showToast(btn.checked ? 'Tugas selesai' : 'Tugas dibuka kembali', 'info');
+    if (btn.checked) {
+      const title = btn.closest('.list-item')?.querySelector('strong')?.textContent || '';
+      openMoodPrompt(`Selesai tugas kuliah: ${title}`);
+    }
   }
-   if (act === 'owner') {
-     setOwner(id, btn.value);
-     showToast(`Pemilik tugas: ${btn.value}`, 'info');
-   }
-   if (act === 'start') {
-     const newVal = !isStarted(id);
-     setStarted(id, newVal);
-     btn.textContent = newVal ? 'Started' : 'Start';
-     showToast(newVal ? 'Mulai mengerjakan' : 'Berhenti menandai', 'info');
-   }
-   if (act === 'snooze') {
-     const until = Date.now() + 3600000;
-     setSnoozeUntil(id, until);
-     showToast('Di-snooze 1 jam', 'info');
-   }
   load();
 }
 
@@ -388,17 +261,65 @@ function init() {
   
   // Delegate events for both lists
   const handleListClick = (e) => {
-    if (e.target.tagName === 'INPUT') actions(e);
-    else actions(e);
+    if (e.target.tagName === 'INPUT') actions(e); // Checkbox change
+    else actions(e); // Button click (via closest in actions)
   };
 
   document.querySelector('#assignments-active').addEventListener('click', handleListClick);
-  document.querySelector('#assignments-active').addEventListener('change', handleListClick);
+  document.querySelector('#assignments-active').addEventListener('change', handleListClick); // For checkbox
   
   document.querySelector('#assignments-completed').addEventListener('click', handleListClick);
-  document.querySelector('#assignments-completed').addEventListener('change', handleListClick);
+  document.querySelector('#assignments-completed').addEventListener('change', handleListClick); // For checkbox
   
   load();
+  moodOverlay = document.getElementById('mood-overlay');
+  moodSheet = document.getElementById('mood-sheet');
+  moodForm = document.getElementById('mood-form');
+  moodGrid = document.getElementById('mood-grid');
+  moodValueEl = document.getElementById('mood-value');
+  moodNoteEl = document.getElementById('mood-note');
+  setupMoodEvents();
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+function setupMoodEvents() {
+  if (!moodGrid) return;
+  moodGrid.querySelectorAll('.prio-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      moodValueEl.value = b.dataset.val;
+    });
+  });
+  document.getElementById('mood-cancel')?.addEventListener('click', () => {
+    closeMoodPrompt();
+  });
+  moodForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const val = moodValueEl.value;
+    if (!val) { showToast('Pilih mood', 'error'); return; }
+    const body = { mood: val, note: moodNoteEl.value, date: new Date().toISOString() };
+    try {
+      await post('/evaluations', body);
+      showToast('Mood disimpan', 'success');
+    } catch (err) {
+      showToast('Gagal menyimpan', 'error');
+    }
+    closeMoodPrompt();
+  });
+}
+
+function openMoodPrompt(note) {
+  if (!moodOverlay) return;
+  moodValueEl.value = '';
+  moodNoteEl.value = note || '';
+  moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
+  moodOverlay.classList.add('active');
+  moodSheet.classList.add('active');
+}
+
+function closeMoodPrompt() {
+  moodOverlay.classList.remove('active');
+  moodSheet.classList.remove('active');
+}

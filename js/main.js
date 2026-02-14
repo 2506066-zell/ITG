@@ -129,8 +129,4 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 if (typeof window !== 'undefined') {
-  if (!window.__galaxyLoaded && window.innerWidth >= 768 && navigator.hardwareConcurrency > 4) {
-    window.__galaxyLoaded = 1;
-    import('./particles.js');
-  }
 }

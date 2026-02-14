@@ -1,7 +1,7 @@
 import { apiFetch } from './api.js';
-import { showToast, registerSW } from './main.js';
+import { showToast, disableSW } from './main.js';
 function init() {
-  registerSW();
+  disableSW();
   const form = document.querySelector('#login-form');
   if (!form) return;
   form.addEventListener('submit', async e => {

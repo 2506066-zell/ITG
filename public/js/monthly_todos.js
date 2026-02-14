@@ -10,27 +10,18 @@ function localDate() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
 const state = {
-    user: 'Zaldy',
-    month: localMonth(),
+    user: 'Zaldy', // Default user
+    month: localMonth(), // Current YYYY-MM (local)
     todos: [],
-    stats: null,
-    monthsList: [],
-    archiveUser: 'Zaldy',
-    currentDate: localDate()
+    stats: null
 };
-let userOverride = false;
-let autoSyncTimer = null;
-let daySyncTimer = null;
-let moodResolve = null;
-let moodReject = null;
 
 const els = {
     monthPicker: document.getElementById('month-picker'),
     userTabs: document.querySelectorAll('.user-tab'),
     todoList: document.getElementById('todo-list'),
-    archiveToggle: document.getElementById('archive-toggle'),
-    archivePanel: document.getElementById('archive-panel'),
     fab: document.getElementById('fab-add'),
     modalOverlay: document.getElementById('modal-overlay'),
     modalCancel: document.getElementById('modal-cancel'),
@@ -60,52 +51,14 @@ function init() {
     // Event Listeners
     els.monthPicker.addEventListener('change', (e) => {
         state.month = e.target.value;
-        userOverride = true;
         loadAll();
-    });
-
-    els.archiveToggle.addEventListener('click', () => {
-        els.archivePanel.classList.toggle('active');
-        if (els.archivePanel.classList.contains('active')) {
-            loadMonthsList();
-        }
-    });
-    els.archivePanel.addEventListener('click', (e) => {
-        const userChip = e.target.closest('.archive-user-chip');
-        if (userChip) {
-            const u = userChip.dataset.user;
-            if (u && (u === 'Zaldy' || u === 'Nesya')) {
-                state.archiveUser = u;
-                state.user = u;
-                updateUserTabs();
-                loadMonthsList();
-                loadTodos();
-                renderArchivePanel();
-            }
-            return;
-        }
-        const chip = e.target.closest('.archive-chip');
-        if (chip) {
-            const m = chip.dataset.month;
-            if (!m) return;
-            state.month = m;
-            userOverride = true;
-            els.monthPicker.value = state.month;
-            updateArchiveState();
-            loadAll();
-            renderArchivePanel(); // refresh active marker
-        }
     });
 
     els.userTabs.forEach(tab => {
         tab.addEventListener('click', () => {
             state.user = tab.dataset.user;
-            state.archiveUser = state.user;
             updateUserTabs();
             loadTodos(); // Only reload todos, stats are global
-            if (els.archivePanel.classList.contains('active')) {
-                loadMonthsList();
-            }
         });
     });
 
@@ -125,8 +78,6 @@ function init() {
 
     // Initial Load
     loadAll();
-    startMonthAutoSync();
-    startDayAutoSync();
 }
 
 function loadAll() {
@@ -181,78 +132,6 @@ async function loadStats() {
     } catch (err) {
         console.error(err);
     }
-}
-
-async function loadMonthsList() {
-    try {
-        const r = await get(`/monthly?list=months&user=${state.archiveUser}`);
-        const arr = Array.isArray(r.months) ? r.months : [];
-        state.monthsList = arr;
-        renderArchivePanel();
-    } catch (err) {
-        console.error(err);
-        els.archivePanel.innerHTML = '<div style="color:var(--danger)">Gagal memuat arsip</div>';
-    }
-}
-
-function renderArchivePanel() {
-    const months = Array.isArray(state.monthsList) ? state.monthsList : [];
-    if (months.length === 0) {
-        const uf = renderArchiveFilter();
-        els.archivePanel.innerHTML = uf + '<div class="muted">Belum ada arsip bulan.</div>';
-        return;
-    }
-    const groups = {};
-    months.forEach(m => {
-        const y = m.split('-')[0];
-        if (!groups[y]) groups[y] = [];
-        groups[y].push(m);
-    });
-    const uf = renderArchiveFilter();
-    const listHtml = Object.keys(groups).sort((a,b) => b.localeCompare(a)).map(y => {
-        const chips = groups[y].sort((a,b) => b.localeCompare(a)).map(m => {
-            const active = m === state.month ? 'active' : '';
-            const label = new Date(m + '-01').toLocaleString(undefined, { month: 'short', year: 'numeric' });
-            return `<div class="archive-chip ${active}" data-month="${m}">${label}</div>`;
-        }).join('');
-        return `<div class="archive-year">${y}</div><div class="archive-chips">${chips}</div>`;
-    }).join('');
-    els.archivePanel.innerHTML = uf + listHtml;
-}
-
-function renderArchiveFilter() {
-    const users = ['Zaldy','Nesya'];
-    const chips = users.map(u => {
-        const active = u === state.archiveUser ? 'active' : '';
-        return `<div class="archive-user-chip ${active}" data-user="${u}">${u}</div>`;
-    }).join('');
-    return `<div class="archive-filter"><span class="muted">Filter:</span>${chips}</div>`;
-}
-
-function startMonthAutoSync() {
-    if (autoSyncTimer) return;
-    autoSyncTimer = setInterval(() => {
-        const sysMonth = localMonth();
-        if (!userOverride && state.month !== sysMonth) {
-            state.month = sysMonth;
-            els.monthPicker.value = state.month;
-            updateArchiveState();
-            loadAll();
-        }
-    }, 60000);
-}
-
-function startDayAutoSync() {
-    if (daySyncTimer) return;
-    daySyncTimer = setInterval(() => {
-        const d = localDate();
-        if (d !== state.currentDate) {
-            state.currentDate = d;
-            // Re-render to pindahkan highlight "today" ke tanggal baru
-            renderTodos();
-            renderStats();
-        }
-    }, 60000);
 }
 
 function renderTodos() {
@@ -445,14 +324,14 @@ function setupMoodEvents() {
     });
     document.getElementById('mood-cancel')?.addEventListener('click', () => {
         closeMoodPrompt();
-        if (moodReject) moodReject(new Error('cancel'));
+        window.__moodReject && window.__moodReject(new Error('cancel'));
     });
     els.moodForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const val = els.moodValueEl.value;
         if (!val) { showToast('Pilih mood', 'error'); return; }
         const data = { mood: val, note: els.moodNoteEl.value };
-        if (moodResolve) moodResolve(data);
+        window.__moodResolve && window.__moodResolve(data);
         closeMoodPrompt();
     });
 }
@@ -474,7 +353,7 @@ function closeMoodPrompt() {
 function waitForMood(note) {
     openMoodPrompt(note);
     return new Promise((resolve, reject) => {
-        moodResolve = resolve;
-        moodReject = reject;
+        window.__moodResolve = resolve;
+        window.__moodReject = reject;
     });
 }

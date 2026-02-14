@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0f1220">
+  <meta name="theme-color" content="#050816">
   <link rel="apple-touch-icon" href="icons/192.png">
 
   <!-- PERFORMANCE OPTIMIZATION -->
@@ -14,136 +14,168 @@
   <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 
   <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/themes.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
-  <title>NZ • Home</title>
+  <title>NZ • Dashboard</title>
 </head>
 
-<body>
-  <!-- GALAXY BACKGROUND -->
-  <div class="galaxy-bg">
-    <div class="nebula nebula-1"></div>
-    <div class="nebula nebula-2"></div>
-    <div class="nebula nebula-3"></div>
-    <div class="stars-sm"></div>
-    <div class="stars-md"></div>
-
-    <!-- Dynamic Icons -->
-    <i class="bg-icon planet fa-solid fa-globe"></i>
-    <i class="bg-icon galaxy fa-solid fa-hurricane"></i>
-    <i class="bg-icon moon fa-solid fa-moon"></i>
-  </div>
+<body class="dashboard-page">
+  
 
   <nav class="navbar">
-    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-heart"></i></div>
+      <div class="brand-text">NZ <span>SYSTEM</span></div>
+    </div>
     <div class="nav-actions">
-      <a class="btn secondary" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
+      <a class="btn small secondary" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
     </div>
   </nav>
-  <div class="container">
 
-    <!-- HERO TIMER START -->
-    <div class="card" style="text-align:center; margin-bottom: 2rem;">
-      <div class="section-title">Grow Together</div>
-      <div id="countdown" class="countdown">
-        <div class="time-box">
-          <span id="t-days">00</span>
-          <label>Hari</label>
-        </div>
-        <div class="time-box">
-          <span id="t-hours">00</span>
-          <label>Jam</label>
-        </div>
-        <div class="time-box">
-          <span id="t-minutes">00</span>
-          <label>Menit</label>
-        </div>
-        <div class="time-box">
-          <span id="t-seconds">00</span>
-          <label>Detik</label>
-        </div>
-      </div>
-      <div class="muted">Since 23 November 2025</div>
-    </div>
-    <!-- HERO TIMER END -->
+  <main class="container">
+    <h1 style="font-family: var(--font-head); font-size: clamp(2.8rem, 8vw, 5.6rem); text-align:center; letter-spacing: 0.06em; margin: 10px 0 0; color: var(--text);">I LOVE U</h1>
 
-    <!-- WEEKLY CONTRIBUTION STATS -->
-    <div class="card" style="margin-bottom: 2rem;">
-      <div class="section-title"><i class="fa-solid fa-chart-line"></i> Weekly Contribution</div>
-      <div id="weekly-stats" class="stats-container">
-        <div class="skeleton skeleton-line" style="width:100%"></div>
-        <div class="skeleton skeleton-line" style="width:80%"></div>
+    <!-- 🚀 HERO DASHBOARD: GROW TOGETHER -->
+    <section class="hero-section">
+      <div class="card hero-card">
+        <header class="hero-header">
+          <div class="section-title"><i class="fa-solid fa-rocket-launch"></i> MISSION: GROW TOGETHER</div>
+          <div class="mission-status"><span class="pulse"></span> ACTIVE</div>
+        </header>
+
+        <div id="countdown" class="countdown">
+          <div class="time-box">
+            <span id="t-days">00</span>
+            <label>DAYS</label>
+          </div>
+          <div class="time-box separator">:</div>
+          <div class="time-box">
+            <span id="t-hours">00</span>
+            <label>HOURS</label>
+          </div>
+          <div class="time-box separator">:</div>
+          <div class="time-box">
+            <span id="t-minutes">00</span>
+            <label>MINUTES</label>
+          </div>
+          <div class="time-box separator">:</div>
+          <div class="time-box">
+            <span id="t-seconds">00</span>
+            <label>SECONDS</label>
+          </div>
+        </div>
+
+        <footer class="hero-footer">
+          <div class="muted">INITIATED: 23 NOV 2025</div>
+          <div class="hero-divider"></div>
+          <div class="muted">OBJECTIVE: UNCONDITIONAL SUPPORT</div>
+        </footer>
       </div>
-    </div>
-    
-    <div class="card" style="margin-bottom: 2rem;">
-      <div class="section-title"><i class="fa-regular fa-face-smile"></i> Weekly Mood Recap</div>
-      <div id="weekly-mood" class="stats-container">
-        <div class="skeleton skeleton-line" style="width:100%"></div>
-        <div class="skeleton skeleton-line" style="width:80%"></div>
-      </div>
-    </div>
-    
-    <div class="card" style="margin-bottom: 2rem;">
-      <div class="section-title"><i class="fa-solid fa-chart-bar"></i> Tren Harian Tugas Kuliah</div>
-      <div class="stats-container">
-        <div class="muted small" style="margin-bottom:6px">7 hari terakhir</div>
-        <div id="assignments-trend" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">
-          <div class="skeleton skeleton-line" style="width:100%"></div>
+    </section>
+
+    <!-- 📊 ANALYTICS HUB -->
+    <section class="analytics-grid">
+      <div class="card stats-card">
+        <div class="section-title"><i class="fa-solid fa-chart-simple"></i> WEEKLY CONTRIBUTION</div>
+        <div id="weekly-stats" class="stats-container">
+          <div class="skeleton skeleton-line"></div>
+          <div class="skeleton skeleton-line" style="width:80%"></div>
         </div>
       </div>
-    </div>
 
-    <div class="grid home-grid">
-      <div class="card">
-        <div class="section-title"><i class="fa-solid fa-sparkles"></i> Memories</div>
-        <div class="muted">Store titles, media references, and notes.</div>
-        <a class="btn primary" href="/memories">Open</a>
+      <div class="card stats-card">
+        <div class="section-title"><i class="fa-solid fa-wave-pulse"></i> MOOD STABILITY</div>
+        <div id="weekly-mood" class="stats-container">
+          <div class="skeleton skeleton-line"></div>
+          <div class="skeleton skeleton-line" style="width:70%"></div>
+        </div>
       </div>
-      <div class="card">
-        <div class="section-title"><i class="fa-solid fa-list-check"></i> Daily Tasks</div>
-        <div class="muted">Simple checklist.</div>
-        <a class="btn primary" href="/daily-tasks">Open</a>
+    </section>
+
+    <!-- 🛠️ INTERFACE MODULES -->
+    <section class="modules-grid">
+      <h2 class="grid-label">SYSTEM MODULES</h2>
+      <div class="grid home-grid">
+        <a href="/memories" class="card module-card">
+          <div class="module-icon"><i class="fa-solid fa-sparkles"></i></div>
+          <div class="module-info">
+            <div class="module-name">MEMORIES</div>
+            <div class="muted">Archive moments</div>
+          </div>
+          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+        </a>
+
+        <a href="/daily-tasks" class="card module-card">
+          <div class="module-icon"><i class="fa-solid fa-list-check"></i></div>
+          <div class="module-info">
+            <div class="module-name">TASKS</div>
+            <div class="muted">Checklist</div>
+          </div>
+          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+        </a>
+
+        <a href="/monthly-todos" class="card module-card">
+          <div class="module-icon"><i class="fa-solid fa-calendar-check"></i></div>
+          <div class="module-info">
+            <div class="module-name">HABITS</div>
+            <div class="muted">Streaks</div>
+          </div>
+          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+        </a>
+
+        <a href="/college-assignments" class="card module-card">
+          <div class="module-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+          <div class="module-info">
+            <div class="module-name">COLLEGE</div>
+            <div class="muted">Deadlines</div>
+          </div>
+          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+        </a>
+
+        <a href="/schedule" class="card module-card">
+          <div class="module-icon"><i class="fa-regular fa-calendar-days"></i></div>
+          <div class="module-info">
+            <div class="module-name">SCHEDULE</div>
+            <div class="muted">Timetable</div>
+          </div>
+          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+        </a>
+
+        <a href="/anniversary" class="card module-card">
+          <div class="module-icon"><i class="fa-solid fa-calendar-heart"></i></div>
+          <div class="module-info">
+            <div class="module-name">ANNIVERSARY</div>
+            <div class="muted">Special date</div>
+          </div>
+          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+        </a>
+
+        <a href="/chat" class="card module-card">
+          <div class="module-icon"><i class="fa-solid fa-message-heart"></i></div>
+          <div class="module-info">
+            <div class="module-name">CHAT</div>
+            <div class="muted">Messages</div>
+          </div>
+          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+        </a>
+
+        <a href="/goals" class="card module-card">
+          <div class="module-icon"><i class="fa-solid fa-bullseye"></i></div>
+          <div class="module-info">
+            <div class="module-name">GOALS</div>
+            <div class="muted">Targets</div>
+          </div>
+          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+        </a>
       </div>
-      <div class="card">
-        <div class="section-title"><i class="fa-solid fa-calendar-check"></i> Monthly Habits</div>
-        <div class="muted">Track consistency & streaks.</div>
-        <a class="btn primary" href="/monthly-todos">Open</a>
-      </div>
-      <div class="card">
-        <div class="section-title"><i class="fa-solid fa-graduation-cap"></i> College Assignments</div>
-        <div class="muted">Deadlines and status.</div>
-        <a class="btn primary" href="/college-assignments">Open</a>
-      </div>
-      <div class="card">
-        <div class="section-title"><i class="fa-regular fa-calendar-days"></i> Class Schedule</div>
-        <div class="muted">Weekly timetable.</div>
-        <a class="btn primary" href="/schedule">Open</a>
-      </div>
-      <div class="card">
-        <div class="section-title"><i class="fa-solid fa-calendar-heart"></i> Anniversary</div>
-        <div class="muted">Set the special date and note.</div>
-        <a class="btn primary" href="/anniversary">Open</a>
-      </div>
-      <div class="card">
-        <div class="section-title"><i class="fa-solid fa-message-heart"></i> Chat</div>
-        <div class="muted">Local-only messages.</div>
-        <a class="btn primary" href="/chat">Open</a>
-      </div>
-      <div class="card">
-        <div class="section-title"><i class="fa-solid fa-bullseye"></i> Goals</div>
-        <div class="muted">Targets and evaluations.</div>
-        <a class="btn primary" href="/goals">Open</a>
-      </div>
-      <div class="card">
-        <div class="section-title"><i class="fa-solid fa-gear"></i> Settings</div>
-        <div class="muted">Theme and logout.</div>
-        <a class="btn primary" href="/settings">Open</a>
-      </div>
-    </div>
-    <div class="footer">NZ</div>
-  </div>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-line"></div>
+      <div class="footer-text">NZ PROTOCOL &copy; 2026</div>
+    </footer>
+  </main>
+
   <script type="module">
     import { initProtected } from './js/main.js';
     import { get } from './js/api.js';
@@ -165,129 +197,72 @@
             const percent = Math.round((score / max) * 100);
 
             const row = document.createElement('div');
-            row.style.marginBottom = '12px';
+            row.className = 'stat-row';
             row.innerHTML = `
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:14px">
-                <span style="font-weight:600">${user}</span>
-                <span style="color:var(--primary)">${score} pts</span>
+              <div class="stat-info">
+                <span class="stat-user">${user}</span>
+                <span class="stat-value">${score} <span class="muted-text">XP</span></span>
               </div>
-              <div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden">
-                <div style="height:100%;background:var(--primary);width:0%;transition:width 1s ease" class="bar-fill"></div>
+              <div class="stat-bar-bg">
+                <div class="stat-bar-fill" style="width:0%"></div>
               </div>
             `;
             statsContainer.appendChild(row);
 
-            // Animate bar
             setTimeout(() => {
-              row.querySelector('.bar-fill').style.width = `${percent}%`;
+              row.querySelector('.stat-bar-fill').style.width = `${percent}%`;
             }, 100);
           });
 
           if (data.stats.length === 0) {
-            statsContainer.innerHTML = '<div class="muted center">No activity this week yet.</div>';
+            statsContainer.innerHTML = '<div class="muted center">No mission status reported.</div>';
           }
         }
       } catch (err) {
         console.error(err);
-        statsContainer.innerHTML = '<div class="muted center">Failed to load stats.</div>';
+        statsContainer.innerHTML = '<div class="muted center">Link failed.</div>';
       }
-      
+
       const moodContainer = document.getElementById('weekly-mood');
-      try {
-        const w = await get('/weekly');
-        if (w && w.users) {
+      if (moodContainer) {
+        try {
+          const w = await get('/weekly');
           moodContainer.innerHTML = '';
-          const users = Object.keys(w.users);
-          const emoji = n => ({1:'😫',2:'😕',3:'😐',4:'🙂',5:'🤩'}[Math.round(n)] || '😐');
-          users.forEach(u => {
-            const info = w.users[u];
-            const header = document.createElement('div');
-            header.style.display = 'flex';
-            header.style.justifyContent = 'space-between';
-            header.style.marginBottom = '8px';
-            header.innerHTML = `
-              <span style="font-weight:600">${u}</span>
-              <span style="color:var(--primary)">corr ${info.correlation ?? 'n/a'}</span>
-            `;
-            moodContainer.appendChild(header);
-            const row = document.createElement('div');
-            row.style.display = 'grid';
-            row.style.gridTemplateColumns = 'repeat(7, 1fr)';
-            row.style.gap = '6px';
-            info.per_day.forEach(p => {
-              const cell = document.createElement('div');
-              cell.style.padding = '8px';
-              cell.style.border = '1px solid rgba(255,255,255,0.1)';
-              cell.style.borderRadius = '8px';
-              cell.style.textAlign = 'center';
-              const m = p.mood !== null ? emoji(p.mood) : '—';
-              const bar = `<div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;margin-top:6px"><div style="height:100%;background:var(--secondary);width:${Math.min(100, p.activities*20)}%"></div></div>`;
-              cell.innerHTML = `${m}${bar}`;
-              row.appendChild(cell);
+          if (!w || !w.users || Object.keys(w.users).length === 0) {
+            moodContainer.innerHTML = '<div class="muted center">No stability data.</div>';
+          } else {
+            const users = Object.keys(w.users);
+            const emoji = n => ({ 1: '😫', 2: '😕', 3: '😐', 4: '🙂', 5: '🤩' }[Math.round(n)] || '😐');
+            users.forEach(u => {
+              const info = w.users[u];
+              const section = document.createElement('div');
+              section.className = 'mood-user-section';
+              section.innerHTML = `
+                <div class="mood-header">
+                  <span class="mood-user">${u}</span>
+                  <span class="mood-sync">SYNC: ${info.correlation ?? '0'}%</span>
+                </div>
+                <div class="mood-grid"></div>
+              `;
+              const grid = section.querySelector('.mood-grid');
+              info.per_day.forEach(p => {
+                const cell = document.createElement('div');
+                cell.className = 'mood-cell';
+                const m = p.mood !== null ? emoji(p.mood) : '—';
+                cell.innerHTML = `<span>${m}</span>`;
+                grid.appendChild(cell);
+              });
+              moodContainer.appendChild(section);
             });
-            moodContainer.appendChild(row);
-            const summary = document.createElement('div');
-            summary.className = 'muted';
-            summary.style.fontSize = '12px';
-            summary.style.marginTop = '6px';
-            const t = info.totals || {};
-            summary.textContent = `T ${t.tasks || 0} • M ${t.monthly || 0} • A ${t.assignments || 0}`;
-            moodContainer.appendChild(summary);
-          });
+          }
+        } catch (err) {
+          console.error(err);
+          moodContainer.innerHTML = '<div class="muted center">Sync error.</div>';
         }
-      } catch (err) {
-        console.error(err);
-        moodContainer.innerHTML = '<div class="muted center">Failed to load weekly mood.</div>';
-      }
-      
-      const trendEl = document.getElementById('assignments-trend');
-      try {
-        const data = await get('/assignments');
-        const user = localStorage.getItem('user') || '';
-        const done = Array.isArray(data) ? data.filter(a => a.completed && a.completed_at) : [];
-        const byUser = user ? done.filter(a => (a.completed_by || '') === user) : done;
-        const days = [];
-        const base = new Date();
-        for (let i = 6; i >= 0; i++) {
-          const d = new Date(base);
-          d.setDate(base.getDate() - i);
-          days.push(d.toISOString().slice(0,10));
-        }
-        const counts = days.map(d => byUser.filter(a => (a.completed_at || '').slice(0,10) === d).length);
-        const max = Math.max(1, ...counts);
-        trendEl.innerHTML = '';
-        counts.forEach(cnt => {
-          const cell = document.createElement('div');
-          cell.style.textAlign = 'center';
-          const barBox = document.createElement('div');
-          barBox.style.height = '40px';
-          barBox.style.display = 'flex';
-          barBox.style.alignItems = 'flex-end';
-          barBox.style.justifyContent = 'center';
-          const bar = document.createElement('div');
-          bar.style.width = '12px';
-          bar.style.height = `${Math.max(4, Math.round((cnt / max) * 40))}px`;
-          bar.style.background = 'var(--secondary)';
-          bar.style.borderRadius = '3px';
-          barBox.appendChild(bar);
-          const num = document.createElement('div');
-          num.className = 'muted small';
-          num.textContent = String(cnt);
-          cell.appendChild(barBox);
-          cell.appendChild(num);
-          trendEl.appendChild(cell);
-        });
-      } catch (err) {
-        console.error(err);
       }
     });
 
-    // PWA registration dihapus untuk versi web (non-PWA) saat ini
-
-    // OPTIMIZATION: Only load particles on desktop
-    if (window.innerWidth >= 768 && navigator.hardwareConcurrency > 4) {
-      import('./js/particles.js');
-    }
+    
   </script>
 </body>
 

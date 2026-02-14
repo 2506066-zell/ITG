@@ -10,16 +10,6 @@ let isMultiSelectMode = false;
 let touchStartX = 0;
 let touchStartY = 0;
 let activeSwipeEl = null;
-const LS_KEYS = {
-  started: 'task_started',
-  snooze: 'task_snooze'
-};
-function getMap(key) { const s = localStorage.getItem(key); return s ? JSON.parse(s) : {}; }
-function setMap(key, m) { localStorage.setItem(key, JSON.stringify(m)); }
-function isStarted(id) { const m = getMap(LS_KEYS.started); return !!m[id]; }
-function setStarted(id, v) { const m = getMap(LS_KEYS.started); if (v) m[id] = Date.now(); else delete m[id]; setMap(LS_KEYS.started, m); }
-function getSnoozeUntil(id) { const m = getMap(LS_KEYS.snooze); return m[id] || 0; }
-function setSnoozeUntil(id, ts) { const m = getMap(LS_KEYS.snooze); if (ts) m[id] = ts; else delete m[id]; setMap(LS_KEYS.snooze, m); }
 
 // DOM Elements
 const taskListEl = document.getElementById('task-list');
@@ -39,8 +29,8 @@ const moodNoteEl = document.getElementById('mood-note');
 async function init() {
   initProtected();
   setupEventListeners();
-  setupMoodEvents();
   await loadTasks();
+  setupMoodEvents();
 }
 
 // Load Data
@@ -76,14 +66,6 @@ function render() {
   const frag = document.createDocumentFragment();
   sorted.forEach(task => {
     const el = createTaskEl(task);
-    const now = Date.now();
-    if (task.deadline) {
-      const diff = new Date(task.deadline).getTime() - now;
-      const id = String(task.id);
-      const snoozeUntil = getSnoozeUntil(id);
-      if (diff <= 0) el.classList.add('overdue');
-      else if (diff <= 43200000 && !isStarted(id) && snoozeUntil <= now) el.classList.add('urgent');
-    }
     frag.appendChild(el);
   });
   taskListEl.appendChild(frag);
@@ -160,41 +142,9 @@ function createTaskEl(task) {
     tag.textContent = task.assigned_to.substring(0,1); // Initial
     meta.appendChild(tag);
   }
-  const ownerSel = document.createElement('select');
-  ownerSel.className = 'form-input';
-  ownerSel.style.width = '80px';
-  ownerSel.style.height = '28px';
-  ownerSel.style.fontSize = '12px';
-  ownerSel.dataset.action = 'owner';
-  ownerSel.dataset.id = String(task.id);
-  ['Zaldy','Nesya'].forEach(u => {
-    const opt = document.createElement('option');
-    opt.value = u;
-    opt.textContent = u;
-    ownerSel.appendChild(opt);
-  });
-  ownerSel.value = task.assigned_to || 'Zaldy';
-  meta.appendChild(ownerSel);
 
   info.appendChild(meta);
   content.appendChild(info);
-  const actions = document.createElement('div');
-  actions.style.display = 'flex';
-  actions.style.gap = '6px';
-  actions.style.marginLeft = 'auto';
-  const startBtn = document.createElement('button');
-  startBtn.className = 'btn small';
-  startBtn.dataset.action = 'start';
-  startBtn.dataset.id = String(task.id);
-  startBtn.textContent = isStarted(String(task.id)) ? 'Started' : 'Start';
-  const snoozeBtn = document.createElement('button');
-  snoozeBtn.className = 'btn small';
-  snoozeBtn.dataset.action = 'snooze';
-  snoozeBtn.dataset.id = String(task.id);
-  snoozeBtn.textContent = 'Snooze 1h';
-  actions.appendChild(startBtn);
-  actions.appendChild(snoozeBtn);
-  content.appendChild(actions);
 
   el.appendChild(content);
 
@@ -302,7 +252,6 @@ function setupInteractions(el, task) {
 
 // Logic Helpers
 function filterTasks(list) {
-  if (!Array.isArray(list)) return [];
   const now = new Date();
   now.setHours(0,0,0,0);
   
@@ -332,13 +281,7 @@ function sortTasks(list) {
       const pMap = { high: 3, medium: 2, low: 1 };
       return (pMap[b.priority] || 2) - (pMap[a.priority] || 2);
     }
-    const now = Date.now();
-    const ta = a.deadline ? new Date(a.deadline).getTime() - now : Infinity;
-    const tb = b.deadline ? new Date(b.deadline).getTime() - now : Infinity;
-    const ua = (ta <= 43200000 && ta > 0) || (ta <= 0);
-    const ub = (tb <= 43200000 && tb > 0) || (tb <= 0);
-    if (ua && !ub) return -1;
-    if (!ua && ub) return 1;
+    // Default deadline sort
     const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
     const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
     return da - db;
@@ -346,9 +289,8 @@ function sortTasks(list) {
 }
 
 function updateHeaderStats() {
-  const arr = Array.isArray(tasks) ? tasks : [];
-  const completed = arr.filter(t => t.completed).length;
-  const total = arr.length;
+  const completed = tasks.filter(t => t.completed).length;
+  const total = tasks.length;
   const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
   
   document.getElementById('completed-count').textContent = completed;
@@ -444,19 +386,17 @@ function openSheet(task = null) {
     if (task.deadline) document.getElementById('task-deadline').value = task.deadline.slice(0,16); // format for datetime-local
     if (task.assigned_to) document.getElementById('task-assigned').value = task.assigned_to;
     
-    const prio = (task.priority || 'medium').toLowerCase();
+    const prio = task.priority || 'medium';
     document.getElementById('task-priority').value = prio;
-    const btn = document.querySelector(`.prio-btn[data-val="${prio}"]`) || document.querySelector('.prio-btn[data-val="medium"]');
-    if (btn) btn.classList.add('active');
+    document.querySelector(`.prio-btn[data-val="${prio}"]`).classList.add('active');
   } else {
     document.getElementById('task-id').value = '';
-    const btn = document.querySelector('.prio-btn[data-val="medium"]');
-    if (btn) btn.classList.add('active');
+    document.querySelector('.prio-btn[data-val="medium"]').classList.add('active');
     // Default assigned to current user? Handled by backend if null.
   }
   
-  if (sheetOverlay) sheetOverlay.classList.add('active');
-  if (sheet) sheet.classList.add('active');
+  sheetOverlay.classList.add('active');
+  sheet.classList.add('active');
 }
 
 function closeSheet() {
@@ -519,47 +459,11 @@ function setupEventListeners() {
   });
 
   // FAB
-  if (fabEl) fabEl.addEventListener('click', () => openSheet(null));
-  const qaBtn = document.getElementById('quick-add-btn');
-  const qaInput = document.getElementById('quick-add-input');
-  function parseQuick(text) {
-    let title = text.trim();
-    let base = new Date();
-    let off = 0;
-    const tl = text.toLowerCase();
-    if (tl.includes('besok')) { off = 1; title = title.replace(/besok/ig,'').trim(); }
-    if (tl.includes('hari ini') || tl.includes('today')) { off = 0; title = title.replace(/hari ini|today/ig,'').trim(); }
-    base.setDate(base.getDate() + off);
-    let h = 20, m = 0;
-    const tm = text.match(/(\d{1,2}):(\d{2})/);
-    if (tm) { h = parseInt(tm[1],10); m = parseInt(tm[2],10); title = title.replace(tm[0],'').trim(); }
-    base.setHours(h, m, 0, 0);
-    const deadline = tm || off ? base.toISOString().slice(0,16) : '';
-    return { title, deadline };
-  }
-  if (qaBtn && qaInput) {
-    qaBtn.addEventListener('click', async () => {
-      const v = qaInput.value.trim();
-      if (!v) return;
-      const p = parseQuick(v);
-      try {
-        await post('/tasks', { title: p.title, deadline: p.deadline });
-        qaInput.value = '';
-        showToast('Task added', 'success');
-        loadTasks();
-      } catch (e) {
-        showToast('Failed to add', 'error');
-      }
-    });
-    qaInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); qaBtn.click(); }
-    });
-  }
+  fabEl.addEventListener('click', () => openSheet(null));
 
   // Sheet
-  const sheetCancel = document.getElementById('sheet-cancel');
-  if (sheetCancel) sheetCancel.addEventListener('click', closeSheet);
-  if (sheetOverlay) sheetOverlay.addEventListener('click', (e) => {
+  document.getElementById('sheet-cancel').addEventListener('click', closeSheet);
+  sheetOverlay.addEventListener('click', (e) => {
     if (e.target === sheetOverlay) closeSheet();
   });
 
@@ -573,7 +477,7 @@ function setupEventListeners() {
   });
 
   // Form Submit
-  if (taskForm) taskForm.addEventListener('submit', async (e) => {
+  taskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(taskForm);
     const data = Object.fromEntries(fd.entries());
@@ -614,39 +518,7 @@ function setupEventListeners() {
       exitMultiSelectMode();
       loadTasks();
       showToast('Tasks completed');
-  });
-  
-  taskListEl.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    e.stopPropagation();
-    const id = btn.dataset.id;
-    const act = btn.dataset.action;
-    if (act === 'start') {
-      const nv = !isStarted(id);
-      setStarted(id, nv);
-      btn.textContent = nv ? 'Started' : 'Start';
-      render();
-    } else if (act === 'snooze') {
-      const until = Date.now() + 3600000;
-      setSnoozeUntil(id, until);
-      showToast('Snoozed 1h', 'info');
-      render();
-    }
-  });
-  taskListEl.addEventListener('change', async (e) => {
-    const sel = e.target.closest('select[data-action="owner"]');
-    if (!sel) return;
-    e.stopPropagation();
-    const id = sel.dataset.id;
-    const val = sel.value;
-    try {
-      await put('/tasks', { id, assigned_to: val });
-      showToast('Pemilik tugas diubah', 'success');
-      loadTasks();
-    } catch (err) {
-      showToast('Gagal mengubah pemilik', 'error');
-    }
+      openMoodPrompt('Selesai beberapa tugas');
   });
 }
 
