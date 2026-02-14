@@ -1,8 +1,8 @@
 import { apiFetch } from './api.js';
-import { showToast, disableSW } from './main.js';
+import { showToast, registerSW } from './main.js';
 
 function init() {
-  disableSW();
+  registerSW();
   initVisuals();
 
   const form = document.querySelector('#login-form');

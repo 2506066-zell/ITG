@@ -2,6 +2,11 @@ function requireAuth() {
   const t = localStorage.getItem('token');
   if (!t) location.href = '/login.html';
 }
+
+/** @deprecated Use registerSW instead */
+export function disableSW() {
+  console.log('SW Disable called (Deprecated)');
+}
 export async function registerSW() {
   if ('serviceWorker' in navigator) {
     try {

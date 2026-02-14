@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cf-v10';
+const CACHE_NAME = 'cf-v11';
 const ASSETS = [
   '/',
   '/login',
@@ -27,7 +27,8 @@ const ASSETS = [
   'js/chat.js',
   'js/settings.js',
   'icons/192.png',
-  'icons/512.png'
+  'icons/512.png',
+  'icons/icon.svg'
 ];
 
 // Install: Cache Assets
