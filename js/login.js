@@ -55,98 +55,119 @@ function init() {
 }
 
 function initVisuals() {
-  // Show characters immediately (Remove cheesy entry)
+  const container = document.querySelector('.romantic-container');
   const chars = document.querySelectorAll('.nesya-char');
   chars.forEach(char => char.classList.add('show'));
 
-  // 3. Star Mist Effect (Premium Cosmic Dust)
+  // --- ☄️ AUTONOMOUS 3D WANDERER LOGIC ---
+  let currentX = window.innerWidth / 2;
+  let currentY = window.innerHeight / 3;
+  let currentZ = 0;
+  let targetX = currentX;
+  let targetY = currentY;
+  let targetZ = 0;
+  let rotX = 0, rotY = 0;
+
+  // Mouse Influence
+  let mouseX = 0, mouseY = 0;
+  window.addEventListener('mousemove', e => {
+    mouseX = (e.clientX - window.innerWidth / 2) * 0.05;
+    mouseY = (e.clientY - window.innerHeight / 2) * 0.05;
+  });
+
+  function updateTarget() {
+    // Wanders to random parts of the screen
+    const padding = 100;
+    targetX = padding + Math.random() * (window.innerWidth - padding * 2);
+    targetY = padding + Math.random() * (window.innerHeight - padding * 2);
+    targetZ = Math.random() * 100 - 50; // Forward/Backward
+
+    setTimeout(updateTarget, 3000 + Math.random() * 4000);
+  }
+  updateTarget();
+
+  function animateWanderer() {
+    // Smooth Lerp
+    currentX += (targetX - currentX) * 0.005;
+    currentY += (targetY - currentY) * 0.005;
+    currentZ += (targetZ - currentZ) * 0.005;
+
+    // Subtle 3D Rotation based on movement
+    rotX += ((targetY - currentY) * 0.1 - rotX) * 0.02;
+    rotY += ((currentX - targetX) * 0.1 - rotY) * 0.02;
+
+    if (container) {
+      // Offset from center because container is fixed 50/50
+      const offsetX = currentX - window.innerWidth / 2 + mouseX;
+      const offsetY = currentY - window.innerHeight / 2 + mouseY;
+
+      container.style.transform = `
+        translate3d(${offsetX}px, ${offsetY}px, ${currentZ}px) 
+        rotateX(${rotX}deg) 
+        rotateY(${rotY}deg)
+      `;
+    }
+    requestAnimationFrame(animateWanderer);
+  }
+  animateWanderer();
+
+  // --- 💬 INTERACTION & MIST ---
+  const display = document.getElementById('message-display');
+  const nebula = document.querySelector('.nebula-1');
+  let messageTimeout;
+
+  // Star Mist Effect
   function createStarMist(element, color = 'var(--neon-purple)') {
     const rect = element.getBoundingClientRect();
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       const p = document.createElement('div');
       p.className = 'cursor-trail';
-      p.style.width = Math.random() * 12 + 4 + 'px';
+      p.style.width = Math.random() * 15 + 5 + 'px';
       p.style.height = p.style.width;
       p.style.left = (rect.left + rect.width / 2) + 'px';
       p.style.top = (rect.top + rect.height / 2) + 'px';
       p.style.background = color;
-      p.style.filter = 'blur(10px)';
-      p.style.boxShadow = `0 0 20px ${color}`;
+      p.style.filter = 'blur(12px)';
+      p.style.opacity = '0.4';
       document.body.appendChild(p);
 
       const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 1.5 + 0.5;
+      const speed = Math.random() * 1.2 + 0.3;
       const vx = Math.cos(angle) * speed;
       const vy = Math.sin(angle) * speed;
 
-      let opacity = 0.6;
-      let scale = 1;
-
-      function animate() {
+      let op = 0.4;
+      function move() {
         p.style.left = (parseFloat(p.style.left) + vx) + 'px';
         p.style.top = (parseFloat(p.style.top) + vy) + 'px';
-        opacity -= 0.005;
-        scale += 0.01;
-        p.style.opacity = opacity;
-        p.style.transform = `scale(${scale})`;
-        if (opacity > 0) requestAnimationFrame(animate);
+        op -= 0.003;
+        p.style.opacity = op;
+        if (op > 0) requestAnimationFrame(move);
         else p.remove();
       }
-      animate();
+      move();
     }
   }
-
-  // 4. Cursor Trail & Parallax
-  const neb1 = document.querySelector('.nebula-1');
-  const neb2 = document.querySelector('.nebula-2');
-
-  window.addEventListener('mousemove', e => {
-    // Parallax
-    const x = (e.clientX / window.innerWidth - 0.5) * 2;
-    const y = (e.clientY / window.innerHeight - 0.5) * 2;
-
-    neb1.style.transform = `translate(${x * 30}px, ${y * 30}px)`;
-    neb2.style.transform = `translate(${x * -30}px, ${y * -30}px)`;
-
-    // Soft Cursor Trail
-    const trail = document.createElement('div');
-    trail.className = 'cursor-trail';
-    trail.style.left = e.clientX + 'px';
-    trail.style.top = e.clientY + 'px';
-    trail.style.opacity = '0.3';
-    document.body.appendChild(trail);
-
-    setTimeout(() => {
-      trail.style.opacity = '0';
-      trail.style.transform = 'scale(2)';
-      setTimeout(() => trail.remove(), 600);
-    }, 50);
-  });
-
-  // 5. Interactive Letter Messages
-  const display = document.getElementById('message-display');
-  const nebula = document.querySelector('.nebula-1');
-  let messageTimeout;
 
   chars.forEach(char => {
     char.addEventListener('click', () => {
       const msg = char.getAttribute('data-msg');
       const letter = char.getAttribute('data-letter');
 
-      // Mist effect (Replaced ripple)
+      // Mist
       const mist = document.createElement('div');
       mist.className = 'mist';
       char.appendChild(mist);
       setTimeout(() => mist.remove(), 1200);
 
-      // Nebula Pulse (Smoother)
-      nebula.style.transition = 'all 1.2s cubic-bezier(0.4, 0, 0.2, 1)';
-      nebula.style.opacity = '0.6';
-      setTimeout(() => {
-        nebula.style.opacity = '0.4';
-      }, 1200);
+      // Nebula Pulse
+      if (nebula) {
+        nebula.style.transition = 'all 1.5s ease-out';
+        nebula.style.opacity = '0.7';
+        setTimeout(() => nebula.style.opacity = '0.4', 1500);
+      }
 
-      // Show Message (Liquid transition)
+      // Show Message
       clearTimeout(messageTimeout);
       display.classList.remove('active');
 
@@ -155,13 +176,9 @@ function initVisuals() {
         display.classList.remove('special-y');
         if (letter === 'Y') display.classList.add('special-y');
         display.classList.add('active');
+        messageTimeout = setTimeout(() => display.classList.remove('active'), 7000);
+      }, 250);
 
-        messageTimeout = setTimeout(() => {
-          display.classList.remove('active');
-        }, 6000);
-      }, 200);
-
-      // Star Mist
       createStarMist(char, letter === 'Y' ? 'var(--neon-purple)' : 'var(--neon-blue)');
     });
   });
