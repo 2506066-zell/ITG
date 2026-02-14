@@ -26,7 +26,30 @@ function main() {
   cpDir(path.join(root, 'icons'), path.join(publicDir, 'icons'));
   const htmls = fs.readdirSync(root).filter(f => f.endsWith('.html') || f.endsWith('.jpg') || f.endsWith('.svg'));
   for (const h of htmls) {
-    cpFile(path.join(root, h), path.join(publicDir, h));
+    const src = path.join(root, h);
+    const dst = path.join(publicDir, h);
+    cpFile(src, dst);
+  }
+  const publicHtmls = fs.readdirSync(publicDir).filter(f => f.endsWith('.html'));
+  for (const h of publicHtmls) {
+    if (h.toLowerCase() !== 'login.html') continue;
+    const p = path.join(publicDir, h);
+    let content = fs.readFileSync(p, 'utf8');
+    if (!content.includes('css/solar-system.css')) {
+      if (content.includes('</head>')) {
+        content = content.replace('</head>', `  <link rel="stylesheet" href="css/solar-system.css">\n</head>`);
+      } else {
+        content = `<link rel="stylesheet" href="css/solar-system.css">\n` + content;
+      }
+    }
+    if (!content.includes('js/solar-system.js')) {
+      if (content.includes('</body>')) {
+        content = content.replace('</body>', `  <script src="js/solar-system.js"></script>\n</body>`);
+      } else {
+        content += `\n<script src="js/solar-system.js"></script>\n`;
+      }
+    }
+    fs.writeFileSync(p, content, 'utf8');
   }
   cpFile(path.join(root, 'favicon.ico'), path.join(publicDir, 'favicon.ico'));
   cpFile(path.join(root, 'manifest.json'), path.join(publicDir, 'manifest.json'));

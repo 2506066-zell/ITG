@@ -6,6 +6,33 @@ function init() {
   initVisuals();
 
   const form = document.querySelector('#login-form');
+  const card = document.querySelector('#login-card');
+  const sun = document.querySelector('#sun-trigger');
+  const overlay = document.querySelector('#login-overlay');
+  if (card) card.classList.remove('visible');
+  if (sun && card && overlay) {
+    sun.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('sun-emit', { detail: { strength: 0.95 } }));
+      card.classList.add('visible');
+      overlay.classList.add('show');
+    });
+    sun.addEventListener('mouseenter', () => {
+      window.dispatchEvent(new CustomEvent('sun-emit', { detail: { strength: 0.6 } }));
+    });
+    sun.addEventListener('mouseleave', () => {
+      window.dispatchEvent(new CustomEvent('sun-emit', { detail: { strength: 0.35 } }));
+    });
+    overlay.addEventListener('click', () => {
+      card.classList.remove('visible');
+      overlay.classList.remove('show');
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        card.classList.remove('visible');
+        overlay.classList.remove('show');
+      }
+    });
+  }
   if (!form) return;
 
   form.addEventListener('submit', async e => {
