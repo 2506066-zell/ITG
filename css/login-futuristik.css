@@ -542,19 +542,34 @@ body {
     position: absolute;
     z-index: -750;
     pointer-events: none;
-    padding: 6px 10px;
-    font-size: 0.72rem;
-    letter-spacing: 0.06em;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
     color: #e8f0ff;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 10px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(15,20,40,0.6);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 12px;
+    max-width: 340px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     opacity: 0;
     transform: translate3d(0,0,0);
     transition: opacity 180ms linear, transform 120ms linear;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+    box-shadow: 0 10px 26px rgba(0,0,0,0.45);
+}
+.login-page .planet-tooltip .title {
+    font-family: var(--font-head);
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: hsl(var(--nebula-core));
+    text-transform: uppercase;
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+}
+.login-page .planet-tooltip .text {
+    font-family: var(--font-main);
+    color: #eaf2ff;
 }
 /* Planet variants */
 .login-page .mercury { --color: #A5A5A5; --glow: rgba(165,165,165,0.55); width: 6px; height: 6px; }

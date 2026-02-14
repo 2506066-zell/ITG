@@ -11,14 +11,14 @@ const GLOBAL_ELLIPSE = 0.51; // Vertical squash to match image perspective
 console.log('🪐 Solar System Layer Initializing...');
 
 const PLANETS = [
-    { name: 'mercury', radius: 90, speed: 0.015, size: 6, angle: Math.random() * Math.PI * 2, label: 'Mercury', msg: 'Cepat, setia, selalu kembali.' },
-    { name: 'venus', radius: 130, speed: 0.011, size: 10, angle: Math.random() * Math.PI * 2, label: 'Venus', msg: 'Cantik, hangat, penuh cahaya.' },
-    { name: 'earth', radius: 180, speed: 0.008, size: 11, angle: Math.random() * Math.PI * 2, label: 'Earth', msg: 'Kamu adalah rumahku.' },
-    { name: 'mars', radius: 230, speed: 0.006, size: 8, angle: Math.random() * Math.PI * 2, label: 'Mars', msg: 'Berani, lembut, tak pernah menyerah.' },
-    { name: 'jupiter', radius: 310, speed: 0.004, size: 24, angle: Math.random() * Math.PI * 2, label: 'Jupiter', msg: 'Besar, melindungi, selalu hangat.' },
-    { name: 'saturn', radius: 390, speed: 0.003, size: 20, angle: Math.random() * Math.PI * 2, label: 'Saturn', msg: 'Elegan, berkelas, ber-cincin cantik.' },
-    { name: 'uranus', radius: 470, speed: 0.002, size: 14, angle: Math.random() * Math.PI * 2, label: 'Uranus', msg: 'Tenang, dingin, selalu meneduhkan.' },
-    { name: 'neptune', radius: 550, speed: 0.0015, size: 14, angle: Math.random() * Math.PI * 2, label: 'Neptune', msg: 'Dalam, misterius, memikat hati.' }
+    { name: 'mercury', radius: 90, speed: 0.015, size: 6, angle: Math.random() * Math.PI * 2, label: 'Mercury', msg: 'Masih inget pas awal chatan?' },
+    { name: 'venus', radius: 130, speed: 0.011, size: 10, angle: Math.random() * Math.PI * 2, label: 'Venus', msg: 'Kebetulan yang saya syukuti' },
+    { name: 'earth', radius: 180, speed: 0.008, size: 11, angle: Math.random() * Math.PI * 2, label: 'Earth', msg: 'Setelah kita kenal beberapa bulan di diri u banyak perubahan positive, in my mind' },
+    { name: 'mars', radius: 230, speed: 0.006, size: 8, angle: Math.random() * Math.PI * 2, label: 'Mars', msg: 'Hayu bobogohan' },
+    { name: 'jupiter', radius: 310, speed: 0.004, size: 24, angle: Math.random() * Math.PI * 2, label: 'Jupiter', msg: 'I hope kita tetap bisa together n grow' },
+    { name: 'saturn', radius: 390, speed: 0.003, size: 20, angle: Math.random() * Math.PI * 2, label: 'Saturn', msg: 'If u ada something tell me, tong di turutan sifat urg nu sagala di pendem sorangan mah' },
+    { name: 'uranus', radius: 470, speed: 0.002, size: 14, angle: Math.random() * Math.PI * 2, label: 'Uranus', msg: 'Jika suatu saat di masa depan kita tidak bisa terus bersama karena keadaan tertentu, semoga hubungan ini tidak menimbulkan dampak buruk, setiap hal pasti aya hikmah na' },
+    { name: 'neptune', radius: 550, speed: 0.0015, size: 14, angle: Math.random() * Math.PI * 2, label: 'Neptune', msg: 'Maaf atas semuanya.' }
 ];
 
 let canvas, ctx;
@@ -73,7 +73,7 @@ function init() {
         container.appendChild(el);
         const tip = document.createElement('div');
         tip.className = 'planet-tooltip';
-        tip.textContent = `${p.label}: ${p.msg}`;
+        tip.innerHTML = `<div class="title">${p.label}</div><div class="text">${p.msg}</div>`;
         container.appendChild(tip);
         const surf = document.createElement('div');
         surf.className = 'planet-surface';
@@ -84,7 +84,7 @@ function init() {
         const terminator = document.createElement('div');
         terminator.className = 'terminator-layer';
         el.appendChild(terminator);
-        nodes.push({ ...p, el, tip, surf, cloud, terminator, scale: 1, rot: 0, rotSpeed: 0 });
+        nodes.push({ ...p, el, tip, surf, cloud, terminator, scale: 1, rot: 0, rotSpeed: 0, pinned: false });
     });
     refineOrbitSpeeds();
     const earth = nodes.find(n => n.name === 'earth');
@@ -105,6 +105,31 @@ function init() {
     window.addEventListener('mouseleave', () => {
         mouseX = null;
         mouseY = null;
+    });
+    window.addEventListener('click', (e) => {
+        const x = e.clientX;
+        const y = e.clientY;
+        for (const p of nodes) {
+            const r = p.tip.getBoundingClientRect();
+            if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+                p.pinned = !p.pinned;
+                return;
+            }
+        }
+        let nearest = null;
+        let minD = Infinity;
+        for (const p of nodes) {
+            const pos = lastPositions[p.name];
+            if (!pos) continue;
+            const d = Math.hypot(x - pos.x, y - pos.y);
+            if (d < minD) {
+                minD = d;
+                nearest = p;
+            }
+        }
+        if (nearest && minD <= (60 + nearest.size)) {
+            nearest.pinned = !nearest.pinned;
+        }
     });
 
     requestAnimationFrame(loop);
@@ -510,8 +535,8 @@ function loop() {
         p.el.style.setProperty('--light-y', `${ly}%`);
         const shade = 0.45 + 0.35 * Math.max(0, (nx*0.5 + ny*0.5));
         p.el.style.setProperty('--shade', `${Math.min(0.85, Math.max(0.2, shade))}`);
-        const show = hv > 0.5;
-        const tipOpacity = show ? Math.min(1, (hv - 0.5) * 2) : 0;
+        const show = p.pinned || hv > 0.5;
+        const tipOpacity = p.pinned ? 1 : (show ? Math.min(1, (hv - 0.5) * 2) : 0);
         const tx = x + p.size * 0.6;
         const ty = y - p.size * 0.6 - 18;
         p.tip.style.opacity = `${tipOpacity}`;
