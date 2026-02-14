@@ -55,56 +55,40 @@ function init() {
 }
 
 function initVisuals() {
-  // 1. Romantic Typing Animation
-  const typeContainer = document.getElementById('type-text');
-  const text = "I LOVE U";
-  let i = 0;
+  // Show characters immediately (Remove cheesy entry)
+  const chars = document.querySelectorAll('.nesya-char');
+  chars.forEach(char => char.classList.add('show'));
 
-  function type() {
-    if (i < text.length) {
-      typeContainer.textContent += text.charAt(i);
-      i++;
-      setTimeout(type, 150);
-    } else {
-      setTimeout(revealNesya, 500);
-    }
-  }
-
-  setTimeout(type, 1000);
-
-  // 2. Nesya Name Burst
-  function revealNesya() {
-    const chars = document.querySelectorAll('.nesya-char');
-    chars.forEach((char, idx) => {
-      setTimeout(() => {
-        char.classList.add('show');
-        createParticles(char);
-      }, idx * 200);
-    });
-  }
-
-  // 3. Particles Effect for Name
-  function createParticles(element) {
+  // 3. Star Mist Effect (Premium Cosmic Dust)
+  function createStarMist(element, color = 'var(--neon-purple)') {
     const rect = element.getBoundingClientRect();
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 6; i++) {
       const p = document.createElement('div');
       p.className = 'cursor-trail';
+      p.style.width = Math.random() * 12 + 4 + 'px';
+      p.style.height = p.style.width;
       p.style.left = (rect.left + rect.width / 2) + 'px';
       p.style.top = (rect.top + rect.height / 2) + 'px';
-      p.style.background = 'var(--neon-purple)';
+      p.style.background = color;
+      p.style.filter = 'blur(10px)';
+      p.style.boxShadow = `0 0 20px ${color}`;
       document.body.appendChild(p);
 
       const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 5 + 2;
+      const speed = Math.random() * 1.5 + 0.5;
       const vx = Math.cos(angle) * speed;
       const vy = Math.sin(angle) * speed;
 
-      let opacity = 0.8;
+      let opacity = 0.6;
+      let scale = 1;
+
       function animate() {
         p.style.left = (parseFloat(p.style.left) + vx) + 'px';
         p.style.top = (parseFloat(p.style.top) + vy) + 'px';
-        opacity -= 0.02;
+        opacity -= 0.005;
+        scale += 0.01;
         p.style.opacity = opacity;
+        p.style.transform = `scale(${scale})`;
         if (opacity > 0) requestAnimationFrame(animate);
         else p.remove();
       }
@@ -113,7 +97,6 @@ function initVisuals() {
   }
 
   // 4. Cursor Trail & Parallax
-  const canvas = document.querySelector('.galaxy-canvas');
   const neb1 = document.querySelector('.nebula-1');
   const neb2 = document.querySelector('.nebula-2');
 
@@ -125,22 +108,22 @@ function initVisuals() {
     neb1.style.transform = `translate(${x * 30}px, ${y * 30}px)`;
     neb2.style.transform = `translate(${x * -30}px, ${y * -30}px)`;
 
-    // Cursor Trail
+    // Soft Cursor Trail
     const trail = document.createElement('div');
     trail.className = 'cursor-trail';
     trail.style.left = e.clientX + 'px';
     trail.style.top = e.clientY + 'px';
+    trail.style.opacity = '0.3';
     document.body.appendChild(trail);
 
     setTimeout(() => {
       trail.style.opacity = '0';
-      trail.style.transform = 'scale(0.5)';
-      setTimeout(() => trail.remove(), 300);
+      trail.style.transform = 'scale(2)';
+      setTimeout(() => trail.remove(), 600);
     }, 50);
   });
 
   // 5. Interactive Letter Messages
-  const chars = document.querySelectorAll('.nesya-char');
   const display = document.getElementById('message-display');
   const nebula = document.querySelector('.nebula-1');
   let messageTimeout;
@@ -150,38 +133,36 @@ function initVisuals() {
       const msg = char.getAttribute('data-msg');
       const letter = char.getAttribute('data-letter');
 
-      // Ripple effect
-      const ripple = document.createElement('div');
-      ripple.className = 'ripple';
-      char.appendChild(ripple);
-      setTimeout(() => ripple.remove(), 800);
+      // Mist effect (Replaced ripple)
+      const mist = document.createElement('div');
+      mist.className = 'mist';
+      char.appendChild(mist);
+      setTimeout(() => mist.remove(), 1200);
 
-      // Nebula Pulse
-      nebula.style.transition = 'all 0.4s ease';
-      nebula.style.opacity = '0.7';
-      nebula.style.filter = 'blur(60px)';
+      // Nebula Pulse (Smoother)
+      nebula.style.transition = 'all 1.2s cubic-bezier(0.4, 0, 0.2, 1)';
+      nebula.style.opacity = '0.6';
       setTimeout(() => {
         nebula.style.opacity = '0.4';
-        nebula.style.filter = 'blur(100px)';
-      }, 400);
+      }, 1200);
 
-      // Show Message
+      // Show Message (Liquid transition)
       clearTimeout(messageTimeout);
-      display.classList.remove('active', 'special-y');
+      display.classList.remove('active');
 
-      // Small delay for smooth state change
       setTimeout(() => {
         display.textContent = msg;
-        display.classList.add('active');
+        display.classList.remove('special-y');
         if (letter === 'Y') display.classList.add('special-y');
+        display.classList.add('active');
 
         messageTimeout = setTimeout(() => {
           display.classList.remove('active');
-        }, 5000);
-      }, 50);
+        }, 6000);
+      }, 200);
 
-      // Click Particles
-      createParticles(char);
+      // Star Mist
+      createStarMist(char, letter === 'Y' ? 'var(--neon-purple)' : 'var(--neon-blue)');
     });
   });
 }
