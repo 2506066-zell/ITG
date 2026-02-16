@@ -85,9 +85,6 @@ export default withErrorHandling(async function handler(req, res) {
         }
       }
 
-      fields.push(`updated_by=$${i++}`);
-      vals.push(user);
-
       vals.push(idNum);
       const r = await client.query(`UPDATE assignments SET ${fields.join(', ')} WHERE id=$${i} RETURNING *`, vals);
       await logActivity(client, 'assignment', idNum, 'UPDATE', user, changes);

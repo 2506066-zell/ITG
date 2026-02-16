@@ -17,7 +17,10 @@ async function main() {
     const auth = { Authorization: `Bearer ${token}` };
     let res = await fetch(`${base}/api/assignments`, { headers: auth });
     console.log('GET status:', res.status);
-    let list = await res.json();
+    const getText = await res.text();
+    console.log('GET body:', getText.slice(0, 400));
+    let list;
+    try { list = JSON.parse(getText); } catch { list = []; }
     console.log('GET count:', Array.isArray(list) ? list.length : 'n/a');
     res = await fetch(`${base}/api/assignments`, {
       method: 'POST',
