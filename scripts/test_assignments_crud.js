@@ -25,19 +25,19 @@ async function main() {
     res = await fetch(`${base}/api/assignments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...auth },
-      body: JSON.stringify({ title: 'Test From Agent', deadline: new Date().toISOString() })
+      body: JSON.stringify({ title: 'Test From Agent', description: 'CRUD test', deadline: new Date().toISOString() })
     });
     if (!res.ok) throw new Error(`POST failed: ${res.status}`);
     const created = await res.json();
     console.log('POST id:', created.id);
     res = await fetch(`${base}/api/assignments`, {
-      method: 'PUT',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', ...auth },
-      body: JSON.stringify({ id: created.id, completed: true })
+      body: JSON.stringify({ action: 'toggle', id: created.id, completed: true })
     });
-    console.log('PUT status:', res.status);
+    console.log('TOGGLE status:', res.status);
     const updated = await res.json();
-    console.log('PUT completed:', updated.completed, 'completed_by:', updated.completed_by);
+    console.log('TOGGLE completed:', updated.completed, 'completed_by:', updated.completed_by);
     res = await fetch(`${base}/api/assignments?id=${created.id}`, {
       method: 'DELETE',
       headers: auth

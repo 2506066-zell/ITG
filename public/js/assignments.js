@@ -262,7 +262,7 @@ async function actions(e) {
   }
   if (act === 'toggle') {
     try {
-      await put('/assignments', { id, completed: btn.checked });
+      await post('/assignments', { action: 'toggle', id, completed: btn.checked });
       showToast(btn.checked ? 'Tugas selesai' : 'Tugas dibuka kembali', 'info');
       if (btn.checked) {
         const title = btn.closest('.list-item')?.querySelector('strong')?.textContent || '';

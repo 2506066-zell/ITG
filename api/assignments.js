@@ -14,7 +14,51 @@ export default withErrorHandling(async function handler(req, res) {
   }
   if (req.method === 'POST') {
     const b = req.body || await readBody(req);
-    const { title, deadline } = b;
+    const { action, title, description, deadline, id, completed } = b;
+    if (action === 'toggle') {
+      const idNum = Number(id);
+      if (!idNum) { res.status(400).json({ error: 'Invalid id' }); return; }
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const cur = await client.query('SELECT * FROM assignments WHERE id=$1 FOR UPDATE', [idNum]);
+        if (cur.rowCount === 0) {
+          await client.query('ROLLBACK');
+          res.status(404).json({ error: 'Not found' });
+          return;
+        }
+        const row = cur.rows[0];
+        const fields = [];
+        const vals = [];
+        let i = 1;
+        const changes = {};
+        if (completed !== undefined) {
+          fields.push(`completed=$${i++}`);
+          vals.push(completed);
+          changes.completed = completed;
+          if (completed === true && !row.completed) {
+            fields.push(`completed_at=NOW()`);
+            fields.push(`completed_by=$${i++}`);
+            vals.push(user);
+            changes.completed_by = user;
+          } else if (completed === false && row.completed) {
+            fields.push(`completed_at=NULL`);
+            fields.push(`completed_by=NULL`);
+          }
+        }
+        vals.push(idNum);
+        const r = await client.query(`UPDATE assignments SET ${fields.join(', ')} WHERE id=$${i} RETURNING *`, vals);
+        await logActivity(client, 'assignment', idNum, 'UPDATE', user, changes);
+        await client.query('COMMIT');
+        sendJson(res, 200, r.rows[0]);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+      return;
+    }
     if (!title || typeof title !== 'string') {
       res.status(400).json({ error: 'Invalid title' });
       return;
@@ -29,8 +73,8 @@ export default withErrorHandling(async function handler(req, res) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const r = await client.query('INSERT INTO assignments (title, deadline) VALUES ($1,$2) RETURNING *', [title, dl || null]);
-      await logActivity(client, 'assignment', r.rows[0].id, 'CREATE', user, { title, deadline: dl });
+      const r = await client.query('INSERT INTO assignments (title, description, deadline) VALUES ($1,$2,$3) RETURNING *', [title, description || null, dl || null]);
+      await logActivity(client, 'assignment', r.rows[0].id, 'CREATE', user, { title, description, deadline: dl });
       await client.query('COMMIT');
       sendJson(res, 200, r.rows[0]);
     } catch (err) {
