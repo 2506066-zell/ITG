@@ -1,12 +1,38 @@
 {
   "version": 2,
   "regions": ["sin1"],
+  "crons": [
+    {
+      "path": "/api/cron/daily-topic",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/context-checks",
+      "schedule": "0 2,13 * * *"
+    },
+    {
+      "path": "/api/cron/hourly",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/report-notifications",
+      "schedule": "0 2 * * *"
+    }
+  ],
   "builds": [
     { "src": "api/router.js", "use": "@vercel/node" },
+    { "src": "api/cron/daily_topic.js", "use": "@vercel/node" },
+    { "src": "api/cron/context_checks.js", "use": "@vercel/node" },
+    { "src": "api/cron/hourly_checks.js", "use": "@vercel/node" },
+    { "src": "api/cron/report_notifications.js", "use": "@vercel/node" },
     { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "public", "buildCommand": "node scripts/build_public.js" } }
   ],
   "rewrites": [
     { "source": "/", "destination": "/index.html" },
+    { "source": "/api/cron/daily-topic", "destination": "/api/cron/daily_topic.js" },
+    { "source": "/api/cron/context-checks", "destination": "/api/cron/context_checks.js" },
+    { "source": "/api/cron/hourly", "destination": "/api/cron/hourly_checks.js" },
+    { "source": "/api/cron/report-notifications", "destination": "/api/cron/report_notifications.js" },
     { "source": "/api/(.*)", "destination": "/api/router.js?path=$1" },
     { "source": "/login", "destination": "/login.html" },
     { "source": "/memories", "destination": "/memories.html" },
@@ -18,6 +44,7 @@
     { "source": "/chat", "destination": "/chat.html" },
     { "source": "/settings", "destination": "/settings.html" },
     { "source": "/monthly-todos", "destination": "/monthly-todos.html" },
+    { "source": "/report", "destination": "/report.html" },
     { "source": "/(.*)", "destination": "/$1" }
   ],
   "cleanUrls": false,

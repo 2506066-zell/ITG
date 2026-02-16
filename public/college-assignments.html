@@ -38,7 +38,14 @@
         <form id="create-assignment" class="list">
           <input class="input" name="title" placeholder="Title" required>
           <textarea class="input" name="description" placeholder="Description (optional)"></textarea>
-          <input class="input" type="datetime-local" name="deadline" required>
+          <div style="display:flex;gap:10px">
+              <input class="input" type="datetime-local" name="deadline" required style="flex:1">
+              <select class="input" name="assigned_to" style="flex:1">
+                  <option value="" selected>Assign to...</option>
+                  <option value="Nesya">Nesya</option>
+                  <option value="Zaldy">Zaldy</option>
+              </select>
+          </div>
           <button class="btn" type="submit"><i class="fa-solid fa-plus"></i> Add</button>
         </form>
       </div>

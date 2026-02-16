@@ -51,6 +51,13 @@ function setupEvents() {
     });
   });
 
+  // Tags Selection
+  document.querySelectorAll('#eval-tags .tag-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      chip.classList.toggle('active');
+    });
+  });
+
   // Forms
   goalForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -68,10 +75,17 @@ function setupEvents() {
     const fd = new FormData(evalForm);
     if (!fd.get('mood')) return showToast('Select a mood', 'error');
 
+    // Collect tags
+    const tags = [];
+    document.querySelectorAll('#eval-tags .tag-chip.active').forEach(chip => {
+      tags.push(chip.dataset.val);
+    });
+
     try {
       await post('/evaluations', {
         mood: fd.get('mood'),
         note: fd.get('note'),
+        tags: tags,
         date: new Date().toISOString()
       });
       closeSheet();
@@ -178,6 +192,10 @@ function renderEvals() {
           ${new Date(e.created_at).toLocaleString()} • ${e.user_id || ''}
         </div>
         <div style="font-size:14px;line-height:1.4">${e.note}</div>
+        ${e.tags && e.tags.length ? `
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">
+          ${e.tags.map(t => `<span class="tag-chip" style="font-size:10px;padding:2px 8px;cursor:default;margin:0">${t}</span>`).join('')}
+        </div>` : ''}
       </div>
       <button class="btn danger small delete-btn" style="align-self:flex-start;padding:4px 8px"><i class="fa-solid fa-trash"></i></button>
     `;
@@ -208,6 +226,7 @@ function openSheet() {
     evalForm.style.display = 'block';
     evalForm.reset();
     document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('#eval-tags .tag-chip').forEach(c => c.classList.remove('active'));
     document.getElementById('mood-input').value = '';
   }
 }

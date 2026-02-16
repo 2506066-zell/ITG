@@ -60,7 +60,8 @@ const routes = [
   { path: '/api/monthly', file: '../api/monthly.js' },
   { path: '/api/monthly_stats', file: '../api/monthly_stats.js' },
   { path: '/api/evaluations', file: '../api/evaluations.js' },
-  { path: '/api/weekly', file: '../api/weekly.js' }
+  { path: '/api/weekly', file: '../api/weekly.js' },
+  { path: '/api/reports', file: '../api/reports.js' }
 ];
 
 routes.forEach(route => {
@@ -77,7 +78,8 @@ const pages = [
   'schedule',
   'chat',
   'settings',
-  'monthly-todos'
+  'monthly-todos',
+  'report'
 ];
 pages.forEach(p => {
   app.get(`/${p}`, (req, res) => {

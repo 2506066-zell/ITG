@@ -37,8 +37,7 @@ async function init() {
 async function loadTasks() {
   renderSkeleton();
   try {
-    const data = await get('/tasks');
-    tasks = Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
+    tasks = await get('/tasks');
     render();
     updateHeaderStats();
   } catch (err) {
@@ -64,12 +63,67 @@ function render() {
     return;
   }
 
-  const frag = document.createDocumentFragment();
+  // Split by User
+  // For 'today' and 'upcoming' filter, we split.
+  // For 'completed', maybe just one list or split too? Let's split for consistency.
+  
+  const users = ['Nesya', 'Zaldy'];
+  const grouped = { Nesya: [], Zaldy: [], Other: [] };
+  
+  // Custom sorting for grouped items
+  const processList = (list) => {
+      // Sort within group
+      return sortTasks(list);
+  };
+
   sorted.forEach(task => {
-    const el = createTaskEl(task);
-    frag.appendChild(el);
+      const assignee = task.assigned_to || 'Other';
+      if (users.includes(assignee)) {
+          grouped[assignee].push(task);
+      } else {
+          grouped.Other.push(task);
+      }
   });
-  taskListEl.appendChild(frag);
+
+  const createSection = (title, taskList) => {
+      if (taskList.length === 0) return document.createDocumentFragment();
+      
+      const sec = document.createElement('div');
+      sec.className = 'task-section';
+      sec.style.marginBottom = '24px';
+      
+      const head = document.createElement('div');
+      head.className = 'section-header';
+      head.style.padding = '0 16px 8px';
+      head.style.fontSize = '12px';
+      head.style.fontWeight = '700';
+      head.style.color = 'var(--text-muted)';
+      head.style.textTransform = 'uppercase';
+      head.style.letterSpacing = '1px';
+      head.style.display = 'flex';
+      head.style.alignItems = 'center';
+      head.style.gap = '8px';
+      
+      // Avatar/Icon for section
+      const icon = title === 'Nesya' ? '<i class="fa-solid fa-venus" style="color:#ff69b4"></i>' : 
+                   (title === 'Zaldy' ? '<i class="fa-solid fa-mars" style="color:#00bfff"></i>' : '<i class="fa-solid fa-users"></i>');
+      
+      head.innerHTML = `${icon} ${title} <span style="font-size:10px;opacity:0.7;margin-left:auto">${taskList.length}</span>`;
+      
+      sec.appendChild(head);
+      
+      taskList.forEach(task => {
+          sec.appendChild(createTaskEl(task));
+      });
+      
+      return sec;
+  };
+
+  taskListEl.appendChild(createSection('Nesya', grouped.Nesya));
+  taskListEl.appendChild(createSection('Zaldy', grouped.Zaldy));
+  if (grouped.Other.length > 0) {
+      taskListEl.appendChild(createSection('Others', grouped.Other));
+  }
 }
 
 function createTaskEl(task) {
@@ -136,15 +190,32 @@ function createTaskEl(task) {
     meta.appendChild(document.createTextNode(`${dateStr}, ${timeStr}`));
   }
 
-  // Assigned
+  // Assigned & Completed Info
+  const userMeta = document.createElement('div');
+  userMeta.className = 'user-meta';
+  userMeta.style.display = 'flex';
+  userMeta.style.alignItems = 'center';
+  userMeta.style.gap = '8px';
+  userMeta.style.fontSize = '10px';
+  userMeta.style.marginTop = '4px';
+  userMeta.style.opacity = '0.7';
+
   if (task.assigned_to) {
-    const tag = document.createElement('span');
-    tag.className = 'meta-tag';
-    tag.textContent = task.assigned_to.substring(0,1); // Initial
-    meta.appendChild(tag);
+    const assign = document.createElement('span');
+    assign.innerHTML = `<i class="fa-solid fa-user-tag" style="margin-right:2px"></i> ${task.assigned_to}`;
+    userMeta.appendChild(assign);
+  }
+
+  if (task.completed && task.completed_by) {
+    const doneBy = document.createElement('span');
+    doneBy.innerHTML = `<i class="fa-solid fa-check-double" style="margin-right:2px; color:var(--success)"></i> ${task.completed_by}`;
+    userMeta.appendChild(doneBy);
   }
 
   info.appendChild(meta);
+  if (task.assigned_to || (task.completed && task.completed_by)) {
+      info.appendChild(userMeta);
+  }
   content.appendChild(info);
 
   el.appendChild(content);
@@ -396,12 +467,12 @@ function openSheet(task = null) {
     // Default assigned to current user? Handled by backend if null.
   }
   
-  if (sheetOverlay) sheetOverlay.classList.add('active');
+  sheetOverlay.classList.add('active');
   sheet.classList.add('active');
 }
 
 function closeSheet() {
-  if (sheetOverlay) sheetOverlay.classList.remove('active');
+  sheetOverlay.classList.remove('active');
   sheet.classList.remove('active');
   document.activeElement?.blur();
 }
@@ -415,6 +486,17 @@ function setupMoodEvents() {
       moodValueEl.value = b.dataset.val;
     });
   });
+
+  // Tag Chips
+  const tagContainer = document.getElementById('mood-tags');
+  if (tagContainer) {
+      tagContainer.querySelectorAll('.tag-chip').forEach(chip => {
+          chip.addEventListener('click', () => {
+              chip.classList.toggle('active');
+          });
+      });
+  }
+
   document.getElementById('mood-cancel')?.addEventListener('click', () => {
     closeMoodPrompt();
   });
@@ -422,7 +504,16 @@ function setupMoodEvents() {
     e.preventDefault();
     const val = moodValueEl.value;
     if (!val) { showToast('Pilih mood', 'error'); return; }
-    const body = { mood: val, note: moodNoteEl.value, date: new Date().toISOString() };
+    
+    // Collect tags
+    const tags = [];
+    if (tagContainer) {
+        tagContainer.querySelectorAll('.tag-chip.active').forEach(chip => {
+            tags.push(chip.dataset.val);
+        });
+    }
+
+    const body = { mood: val, note: moodNoteEl.value, tags: tags, date: new Date().toISOString() };
     try {
       await post('/evaluations', body);
       showToast('Mood disimpan', 'success');
@@ -438,6 +529,12 @@ function openMoodPrompt(note) {
   moodValueEl.value = '';
   moodNoteEl.value = note || '';
   moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
+  // Reset Tags
+  const tagContainer = document.getElementById('mood-tags');
+  if (tagContainer) {
+      tagContainer.querySelectorAll('.tag-chip').forEach(x => x.classList.remove('active'));
+  }
+  
   moodOverlay.classList.add('active');
   moodSheet.classList.add('active');
 }
@@ -460,16 +557,13 @@ function setupEventListeners() {
   });
 
   // FAB
-  if (fabEl) fabEl.addEventListener('click', () => openSheet(null));
+  fabEl.addEventListener('click', () => openSheet(null));
 
   // Sheet
-  const sheetCancel = document.getElementById('sheet-cancel');
-  if (sheetCancel) sheetCancel.addEventListener('click', closeSheet);
-  if (sheetOverlay) {
-    sheetOverlay.addEventListener('click', (e) => {
-      if (e.target === sheetOverlay) closeSheet();
-    });
-  }
+  document.getElementById('sheet-cancel').addEventListener('click', closeSheet);
+  sheetOverlay.addEventListener('click', (e) => {
+    if (e.target === sheetOverlay) closeSheet();
+  });
 
   // Priority Selector
   document.querySelectorAll('.prio-btn').forEach(el => {
@@ -481,55 +575,49 @@ function setupEventListeners() {
   });
 
   // Form Submit
-  if (taskForm) {
-    taskForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(taskForm);
-      const data = Object.fromEntries(fd.entries());
-      
-      const isEdit = !!data.id;
-      const method = isEdit ? put : post;
-      
-      try {
-        await method('/tasks', data);
-        closeSheet();
-        showToast(isEdit ? 'Task updated' : 'Task created', 'success');
-        loadTasks();
-      } catch (err) {
-        showToast('Error saving task', 'error');
-      }
-    });
-  }
+  taskForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(taskForm);
+    const data = Object.fromEntries(fd.entries());
+    
+    const isEdit = !!data.id;
+    const method = isEdit ? put : post;
+    
+    try {
+      await method('/tasks', data);
+      closeSheet();
+      showToast(isEdit ? 'Task updated' : 'Task created', 'success');
+      loadTasks();
+    } catch (err) {
+      showToast('Error saving task', 'error');
+    }
+  });
   
   // Multi Actions
-  const bulkDelete = document.getElementById('bulk-delete');
-  if (bulkDelete) {
-    bulkDelete.addEventListener('click', async () => {
-        if (!confirm(`Delete ${selectedIds.size} tasks?`)) return;
-        for (const id of selectedIds) {
-            await del(`/tasks?id=${id}`);
-        }
-        exitMultiSelectMode();
-        loadTasks();
-        showToast('Tasks deleted');
-    });
-  }
+  document.getElementById('bulk-delete').addEventListener('click', async () => {
+      if (!confirm(`Delete ${selectedIds.size} tasks?`)) return;
+      // In real app, bulk API. Here loop.
+      for (const id of selectedIds) {
+          await del(`/tasks?id=${id}`);
+      }
+      exitMultiSelectMode();
+      loadTasks();
+      showToast('Tasks deleted');
+  });
   
-  const bulkComplete = document.getElementById('bulk-complete');
-  if (bulkComplete) {
-    bulkComplete.addEventListener('click', async () => {
-        for (const id of selectedIds) {
-            const t = tasks.find(x => String(x.id) === id);
-            if (t && !t.completed) {
-                await put('/tasks', { id: t.id, completed: true, version: t.version });
-            }
-        }
-        exitMultiSelectMode();
-        loadTasks();
-        showToast('Tasks completed');
-        openMoodPrompt('Selesai beberapa tugas');
-    });
-  }
+  document.getElementById('bulk-complete').addEventListener('click', async () => {
+      // Loop
+      for (const id of selectedIds) {
+          const t = tasks.find(x => String(x.id) === id);
+          if (t && !t.completed) {
+              await put('/tasks', { id: t.id, completed: true, version: t.version });
+          }
+      }
+      exitMultiSelectMode();
+      loadTasks();
+      showToast('Tasks completed');
+      openMoodPrompt('Selesai beberapa tugas');
+  });
 }
 
 function renderSkeleton() {

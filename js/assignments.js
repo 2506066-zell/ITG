@@ -155,23 +155,46 @@ async function load() {
     info.style.marginLeft = '24px';
     info.style.marginTop = '4px';
     info.style.display = 'flex';
-    info.style.gap = '10px';
+    info.style.flexDirection = 'column';
+    info.style.gap = '4px';
+
+    const timeInfo = document.createElement('div');
+    timeInfo.style.display = 'flex';
+    timeInfo.style.gap = '10px';
+    timeInfo.style.alignItems = 'center';
 
     if (isCompleted) {
       const doneTime = a.completed_at ? new Date(a.completed_at).toLocaleString() : '-';
-      info.innerHTML = `<span><i class="fa-solid fa-check"></i> Selesai: ${doneTime}</span>`;
+      timeInfo.innerHTML = `<span><i class="fa-solid fa-check"></i> Selesai: ${doneTime}</span>`;
+      
+      if (a.completed_by) {
+        const by = document.createElement('span');
+        by.className = 'badge success';
+        by.innerHTML = `<i class="fa-solid fa-check-double"></i> ${a.completed_by}`;
+        timeInfo.appendChild(by);
+      }
     } else {
       const dl = new Date(a.deadline).toLocaleString();
-      info.innerHTML = `<span><i class="fa-solid fa-clock"></i> Deadline: ${dl}</span>`;
+      timeInfo.innerHTML = `<span><i class="fa-solid fa-clock"></i> Deadline: ${dl}</span>`;
       
       const timer = document.createElement('span');
       timer.className = 'countdown-timer badge';
       timer.dataset.deadline = a.deadline;
       timer.dataset.title = a.title;
       timer.textContent = '...';
-      info.appendChild(timer);
+      timeInfo.appendChild(timer);
     }
+    info.appendChild(timeInfo);
     left.appendChild(info);
+
+    // User Attribution (Assigned To)
+    if (a.assigned_to) {
+        const userMeta = document.createElement('div');
+        userMeta.style.fontSize = '10px';
+        userMeta.style.opacity = '0.7';
+        userMeta.innerHTML = `<i class="fa-solid fa-user-tag"></i> ${a.assigned_to}`;
+        info.appendChild(userMeta);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'actions';
@@ -187,8 +210,48 @@ async function load() {
     return el;
   };
 
+  const users = ['Nesya', 'Zaldy'];
+  const grouped = { Nesya: [], Zaldy: [], Other: [] };
+  
+  active.forEach(task => {
+      const assignee = task.assigned_to || 'Other';
+      if (users.includes(assignee)) {
+          grouped[assignee].push(task);
+      } else {
+          grouped.Other.push(task);
+      }
+  });
+
+  const createSection = (title, list) => {
+      if (list.length === 0) return document.createDocumentFragment();
+      const sec = document.createElement('div');
+      sec.style.marginBottom = '20px';
+      
+      const head = document.createElement('div');
+      head.style.padding = '8px 12px';
+      head.style.fontSize = '12px';
+      head.style.fontWeight = '700';
+      head.style.color = 'var(--muted)';
+      head.style.textTransform = 'uppercase';
+      head.style.letterSpacing = '1px';
+      head.style.display = 'flex';
+      head.style.alignItems = 'center';
+      head.style.gap = '8px';
+      
+      const icon = title === 'Nesya' ? '<i class="fa-solid fa-venus" style="color:#ff69b4"></i>' : 
+                   (title === 'Zaldy' ? '<i class="fa-solid fa-mars" style="color:#00bfff"></i>' : '<i class="fa-solid fa-users"></i>');
+      
+      head.innerHTML = `${icon} ${title} <span style="font-size:10px;opacity:0.7;margin-left:auto">${list.length}</span>`;
+      sec.appendChild(head);
+      
+      list.forEach(item => sec.appendChild(createItem(item, false)));
+      return sec;
+  };
+
   if (active.length) {
-    active.forEach(a => activeList.appendChild(createItem(a, false)));
+    activeList.appendChild(createSection('Nesya', grouped.Nesya));
+    activeList.appendChild(createSection('Zaldy', grouped.Zaldy));
+    if (grouped.Other.length > 0) activeList.appendChild(createSection('Others', grouped.Other));
   } else {
     activeList.innerHTML = '<div class="muted center p-2">Tidak ada tugas aktif.</div>';
   }

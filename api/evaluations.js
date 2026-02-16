@@ -7,6 +7,7 @@ async function ensureTable() {
       user_id TEXT NOT NULL,
       mood INTEGER NOT NULL CHECK (mood >= 1 AND mood <= 5),
       note TEXT DEFAULT '',
+      tags TEXT[] DEFAULT '{}',
       created_at TIMESTAMPTZ DEFAULT NOW(),
       is_deleted BOOLEAN DEFAULT FALSE
     )
@@ -21,7 +22,7 @@ export default withErrorHandling(async function handler(req, res) {
 
   if (req.method === 'GET') {
     const r = await pool.query(
-      'SELECT id, user_id, mood, note, created_at FROM evaluations WHERE is_deleted = FALSE AND user_id = $1 ORDER BY created_at DESC',
+      'SELECT id, user_id, mood, note, tags, created_at FROM evaluations WHERE is_deleted = FALSE AND user_id = $1 ORDER BY created_at DESC',
       [user]
     );
     sendJson(res, 200, r.rows, 10);
@@ -32,13 +33,15 @@ export default withErrorHandling(async function handler(req, res) {
     const b = req.body || await readBody(req);
     const mood = Number(b.mood);
     const note = (b.note || '').toString();
+    const tags = Array.isArray(b.tags) ? b.tags : [];
+    
     if (!Number.isInteger(mood) || mood < 1 || mood > 5) {
       res.status(400).json({ error: 'Invalid mood' });
       return;
     }
     const r = await pool.query(
-      'INSERT INTO evaluations (user_id, mood, note) VALUES ($1, $2, $3) RETURNING id, user_id, mood, note, created_at',
-      [user, mood, note]
+      'INSERT INTO evaluations (user_id, mood, note, tags) VALUES ($1, $2, $3, $4) RETURNING id, user_id, mood, note, tags, created_at',
+      [user, mood, note, tags]
     );
     sendJson(res, 200, r.rows[0]);
     return;

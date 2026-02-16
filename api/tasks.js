@@ -1,9 +1,58 @@
 import { pool, readBody, verifyToken, logActivity, withErrorHandling, sendJson } from './_lib.js';
+import { sendNotificationToUser } from './notifications.js';
 
 export default withErrorHandling(async function handler(req, res) {
   const v = verifyToken(req, res);
   if (!v) return;
   const user = v.user;
+
+  // Handle Snooze Action
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const isSnooze = url.pathname.endsWith('/snooze') || (req.query && req.query.path === 'snooze');
+
+  if (isSnooze && req.method === 'POST') {
+    const b = req.body || await readBody(req);
+    const { taskId, snoozeMinutes } = b;
+    
+    if (!taskId) { res.status(400).json({ error: 'Missing taskId' }); return; }
+    const minutes = parseInt(snoozeMinutes) || 60; // Default 1 hour
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Ensure table exists
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS task_snoozes (
+          task_id INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+          snooze_until TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+
+      const snoozeUntil = new Date(Date.now() + minutes * 60000);
+      
+      // Upsert snooze
+      await client.query(`
+        INSERT INTO task_snoozes (task_id, snooze_until, created_at)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (task_id) 
+        DO UPDATE SET snooze_until = $2, created_at = NOW()
+      `, [taskId, snoozeUntil]);
+
+      await client.query('COMMIT');
+      
+      // Log activity
+      await logActivity(client, 'task', taskId, 'SNOOZE', user, { minutes, until: snoozeUntil });
+      
+      sendJson(res, 200, { success: true, snooze_until: snoozeUntil });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    return;
+  }
 
   if (req.method === 'GET') {
     const r = await pool.query('SELECT * FROM tasks WHERE is_deleted = FALSE ORDER BY deadline ASC NULLS LAST, id DESC');
@@ -94,6 +143,18 @@ export default withErrorHandling(async function handler(req, res) {
           fields.push(`completed_by=$${i++}`);
           vals.push(user);
           changes.completed_by = user;
+
+          // Notify Partner Logic
+          const partner = user === 'Zaldy' ? 'Nesya' : (user === 'Nesya' ? 'Zaldy' : null);
+          if (partner) {
+             const msg = `${user} telah menyelesaikan tugas "${task.title}". Ayo kerjakan tugas kamu! 💪`;
+             // Fire and forget notification (don't await to block response)
+             sendNotificationToUser(partner, {
+                 title: 'Task Completed ✅',
+                 body: msg,
+                 url: '/daily-tasks'
+             }).catch(console.error);
+          }
         } else if (completed === false && task.completed) {
           fields.push(`score_awarded=$${i++}`);
           vals.push(0);

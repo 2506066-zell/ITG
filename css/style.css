@@ -518,6 +518,25 @@ textarea {
   box-shadow: none;
 }
 
+/* Shared Components */
+.tag-chip {
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+  display: inline-block;
+  margin-bottom: 4px;
+}
+.tag-chip.active {
+  background: hsl(var(--nebula-core));
+  color: #fff;
+  border-color: hsl(var(--nebula-core));
+}
+
 .btn.secondary {
   background: transparent;
   border: 1px solid hsla(var(--nebula-core), 0.5);
