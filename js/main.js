@@ -52,13 +52,23 @@ export function initProtected() {
   requireAuth();
   registerSW();
   loadTheme();
+  setReducedMotion();
   startHeroTimer();
   initParallax();
 }
 
+function setReducedMotion() {
+  const noAnim = window.innerWidth < 768;
+  document.body.classList.toggle('no-anim', noAnim);
+  window.addEventListener('resize', () => {
+    const noAnimNow = window.innerWidth < 768;
+    document.body.classList.toggle('no-anim', noAnimNow);
+  });
+}
+
 function initParallax() {
   const bg = document.querySelector('.galaxy-bg');
-  if (!bg || window.innerWidth < 768) return;
+  if (!bg || window.innerWidth < 768 || document.body.classList.contains('no-anim')) return;
 
   const nebulae = document.querySelectorAll('.nebula');
   const stars = document.querySelector('.stars-container');

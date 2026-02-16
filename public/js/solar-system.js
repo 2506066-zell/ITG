@@ -37,6 +37,7 @@ let orbitMaxX = 0;
 let orbitMaxY = 0;
 let solarNebulaLevel = 0;
 let solarNebulaTarget = 0;
+let disableAnim = window.innerWidth < 768;
 const ASTRO = {
     mercury: { radiusKm: 2439.7, rotHours: 1407.6, au: 0.39 },
     venus: { radiusKm: 6051.8, rotHours: -5832, au: 0.72 },
@@ -113,6 +114,7 @@ function init() {
             const r = p.tip.getBoundingClientRect();
             if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
                 p.pinned = !p.pinned;
+                if (disableAnim) loop();
                 return;
             }
         }
@@ -129,7 +131,12 @@ function init() {
         }
         if (nearest && minD <= (60 + nearest.size)) {
             nearest.pinned = !nearest.pinned;
+            if (disableAnim) loop();
         }
+    });
+    window.addEventListener('resize', () => {
+        disableAnim = window.innerWidth < 768 || (document.body && document.body.classList && document.body.classList.contains('no-anim'));
+        if (disableAnim) loop();
     });
 
     requestAnimationFrame(loop);
@@ -494,13 +501,15 @@ function drawComet() {
 
 function loop() {
     const t = performance.now() * 0.001;
-    drawMilkyWay(t);
-    drawConstellation(t);
-    drawStarfield(t);
-    drawSolarNebula(t);
+    const noAnim = disableAnim || (document.body && document.body.classList && document.body.classList.contains('no-anim'));
+    drawMilkyWay(noAnim ? 0 : t);
+    drawConstellation(noAnim ? 0 : t);
+    drawStarfield(noAnim ? 0 : t);
+    drawSolarNebula(noAnim ? 0 : t);
     nodes.forEach(p => {
-        // Kinematic Model: Physics based angle increment
-        p.angle += p.speed;
+        if (!noAnim) {
+            p.angle += p.speed;
+        }
 
         // Calculate Position
         const x = centerX + Math.cos(p.angle) * p.radius;
@@ -509,14 +518,14 @@ function loop() {
 
         // Hover proximity
         let hv = 0;
-        if (mouseX != null && mouseY != null) {
+        if (!noAnim && mouseX != null && mouseY != null) {
             const d = Math.hypot(mouseX - x, mouseY - y);
             const threshold = 60 + p.size;
             hv = Math.max(0, 1 - d / threshold);
         }
 
         // Pulse term (only when sufficiently hovered)
-        const pulse = hv > 0.6 ? (0.06 * (0.5 + 0.5 * Math.sin(t * 6 + p.radius * 0.01))) : 0;
+        const pulse = (!noAnim && hv > 0.6) ? (0.06 * (0.5 + 0.5 * Math.sin(t * 6 + p.radius * 0.01))) : 0;
 
         // Apply Transform: translate3d + scale for 60FPS performance
         const scale = 1 + hv * 0.25 + pulse;
@@ -535,17 +544,21 @@ function loop() {
         p.el.style.setProperty('--light-y', `${ly}%`);
         const shade = 0.45 + 0.35 * Math.max(0, (nx*0.5 + ny*0.5));
         p.el.style.setProperty('--shade', `${Math.min(0.85, Math.max(0.2, shade))}`);
-        const show = p.pinned || hv > 0.5;
+        const show = p.pinned || (!noAnim && hv > 0.5);
         const tipOpacity = p.pinned ? 1 : (show ? Math.min(1, (hv - 0.5) * 2) : 0);
         const tx = x + p.size * 0.6;
         const ty = y - p.size * 0.6 - 18;
         p.tip.style.opacity = `${tipOpacity}`;
         p.tip.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
-        p.rot += p.rotSpeed;
+        if (!noAnim) {
+            p.rot += p.rotSpeed;
+        }
         if (p.surf) p.surf.style.transform = `rotate(${p.rot}deg)`;
         if (p.cloud) p.cloud.style.transform = `rotate(${p.rot * 1.2}deg)`;
         if (p.name === 'earth' && moon.el) {
-            moon.angle += moon.speed;
+            if (!noAnim) {
+                moon.angle += moon.speed;
+            }
             const mx = Math.cos(moon.angle) * moon.radius;
             const my = Math.sin(moon.angle) * moon.radius * ellipseRatio;
             const ox = (p.size / 2) + mx - (moon.size / 2);
@@ -554,7 +567,9 @@ function loop() {
         }
         if (p.sats) {
             p.sats.forEach(s => {
-                s.angle += s.s;
+                if (!noAnim) {
+                    s.angle += s.s;
+                }
                 const mx = Math.cos(s.angle) * s.r;
                 const my = Math.sin(s.angle) * s.r * ellipseRatio;
                 const ox = (p.size / 2) + mx - (s.size / 2);
@@ -565,10 +580,14 @@ function loop() {
     });
 
     // Advance comet
-    COMET.angle += COMET.speed;
+    if (!noAnim) {
+        COMET.angle += COMET.speed;
+    }
     drawComet();
 
-    requestAnimationFrame(loop);
+    if (!noAnim) {
+        requestAnimationFrame(loop);
+    }
 }
 
 function refineOrbitSpeeds() {
