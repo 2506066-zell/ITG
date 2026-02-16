@@ -396,12 +396,12 @@ function openSheet(task = null) {
     // Default assigned to current user? Handled by backend if null.
   }
   
-  sheetOverlay.classList.add('active');
+  if (sheetOverlay) sheetOverlay.classList.add('active');
   sheet.classList.add('active');
 }
 
 function closeSheet() {
-  sheetOverlay.classList.remove('active');
+  if (sheetOverlay) sheetOverlay.classList.remove('active');
   sheet.classList.remove('active');
   document.activeElement?.blur();
 }
@@ -460,13 +460,16 @@ function setupEventListeners() {
   });
 
   // FAB
-  fabEl.addEventListener('click', () => openSheet(null));
+  if (fabEl) fabEl.addEventListener('click', () => openSheet(null));
 
   // Sheet
-  document.getElementById('sheet-cancel').addEventListener('click', closeSheet);
-  sheetOverlay.addEventListener('click', (e) => {
-    if (e.target === sheetOverlay) closeSheet();
-  });
+  const sheetCancel = document.getElementById('sheet-cancel');
+  if (sheetCancel) sheetCancel.addEventListener('click', closeSheet);
+  if (sheetOverlay) {
+    sheetOverlay.addEventListener('click', (e) => {
+      if (e.target === sheetOverlay) closeSheet();
+    });
+  }
 
   // Priority Selector
   document.querySelectorAll('.prio-btn').forEach(el => {
@@ -478,49 +481,55 @@ function setupEventListeners() {
   });
 
   // Form Submit
-  taskForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fd = new FormData(taskForm);
-    const data = Object.fromEntries(fd.entries());
-    
-    const isEdit = !!data.id;
-    const method = isEdit ? put : post;
-    
-    try {
-      await method('/tasks', data);
-      closeSheet();
-      showToast(isEdit ? 'Task updated' : 'Task created', 'success');
-      loadTasks();
-    } catch (err) {
-      showToast('Error saving task', 'error');
-    }
-  });
+  if (taskForm) {
+    taskForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(taskForm);
+      const data = Object.fromEntries(fd.entries());
+      
+      const isEdit = !!data.id;
+      const method = isEdit ? put : post;
+      
+      try {
+        await method('/tasks', data);
+        closeSheet();
+        showToast(isEdit ? 'Task updated' : 'Task created', 'success');
+        loadTasks();
+      } catch (err) {
+        showToast('Error saving task', 'error');
+      }
+    });
+  }
   
   // Multi Actions
-  document.getElementById('bulk-delete').addEventListener('click', async () => {
-      if (!confirm(`Delete ${selectedIds.size} tasks?`)) return;
-      // In real app, bulk API. Here loop.
-      for (const id of selectedIds) {
-          await del(`/tasks?id=${id}`);
-      }
-      exitMultiSelectMode();
-      loadTasks();
-      showToast('Tasks deleted');
-  });
+  const bulkDelete = document.getElementById('bulk-delete');
+  if (bulkDelete) {
+    bulkDelete.addEventListener('click', async () => {
+        if (!confirm(`Delete ${selectedIds.size} tasks?`)) return;
+        for (const id of selectedIds) {
+            await del(`/tasks?id=${id}`);
+        }
+        exitMultiSelectMode();
+        loadTasks();
+        showToast('Tasks deleted');
+    });
+  }
   
-  document.getElementById('bulk-complete').addEventListener('click', async () => {
-      // Loop
-      for (const id of selectedIds) {
-          const t = tasks.find(x => String(x.id) === id);
-          if (t && !t.completed) {
-              await put('/tasks', { id: t.id, completed: true, version: t.version });
-          }
-      }
-      exitMultiSelectMode();
-      loadTasks();
-      showToast('Tasks completed');
-      openMoodPrompt('Selesai beberapa tugas');
-  });
+  const bulkComplete = document.getElementById('bulk-complete');
+  if (bulkComplete) {
+    bulkComplete.addEventListener('click', async () => {
+        for (const id of selectedIds) {
+            const t = tasks.find(x => String(x.id) === id);
+            if (t && !t.completed) {
+                await put('/tasks', { id: t.id, completed: true, version: t.version });
+            }
+        }
+        exitMultiSelectMode();
+        loadTasks();
+        showToast('Tasks completed');
+        openMoodPrompt('Selesai beberapa tugas');
+    });
+  }
 }
 
 function renderSkeleton() {

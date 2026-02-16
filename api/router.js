@@ -20,6 +20,7 @@ const routes = new Set([
   'stats',
   'schedule',
   'chat',
+  'weekly',
   'monthly',
   'monthly_stats',
   'health',

@@ -30,6 +30,7 @@ async function main() {
     await call('/stats', token);
     await call('/schedule', token);
     await call('/chat', token);
+    await call('/weekly', token);
   } catch (e) {
     console.error('Ping failed:', e);
     process.exitCode = 1;
