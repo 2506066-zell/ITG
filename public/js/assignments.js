@@ -246,11 +246,15 @@ async function actions(e) {
     showToast('Tugas dihapus', 'success');
   }
   if (act === 'toggle') {
-    await put('/assignments', { id, completed: btn.checked });
-    showToast(btn.checked ? 'Tugas selesai' : 'Tugas dibuka kembali', 'info');
-    if (btn.checked) {
-      const title = btn.closest('.list-item')?.querySelector('strong')?.textContent || '';
-      openMoodPrompt(`Selesai tugas kuliah: ${title}`);
+    try {
+      await put('/assignments', { id, completed: btn.checked });
+      showToast(btn.checked ? 'Tugas selesai' : 'Tugas dibuka kembali', 'info');
+      if (btn.checked) {
+        const title = btn.closest('.list-item')?.querySelector('strong')?.textContent || '';
+        openMoodPrompt(`Selesai tugas kuliah: ${title}`);
+      }
+    } catch (e) {
+      showToast('Gagal memperbarui, mencoba Mode Demo', 'error');
     }
   }
   load();

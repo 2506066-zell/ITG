@@ -31,7 +31,7 @@ export async function apiFetch(path, options = {}) {
     const type = res.headers.get('content-type');
     const isHtml = type && type.includes('text/html');
 
-    if ((res.status === 404 || res.status === 405) || isHtml || res.status >= 500) {
+    if ((res.status === 404 || res.status === 405) || isHtml || res.status >= 500 || (res.status === 401 && path !== '/login')) {
       throw new Error(`Backend unreachable: ${res.status}`);
     }
 

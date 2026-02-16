@@ -37,7 +37,8 @@ async function init() {
 async function loadTasks() {
   renderSkeleton();
   try {
-    tasks = await get('/tasks');
+    const data = await get('/tasks');
+    tasks = Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
     render();
     updateHeaderStats();
   } catch (err) {

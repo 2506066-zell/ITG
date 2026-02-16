@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿<!doctype html>
+﻿﻿﻿﻿﻿<!doctype html>
 <html lang="en" data-theme="dark">
 
 <head>
@@ -69,49 +69,49 @@
   </div>
 
   <!-- BOTTOM SHEET FORM -->
-  <div class="bottom-sheet" id="sheet">
-    <div class="sheet-handle"></div>
-    <h3 style="margin:0 0 20px;font-size:18px" id="sheet-title">New Task</h3>
-
-    <form id="task-form">
-      <input type="hidden" name="id" id="task-id">
-
-      <div class="form-group">
-        <label class="form-label">Title</label>
-        <input type="text" name="title" id="task-title" class="form-input" placeholder="What needs to be done?" required
-          autocomplete="off">
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Deadline</label>
-          <input type="datetime-local" name="deadline" id="task-deadline" class="form-input">
+  <div class="bottom-sheet-overlay" id="sheet-overlay">
+    <div class="bottom-sheet" id="sheet">
+      <div class="sheet-handle"></div>
+      <h3 style="margin:0 0 20px;font-size:18px" id="sheet-title">New Task</h3>
+      
+      <form id="task-form">
+        <input type="hidden" name="id" id="task-id">
+        
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input type="text" name="title" id="task-title" class="form-input" placeholder="What needs to be done?" required autocomplete="off">
         </div>
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Assigned To</label>
-          <select name="assigned_to" id="task-assigned" class="form-input" style="appearance:none">
-            <option value="Zaldy">Zaldy</option>
-            <option value="Nesya">Nesya</option>
-          </select>
+        
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Deadline</label>
+            <input type="datetime-local" name="deadline" id="task-deadline" class="form-input">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Assigned To</label>
+            <select name="assigned_to" id="task-assigned" class="form-input" style="appearance:none">
+              <option value="Zaldy">Zaldy</option>
+              <option value="Nesya">Nesya</option>
+            </select>
+          </div>
         </div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Priority</label>
-        <div class="prio-selector">
-          <div class="prio-btn" data-val="low">Low</div>
-          <div class="prio-btn active" data-val="medium">Medium</div>
-          <div class="prio-btn" data-val="high">High</div>
+        
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <div class="prio-selector">
+            <div class="prio-btn" data-val="low">Low</div>
+            <div class="prio-btn active" data-val="medium">Medium</div>
+            <div class="prio-btn" data-val="high">High</div>
+          </div>
+          <input type="hidden" name="priority" id="task-priority" value="medium">
         </div>
-        <input type="hidden" name="priority" id="task-priority" value="medium">
-      </div>
-
-      <div class="sheet-actions">
-        <button type="button" class="btn secondary btn-block" id="sheet-cancel">Cancel</button>
-        <button type="submit" class="btn btn-block">Save Task</button>
-      </div>
-    </form>
-  </div>
+        
+        <div class="sheet-actions">
+          <button type="button" class="btn secondary btn-block" id="sheet-cancel">Cancel</button>
+          <button type="submit" class="btn btn-block">Save Task</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <div class="bottom-sheet-overlay" id="mood-overlay">
