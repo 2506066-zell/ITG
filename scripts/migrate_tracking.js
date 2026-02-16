@@ -17,12 +17,19 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-// Use DATABASE_URL only (pooled Neon connection)
-const connectionString = process.env.DATABASE_URL;
-
+// Use ZN/NZ/DATABASE_URL like api/_lib.js
+const connectionString = process.env.ZN_DATABASE_URL || process.env.NZ_DATABASE_URL || process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('Database URL env not found (ZN_DATABASE_URL/NZ_DATABASE_URL/DATABASE_URL)');
+  process.exit(1);
+}
+const ssl =
+  connectionString.includes('sslmode=require') || (process.env.NODE_ENV || '').toLowerCase() !== 'production'
+    ? { rejectUnauthorized: false }
+    : true;
 const pool = new Pool({
   connectionString,
-  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: true }
+  ssl
 });
 
 async function run() {
@@ -135,6 +142,19 @@ async function run() {
           ALTER TABLE assignments ADD COLUMN completed_by VARCHAR(50);
         EXCEPTION
           WHEN duplicate_column THEN RAISE NOTICE 'column completed_by already exists in assignments';
+        END;
+      END $$;
+    `);
+    
+    // 3. Ensure assignments have description column
+    console.log('Ensuring assignments description column...');
+    await pool.query(`
+      DO $$ 
+      BEGIN 
+        BEGIN
+          ALTER TABLE assignments ADD COLUMN description TEXT;
+        EXCEPTION
+          WHEN duplicate_column THEN RAISE NOTICE 'column description already exists in assignments';
         END;
       END $$;
     `);
