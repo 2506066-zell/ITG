@@ -1,11 +1,15 @@
-import { pool, readBody, verifyToken, withErrorHandling, sendJson } from './_lib.js';
+import { pool, readBody, verifyToken, withErrorHandling, sendJson, logActivity } from './_lib.js';
 export default withErrorHandling(async function handler(req, res) {
   const v = verifyToken(req, res);
   if (!v) return;
   const user = v.user;
   if (req.method === 'GET') {
-    const r = await pool.query('SELECT * FROM assignments ORDER BY deadline NULLS LAST, id DESC');
-    sendJson(res, 200, r.rows, 30);
+    try {
+      const r = await pool.query('SELECT * FROM assignments ORDER BY deadline NULLS LAST, id DESC');
+      sendJson(res, 200, r.rows, 30);
+    } catch (e) {
+      res.status(500).json({ error: 'Internal Server Error', details: e.message });
+    }
     return;
   }
   if (req.method === 'POST') {

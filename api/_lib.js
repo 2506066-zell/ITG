@@ -5,9 +5,13 @@ if (!databaseUrl) {
   throw new Error('ZN_DATABASE_URL is not defined');
 }
 if (!global._pool) {
+  const ssl =
+    databaseUrl.includes('sslmode=require') || (process.env.NODE_ENV || '').toLowerCase() !== 'production'
+      ? { rejectUnauthorized: false }
+      : true;
   global._pool = new Pool({
     connectionString: databaseUrl,
-    ssl: true,
+    ssl,
     max: 5,
   });
   global._pool.on('error', (err) => {
@@ -78,7 +82,13 @@ export function withErrorHandling(fn) {
     } catch (err) {
       console.error(err);
       if (!res.headersSent) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        const isProd = (process.env.NODE_ENV || '').toLowerCase() === 'production';
+        const payload = { error: 'Internal Server Error' };
+        if (!isProd) {
+          payload.details = err.message || '';
+          payload.stack = err.stack || '';
+        }
+        res.status(500).json(payload);
       }
     }
   };

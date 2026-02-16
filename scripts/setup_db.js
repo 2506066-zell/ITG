@@ -17,9 +17,18 @@ if (fs.existsSync(envPath)) {
   });
 }
 
+const dbUrl = process.env.ZN_DATABASE_URL || process.env.NZ_DATABASE_URL || process.env.DATABASE_URL;
+if (!dbUrl) {
+  console.error('Database URL env not found (ZN_DATABASE_URL/NZ_DATABASE_URL/DATABASE_URL)');
+  process.exit(1);
+}
+const ssl =
+  dbUrl.includes('sslmode=require') || (process.env.NODE_ENV || '').toLowerCase() !== 'production'
+    ? { rejectUnauthorized: false }
+    : true;
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: true }
+  connectionString: dbUrl,
+  ssl
 });
 
 async function run() {
@@ -123,6 +132,12 @@ async function run() {
       END $$;
     `);
 
+    const schemaPath = path.resolve(__dirname, '../db/schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      const sql = fs.readFileSync(schemaPath, 'utf-8');
+      console.log('Applying full schema.sql...');
+      await pool.query(sql);
+    }
     console.log('Database setup complete.');
   } catch (err) {
     console.error('Error setting up database:', err);

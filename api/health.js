@@ -8,11 +8,15 @@ export default withErrorHandling(async function handler(req, res) {
     node_env: process.env.NODE_ENV || ''
   };
   let db = 'ok';
+  let err = '';
   try {
     const r = await pool.query('SELECT 1');
     if (!r || !r.rows || r.rows.length === 0) db = 'fail';
-  } catch {
+  } catch (e) {
     db = 'fail';
+    if ((process.env.NODE_ENV || '').toLowerCase() !== 'production') err = e.message || '';
   }
-  sendJson(res, 200, { status: db === 'ok' && env.zn_database_url ? 'ok' : 'degraded', db, env, time: new Date().toISOString() }, 5);
+  const payload = { status: db === 'ok' && env.zn_database_url ? 'ok' : 'degraded', db, env, time: new Date().toISOString() };
+  if (err) payload.error = err;
+  sendJson(res, 200, payload, 5);
 })
