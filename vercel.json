@@ -8,11 +8,11 @@
     },
     {
       "path": "/api/cron/context-checks",
-      "schedule": "0 2,13 * * *"
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/cron/hourly",
-      "schedule": "0 * * * *"
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/report-notifications",
