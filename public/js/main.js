@@ -129,10 +129,6 @@ export function logout() {
 }
 
 export function normalizeLinks() { }
-// Global listener for Demo Mode
-document.addEventListener('demo-mode-active', () => {
-  showToast('Backend offline. Demo Mode aktif (data lokal).', 'error', 5000);
-});
 
 // PWA Install Prompt
 window.deferredPrompt = null;

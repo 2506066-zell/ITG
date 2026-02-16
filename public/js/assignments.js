@@ -77,7 +77,14 @@ async function load() {
   activeList.innerHTML = `<div class="list-item"><div class="skeleton skeleton-line" style="width:70%"></div></div>`;
   completedList.innerHTML = '';
 
-  const data = await get('/assignments');
+  let data = [];
+  try {
+    data = await get('/assignments');
+  } catch (err) {
+    activeList.innerHTML = '<div class="muted center">Gagal memuat tugas.</div>';
+    completedList.innerHTML = '';
+    return;
+  }
   activeList.innerHTML = '';
   completedList.innerHTML = '';
 
@@ -226,10 +233,14 @@ async function create(e) {
     deadline: deadline
   };
   
-  await post('/assignments', body);
-  e.target.reset();
-  load();
-  showToast('Tugas kuliah ditambahkan', 'success');
+  try {
+    await post('/assignments', body);
+    e.target.reset();
+    load();
+    showToast('Tugas kuliah ditambahkan', 'success');
+  } catch (err) {
+    showToast('Gagal menambah tugas', 'error');
+  }
   if (btn) btn.disabled = false;
 }
 
@@ -242,8 +253,12 @@ async function actions(e) {
 
   if (act === 'delete') {
     if (!confirm('Hapus tugas ini?')) return;
-    await del(`/assignments?id=${id}`);
-    showToast('Tugas dihapus', 'success');
+    try {
+      await del(`/assignments?id=${id}`);
+      showToast('Tugas dihapus', 'success');
+    } catch (err) {
+      showToast('Gagal menghapus tugas', 'error');
+    }
   }
   if (act === 'toggle') {
     try {
@@ -254,7 +269,7 @@ async function actions(e) {
         openMoodPrompt(`Selesai tugas kuliah: ${title}`);
       }
     } catch (e) {
-      showToast('Gagal memperbarui, mencoba Mode Demo', 'error');
+      showToast('Gagal memperbarui', 'error');
     }
   }
   load();

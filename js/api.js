@@ -1,5 +1,3 @@
-import { mockFetch } from './mock.js';
-
 const base = '/api';
 const getToken = () => localStorage.getItem('token') || '';
 const authHeader = () => {
@@ -31,16 +29,15 @@ export async function apiFetch(path, options = {}) {
     const type = res.headers.get('content-type');
     const isHtml = type && type.includes('text/html');
 
-    if ((res.status === 404 || res.status === 405) || isHtml) {
-      throw new Error(`Backend unreachable: ${res.status}`);
+    if ((res.status === 404 || res.status === 405) || isHtml || res.status >= 500 || (res.status === 401 && path !== '/login')) {
+      throw new Error(`Backend error: ${res.status}`);
     }
 
     if (path !== '/login') handle401(res);
     return res;
   } catch (err) {
     clearTimeout(timeoutId);
-    console.log('Fetch failed/timeout, using mock:', err.message);
-    return mockFetch(path, options);
+    throw err;
   }
 }
 
