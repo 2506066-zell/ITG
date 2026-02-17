@@ -9,28 +9,31 @@
   --space-800: 230 25% 12%;
   /* Card Base */
 
-  /* 🎭 ACCENT GLOWS */
-  --nebula-core: 210 100% 65%;
-  /* Electric Blue */
-  --nebula-pulse: 260 80% 68%;
-  /* Galactic Purple */
-  --star-gold: 45 100% 70%;
-  /* Distant Star */
-  --nova-pink: 340 100% 60%;
-  /* Supernova */
+  /* 🎭 ACCENT GLOWS (Softened for Zen Cosmic) */
+  --nebula-core: 210 70% 65%;
+  /* Elegant Soft Blue */
+  --nebula-pulse: 260 45% 68%;
+  /* Misty Purple */
+  --star-gold: 45 40% 70%;
+  /* Muted Gold */
+  --nova-pink: 340 60% 65%;
+  /* Soft Rose */
 
   /* 💎 COSMIC GLASS SYSTEM */
-  --glass-bg: hsla(0, 0%, 100%, 0.03);
-  --glass-border: hsla(0, 0%, 100%, 0.08);
-  --glass-blur: 20px;
-  --glass-glow: 0 8px 32px 0 hsla(230, 40%, 2%, 0.7);
+  --glass-bg: hsla(0, 0%, 100%, 0.035);
+  --glass-border: hsla(0, 0%, 100%, 0.07);
+  --glass-blur: 24px;
+  --glass-glow: 0 8px 32px 0 hsla(230, 40%, 2%, 0.8);
 
-  /* 🖋️ TYPOGRAPHY */
+  /* 🖋️ TYPOGRAPHY (Zen Readability) */
   --font-main: 'Sora', 'Inter', sans-serif;
   --font-head: 'Orbitron', 'Space Grotesk', sans-serif;
-  --text-100: 0 0% 100%;
-  --text-300: 230 20% 85%;
-  --text-500: 230 15% 65%;
+  --text-100: 210 20% 95%;
+  /* Soft Off-White (No glare) */
+  --text-300: 210 15% 85%;
+  /* Soft Muted */
+  --text-500: 210 12% 65%;
+  /* Clear Grey-Blue */
 
   /* 📏 GEOMETRY */
   --radius-xl: 24px;
@@ -58,8 +61,8 @@
   height: 100%;
   z-index: -2;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 50%, #0b0f2a 0%, #050816 100%);
-  /* Deep base */
+  background: radial-gradient(circle at 50% 50%, #060818 0%, #02040a 100%);
+  /* Deeper, more atmospheric base */
   pointer-events: none;
 }
 
@@ -756,7 +759,7 @@ textarea {
   }
 
   .div-stats {
-    padding: 0.75rem !important;
+    padding: 0.6rem !important;
   }
 
   .div-stats .section-title {
@@ -784,21 +787,15 @@ textarea {
 
   .countdown {
     gap: 0.6rem !important;
-    margin: 1rem 0 !important;
+    margin: 0.5rem 0 !important;
   }
 
   .hero-card {
-    padding: 1rem !important;
-  }
-
-  .hero-header {
-    margin-bottom: 1rem !important;
+    padding: 0.75rem !important;
   }
 
   .hero-footer {
-    font-size: 0.7rem;
-    gap: 8px;
-    margin-top: 1rem !important;
+    display: none !important;
   }
 }
 
@@ -1462,6 +1459,186 @@ textarea {
 
 .briefing-item.assignment i {
   color: hsl(var(--nebula-core));
+}
+
+/* 📊 REPORTS PAGE */
+.report-page .container {
+  max-width: 600px;
+  padding-bottom: 6rem;
+}
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.report-header h1 {
+  font-family: var(--font-head);
+  font-size: 1.8rem;
+  margin: 0;
+  letter-spacing: 0.1em;
+  background: linear-gradient(to right, #fff, hsl(var(--nebula-core)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.filter-tabs {
+  display: flex;
+  background: hsla(230, 35%, 5%, 0.4);
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  border: 1px solid var(--glass-border);
+}
+
+.filter-tab {
+  flex: 1;
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  color: hsl(var(--text-500));
+  font-size: 0.9rem;
+}
+
+.filter-tab.active {
+  background: hsla(var(--nebula-core), 0.2);
+  color: #fff;
+  border: 1px solid hsla(var(--nebula-core), 0.3);
+  text-shadow: 0 0 10px hsla(var(--nebula-core), 0.5);
+}
+
+.report-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle at top right, hsla(var(--nebula-core), 0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.compact-card {
+  padding: 1rem !important;
+}
+
+.stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: hsl(var(--text-500));
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.stat-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 10px 0;
+}
+
+/* GLOW RING (Circular Progress) */
+.glow-ring {
+  width: 100px;
+  height: 100px;
+}
+
+.glow-ring circle {
+  fill: none;
+  stroke-width: 8;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.glow-ring .bg {
+  stroke: hsla(0, 0%, 100%, 0.05);
+}
+
+.glow-ring .progress {
+  stroke: hsl(var(--nebula-core));
+  stroke-dasharray: 251.2;
+  stroke-dashoffset: 251.2;
+  transition: stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 0 8px hsla(var(--nebula-core), 0.6));
+}
+
+.stat-center-val {
+  position: absolute;
+  font-family: var(--font-head);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.stat-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.stat-change {
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-prev {
+  font-size: 0.7rem;
+  color: hsl(var(--text-500));
+}
+
+@media (max-width: 600px) {
+  .report-page .container {
+    padding: 1.25rem;
+  }
+
+  .stat-grid {
+    gap: 8px;
+  }
+
+  .stat-center-val {
+    font-size: 1.25rem;
+  }
+
+  .glow-ring {
+    width: 80px;
+    height: 80px;
+  }
 }
 
 .briefing-item.task i {

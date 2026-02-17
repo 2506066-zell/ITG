@@ -75,75 +75,99 @@
   </style>
 </head>
 
-<body>
-  <div class="page-container" style="padding: 20px; max-width: 600px; margin: 0 auto;">
+<body class="report-page">
+  <!-- 🌌 GALAXY BACKGROUND -->
+  <div class="galaxy-background">
+    <div class="stars"></div>
+    <div class="nebula nebula-1"></div>
+    <div class="nebula nebula-2"></div>
+  </div>
 
+  <div class="container">
     <!-- Header -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-      <h1 style="margin:0;font-family:var(--font-head)">Raport Anda</h1>
-      <a href="/" style="color:var(--text);font-size:20px"><i class="fa-solid fa-xmark"></i></a>
-    </div>
+    <header class="report-header">
+      <h1>Cosmic Raport</h1>
+      <a href="/" class="btn small secondary"><i class="fa-solid fa-xmark"></i></a>
+    </header>
 
     <!-- Filter -->
     <div class="filter-tabs">
-      <div class="filter-tab active" data-type="weekly">Mingguan</div>
-      <div class="filter-tab" data-type="monthly">Bulanan</div>
+      <div class="filter-tab active" data-type="weekly">WEEKLY</div>
+      <div class="filter-tab" data-type="monthly">MONTHLY</div>
     </div>
 
     <!-- Loading -->
     <div id="loading" style="text-align:center;padding:40px">
-      <i class="fa-solid fa-circle-notch fa-spin" style="font-size:24px;color:var(--primary)"></i>
+      <i class="fa-solid fa-circle-notch fa-spin" style="font-size:24px;color:hsl(var(--nebula-core))"></i>
     </div>
 
     <!-- Content -->
     <div id="report-content" style="display:none">
-
-      <div style="margin-bottom:16px;font-size:14px;color:var(--muted);text-align:center" id="period-label"></div>
+      <div id="period-label" class="muted center mb-4" style="font-size: 0.8rem; margin-bottom: 24px;"></div>
 
       <!-- Stats Grid -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+      <div class="stat-grid">
         <!-- Productivity -->
-        <div class="report-card" style="margin-bottom: 0;">
-          <div class="stat-label">Productivity</div>
-          <div style="display:flex;justify-content:space-between;align-items:end">
-            <div class="stat-value" id="prod-val">0</div>
+        <div class="report-card compact-card">
+          <div class="stat-header">
+            <span class="stat-label">Productivity</span>
+          </div>
+          <div class="stat-main">
+            <svg class="glow-ring" viewBox="0 0 100 100">
+              <circle class="bg" cx="50" cy="50" r="40" />
+              <circle class="progress" id="prod-ring" cx="50" cy="50" r="40" />
+            </svg>
+            <div class="stat-center-val" id="prod-val">0</div>
+          </div>
+          <div class="stat-footer">
             <div class="stat-change" id="prod-change">
               <i class="fa-solid fa-arrow-up"></i> <span>0%</span>
             </div>
+            <div class="stat-prev">Prev: <span id="prod-prev">0</span></div>
           </div>
-          <div style="font-size:10px;color:var(--muted)">Prev: <span id="prod-prev">0</span></div>
         </div>
 
         <!-- Consistency -->
-        <div class="report-card" style="margin-bottom: 0;">
-          <div class="stat-label">Consistency</div>
-          <div style="display:flex;justify-content:space-between;align-items:end">
-            <div class="stat-value" id="cons-val">0</div>
+        <div class="report-card compact-card">
+          <div class="stat-header">
+            <span class="stat-label">Consistency</span>
+          </div>
+          <div class="stat-main">
+            <svg class="glow-ring" viewBox="0 0 100 100">
+              <circle class="bg" cx="50" cy="50" r="40" />
+              <circle class="progress" id="cons-ring" cx="50" cy="50" r="40" />
+            </svg>
+            <div class="stat-center-val" id="cons-val">0</div>
+          </div>
+          <div class="stat-footer">
             <div class="stat-change" id="cons-change">
               <i class="fa-solid fa-arrow-up"></i> <span>0%</span>
             </div>
+            <div class="stat-prev">Prev: <span id="cons-prev">0</span></div>
           </div>
-          <div style="font-size:10px;color:var(--muted)">Prev: <span id="cons-prev">0</span></div>
         </div>
       </div>
 
-      <!-- Mood -->
+      <!-- Mood Card -->
       <div class="report-card">
-        <div class="stat-label">Rata-rata Mood</div>
-        <div style="display:flex;justify-content:space-between;align-items:end">
-          <div class="stat-value" id="mood-val">0.0</div>
-          <div class="stat-change" id="mood-change">
-            <i class="fa-solid fa-arrow-up"></i> <span>0.0</span>
-          </div>
+        <div class="stat-header">
+          <span class="stat-label">Mood Average</span>
         </div>
-        <div style="margin-top:8px">
-          <div style="font-size:11px;margin-bottom:4px;color:var(--muted)">Faktor Utama:</div>
-          <div id="mood-tags" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        <div style="display:flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; flex-direction: column;">
+            <div class="stat-value" id="mood-val" style="font-size: 2.5rem;">0.0</div>
+            <div class="stat-change" id="mood-change">
+              <i class="fa-solid fa-arrow-up"></i> <span>0.0</span>
+            </div>
+          </div>
+          <div id="mood-visual" style="font-size: 2.5rem;">✨</div>
+        </div>
+        <div style="margin-top:20px; border-top: 1px solid var(--glass-border); padding-top: 16px;">
+          <div class="stat-label" style="margin-bottom: 8px;">Core Influencers</div>
+          <div id="mood-tags" style="display:flex;gap:8px;flex-wrap:wrap"></div>
         </div>
       </div>
-
     </div>
-
   </div>
 
   <nav class="bottom-nav">
