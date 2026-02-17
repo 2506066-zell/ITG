@@ -6,10 +6,12 @@ let pendingConfirmationToken = '';
 let assistantBusy = false;
 let lastAssistantPayload = null;
 let assistantAlwaysOn = false;
+let chatbotStatelessMode = false;
 let lastDraftTemplatePattern = '';
 let lastDraftPlaceholderIndex = -1;
 
 const ASSISTANT_ALWAYS_ON_KEY = 'assistant_always_on_v1';
+const CHATBOT_STATELESS_MODE_KEY = 'chatbot_stateless_mode_v1';
 
 const BASE_COMMAND_SUGGESTIONS = [
   { label: 'Template Daily Task', command: 'buat task [judul tugas] deadline [besok 19:00] priority [high/medium/low]' },
@@ -73,18 +75,39 @@ function writeAssistantAlwaysOnPreference(value) {
   } catch {}
 }
 
+function readChatbotStatelessPreference() {
+  try {
+    return localStorage.getItem(CHATBOT_STATELESS_MODE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeChatbotStatelessPreference(value) {
+  try {
+    localStorage.setItem(CHATBOT_STATELESS_MODE_KEY, value ? '1' : '0');
+  } catch {}
+}
+
 function syncAssistantModeUI() {
   const toggle = document.getElementById('assistant-always-on');
+  const botToggle = document.getElementById('chat-bot-mode');
   const input = document.getElementById('chat-input');
   const indicator = document.getElementById('assistant-mode-indicator');
   const indicatorText = document.getElementById('assistant-mode-indicator-text');
   if (toggle) toggle.checked = assistantAlwaysOn;
-  if (indicator) indicator.classList.toggle('assistant-on', assistantAlwaysOn);
-  if (indicatorText) indicatorText.textContent = assistantAlwaysOn ? 'AI ON' : 'CHAT';
+  if (botToggle) botToggle.checked = chatbotStatelessMode;
+  if (indicator) {
+    indicator.classList.toggle('assistant-on', assistantAlwaysOn);
+    indicator.classList.toggle('bot-on', !assistantAlwaysOn && chatbotStatelessMode);
+  }
+  if (indicatorText) indicatorText.textContent = assistantAlwaysOn ? 'AI ON' : (chatbotStatelessMode ? 'BOT' : 'CHAT');
   if (input) {
     input.placeholder = assistantAlwaysOn
       ? 'Assistant ON: ketik natural. Gunakan /chat ... untuk chat biasa'
-      : 'Type message, /ai ..., atau tap suggestion';
+      : (chatbotStatelessMode
+          ? 'Bot Mode ON: chat ke chatbot stateless'
+          : 'Type message, /ai ..., atau tap suggestion');
   }
 }
 
@@ -117,6 +140,30 @@ function appendLocalSystemMessage(author, message, options = {}) {
   `;
   const content = el.querySelector('.assistant-bubble');
   content.textContent = message;
+  wrap.appendChild(el);
+  wrap.scrollTop = wrap.scrollHeight;
+  return content;
+}
+
+function appendLocalChatMessage(author, message, options = {}) {
+  const wrap = document.querySelector('#chat-messages');
+  if (!wrap) return null;
+  const isMe = Boolean(options.me);
+  const isSystem = Boolean(options.system);
+  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const el = document.createElement('div');
+  el.className = `chat-msg ${isMe ? 'me' : ''} ${isSystem ? 'system' : ''}`.trim();
+  el.innerHTML = `
+    <div class="msg-meta">
+      <span>${escapeHtml(String(author || 'Unknown'))}</span>
+      <span>${escapeHtml(now)}</span>
+    </div>
+    <div class="bubble-content"></div>
+  `;
+
+  const content = el.querySelector('.bubble-content');
+  if (content) content.textContent = String(message || '');
   wrap.appendChild(el);
   wrap.scrollTop = wrap.scrollHeight;
   return content;
@@ -699,6 +746,38 @@ async function runAssistant(promptOrCommand) {
   }
 }
 
+async function runStatelessBot(message = '') {
+  const text = normalizeAssistantInput(message || '');
+  if (!text) return;
+
+  const currentUser = localStorage.getItem('user') || 'You';
+  appendLocalChatMessage(currentUser, text, { me: true });
+
+  let contentEl = appendLocalSystemMessage('Companion Bot', '...');
+  if (contentEl) contentEl.classList.add('v3-assistant-typing');
+
+  try {
+    const result = await post('/chat', { message: text, mode: 'bot', stateless: true });
+    const reply = String(result?.reply || '').trim() || 'Aku belum punya jawaban yang tepat untuk itu.';
+    if (contentEl) {
+      contentEl.classList.remove('v3-assistant-typing');
+      contentEl.textContent = reply;
+      contentEl.classList.add('v3-assistant-arrived');
+      setTimeout(() => contentEl.classList.remove('v3-assistant-arrived'), 520);
+      return;
+    }
+    appendLocalSystemMessage('Companion Bot', reply);
+  } catch (err) {
+    const textErr = `Bot error: ${err?.message || 'unknown error'}`;
+    if (contentEl) {
+      contentEl.classList.remove('v3-assistant-typing');
+      contentEl.textContent = textErr;
+      return;
+    }
+    appendLocalSystemMessage('Companion Bot', textErr);
+  }
+}
+
 async function loadMessages() {
   const wrap = document.querySelector('#chat-messages');
   try {
@@ -778,6 +857,12 @@ async function send(e) {
       return;
     }
 
+    if (chatbotStatelessMode) {
+      await runStatelessBot(text);
+      input.value = '';
+      return;
+    }
+
     await post('/chat', { message: text });
     input.value = '';
     loadMessages(); // Immediate refresh
@@ -805,12 +890,21 @@ function init() {
   document.querySelector('#chat-form').addEventListener('submit', send);
   document.querySelector('#chat-clear').addEventListener('click', clearAll);
   assistantAlwaysOn = readAssistantAlwaysOnPreference();
+  chatbotStatelessMode = readChatbotStatelessPreference();
+  if (assistantAlwaysOn && chatbotStatelessMode) {
+    chatbotStatelessMode = false;
+    writeChatbotStatelessPreference(false);
+  }
   syncAssistantModeUI();
 
   const alwaysOnToggle = document.getElementById('assistant-always-on');
   if (alwaysOnToggle) {
     alwaysOnToggle.addEventListener('change', (event) => {
       assistantAlwaysOn = Boolean(event.target && event.target.checked);
+      if (assistantAlwaysOn && chatbotStatelessMode) {
+        chatbotStatelessMode = false;
+        writeChatbotStatelessPreference(false);
+      }
       writeAssistantAlwaysOnPreference(assistantAlwaysOn);
       syncAssistantModeUI();
       appendLocalSystemMessage(
@@ -818,6 +912,25 @@ function init() {
         assistantAlwaysOn
           ? 'Assistant Always On aktif. Ketik langsung untuk AI. Gunakan /chat ... untuk chat biasa.'
           : 'Assistant Always On nonaktif. Gunakan /ai ... untuk panggil assistant.'
+      );
+    });
+  }
+
+  const botModeToggle = document.getElementById('chat-bot-mode');
+  if (botModeToggle) {
+    botModeToggle.addEventListener('change', (event) => {
+      chatbotStatelessMode = Boolean(event.target && event.target.checked);
+      if (chatbotStatelessMode && assistantAlwaysOn) {
+        assistantAlwaysOn = false;
+        writeAssistantAlwaysOnPreference(false);
+      }
+      writeChatbotStatelessPreference(chatbotStatelessMode);
+      syncAssistantModeUI();
+      appendLocalSystemMessage(
+        'Companion Bot',
+        chatbotStatelessMode
+          ? 'Bot Mode aktif. Pesan biasa akan dibalas chatbot stateless.'
+          : 'Bot Mode nonaktif. Pesan biasa kembali ke chat pasangan.'
       );
     });
   }

@@ -1,0 +1,2 @@
+# Standard library chatbot implementation.
+# Keep empty dependencies for lightweight cold start.

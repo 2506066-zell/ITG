@@ -17,6 +17,8 @@
   ],
   "builds": [
     { "src": "api/router.js", "use": "@vercel/node" },
+    { "src": "api/chat.py", "use": "@vercel/python" },
+    { "src": "api/assistant_brain.py", "use": "@vercel/python" },
     { "src": "api/cron/daily_topic.js", "use": "@vercel/node" },
     { "src": "api/cron/context_checks.js", "use": "@vercel/node" },
     { "src": "api/cron/hourly_checks.js", "use": "@vercel/node" },
@@ -26,6 +28,8 @@
   ],
   "rewrites": [
     { "source": "/", "destination": "/index.html" },
+    { "source": "/api/chatbot", "destination": "/api/chat.py" },
+    { "source": "/api/assistant-brain", "destination": "/api/assistant_brain.py" },
     { "source": "/api/cron/daily-topic", "destination": "/api/cron/daily_topic.js" },
     { "source": "/api/cron/context-checks", "destination": "/api/cron/context_checks.js" },
     { "source": "/api/cron/hourly", "destination": "/api/cron/hourly_checks.js" },

@@ -8,6 +8,105 @@ const ASSISTANT_ISSUER = 'cute-futura-assistant';
 const ASSISTANT_AUDIENCE = 'cute-futura-assistant';
 const WRITE_CONFIRM_EXP = '10m';
 const ALLOWED_USERS = new Set(['Zaldy', 'Nesya']);
+const PYTHON_ENGINE_ALIASES = new Set(['python', 'py', 'python-v1']);
+
+function parseBooleanEnv(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+}
+
+function isPythonAssistantEngineEnabled() {
+  const engine = String(process.env.ASSISTANT_ENGINE || 'js').trim().toLowerCase();
+  if (PYTHON_ENGINE_ALIASES.has(engine)) return true;
+  return parseBooleanEnv(process.env.ASSISTANT_PYTHON_ENABLED || '');
+}
+
+function getPythonBrainEndpoint(req) {
+  const explicit = String(process.env.ASSISTANT_BRAIN_URL || '').trim();
+  if (explicit) return explicit;
+
+  const host = String(req?.headers?.host || '').trim();
+  if (!host) return '';
+
+  const forwardedProto = String(req?.headers?.['x-forwarded-proto'] || '').trim().toLowerCase();
+  const proto = forwardedProto || (host.includes('localhost') ? 'http' : 'https');
+  return `${proto}://${host}/api/assistant-brain`;
+}
+
+function normalizeBrainClarifications(list = []) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item) => {
+      const question = String(item?.question || '').trim();
+      if (!question) return null;
+      const field = String(item?.field || '').trim().toLowerCase();
+      const example = String(item?.example || '').trim();
+      return {
+        field: field || 'details',
+        question,
+        example,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function normalizePythonBrainDecision(payload) {
+  if (!payload || typeof payload !== 'object' || payload.ok !== true) return null;
+  const tool = String(payload.tool || '').trim();
+  if (!tool || !Object.prototype.hasOwnProperty.call(TOOLS, tool)) return null;
+
+  const args = payload.args && typeof payload.args === 'object' ? payload.args : {};
+  const summary = String(payload.summary || '').trim() || tool;
+  const naturalReply = String(payload.natural_reply || payload.reply || '').trim();
+  const mode = payload.mode === 'clarification_required' ? 'clarification_required' : TOOLS[tool].mode;
+
+  return {
+    tool,
+    mode,
+    args,
+    summary,
+    confidence: String(payload.confidence || '').trim().toLowerCase(),
+    natural_reply: naturalReply,
+    clarifications: normalizeBrainClarifications(payload.clarifications),
+  };
+}
+
+async function inferIntentWithPythonBrain(req, user, message) {
+  if (!isPythonAssistantEngineEnabled()) return null;
+
+  const endpoint = getPythonBrainEndpoint(req);
+  if (!endpoint) return null;
+
+  const timeoutMs = Math.max(350, Math.min(2500, Number(process.env.ASSISTANT_BRAIN_TIMEOUT_MS || 1100)));
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    const secret = String(process.env.ASSISTANT_BRAIN_SHARED_SECRET || '').trim();
+    if (secret) headers['X-Brain-Secret'] = secret;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        user: String(user || ''),
+        message: String(message || ''),
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) return null;
+
+    const json = await response.json().catch(() => null);
+    return normalizePythonBrainDecision(json);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function normalizePersonName(raw = '') {
   const name = String(raw || '').trim();
@@ -2378,7 +2477,60 @@ function streamError(res, status, message) {
   res.end();
 }
 
-async function processAssistantRequest(user, body = {}) {
+function buildAssistantToolCalls(toolName = '', args = {}) {
+  if (toolName === 'execute_action_bundle') {
+    return Array.isArray(args?.actions)
+      ? args.actions.map((action) => ({
+          name: action.tool,
+          mode: 'write',
+          args: action.args || {},
+        }))
+      : [];
+  }
+  const def = TOOLS[toolName];
+  const mode = def ? def.mode : 'read';
+  return [{ name: toolName, mode, args: args || {} }];
+}
+
+function mergeNaturalReply(prefix = '', fallback = '') {
+  const lead = String(prefix || '').trim();
+  const tail = String(fallback || '').trim();
+  if (!lead) return tail;
+  if (!tail) return lead;
+  return `${lead}\n\n${tail}`;
+}
+
+function buildClarificationPayload(intentWithUser, message, pythonDecision = null) {
+  const fallback = buildClarificationResponse(intentWithUser, message);
+  const defaultReply = 'Sip, aku butuh detail tambahan dulu supaya hasilnya tepat.';
+  const clarifications = pythonDecision?.clarifications?.length
+    ? pythonDecision.clarifications
+    : (fallback?.clarifications || []);
+  const reply = mergeNaturalReply(pythonDecision?.natural_reply || '', fallback?.reply || defaultReply);
+  const toolCalls = buildAssistantToolCalls(intentWithUser.tool, intentWithUser.args || {});
+
+  return {
+    ok: false,
+    mode: 'clarification_required',
+    tool: intentWithUser.tool,
+    tool_calls: toolCalls,
+    reply,
+    clarifications,
+    preview: {
+      summary: intentWithUser.summary,
+      args: intentWithUser.args,
+    },
+    execution_frame: buildExecutionFrame({
+      mode: 'clarification_required',
+      tool: intentWithUser.tool,
+      summary: intentWithUser.summary || intentWithUser.tool,
+      args: intentWithUser.args || {},
+      clarifications,
+    }),
+  };
+}
+
+async function processAssistantRequest(req, user, body = {}) {
   const wantsConfirm = body.confirm === true;
 
   if (wantsConfirm) {
@@ -2407,15 +2559,7 @@ async function processAssistantRequest(user, body = {}) {
     }
 
     const result = await def.run({ user }, payload.args || {});
-    const toolCalls = payload.tool === 'execute_action_bundle'
-      ? (Array.isArray(payload.args?.actions)
-          ? payload.args.actions.map((action) => ({
-              name: action.tool,
-              mode: 'write',
-              args: action.args || {},
-            }))
-          : [])
-      : [{ name: payload.tool, mode: 'write', args: payload.args || {} }];
+    const toolCalls = buildAssistantToolCalls(payload.tool, payload.args || {});
 
     return {
       ok: true,
@@ -2438,7 +2582,17 @@ async function processAssistantRequest(user, body = {}) {
     throw createError('Message required', 400);
   }
 
-  const intent = detectIntent(message, user);
+  const pythonDecision = await inferIntentWithPythonBrain(req, user, message);
+  const detectedIntent = pythonDecision
+    ? {
+        tool: pythonDecision.tool,
+        mode: TOOLS[pythonDecision.tool]?.mode || pythonDecision.mode,
+        args: pythonDecision.args || {},
+        summary: pythonDecision.summary || pythonDecision.tool,
+      }
+    : detectIntent(message, user);
+
+  const intent = detectedIntent;
   if (!intent) {
     throw createError('Unable to detect intent', 400);
   }
@@ -2451,45 +2605,25 @@ async function processAssistantRequest(user, body = {}) {
   }
 
   if (def.mode === 'write') {
+    if (pythonDecision && pythonDecision.mode === 'clarification_required') {
+      return buildClarificationPayload(intentWithUser, message, pythonDecision);
+    }
+
     const clarification = buildClarificationResponse(intentWithUser, message);
     if (clarification) {
-      if (intentWithUser.tool === 'execute_action_bundle') {
-        const bundleCalls = Array.isArray(intentWithUser.args?.actions)
-          ? intentWithUser.args.actions.map((action) => ({
-              name: action.tool,
-              mode: 'write',
-              args: action.args || {},
-            }))
-          : [];
-        clarification.tool_calls = bundleCalls;
-      }
-      clarification.execution_frame = buildExecutionFrame({
-        mode: 'clarification_required',
-        tool: intentWithUser.tool,
-        summary: intentWithUser.summary || intentWithUser.tool,
-        args: intentWithUser.args || {},
-        clarifications: clarification.clarifications || [],
-      });
-      return clarification;
+      return buildClarificationPayload(intentWithUser, message, pythonDecision);
     }
 
     const result = await def.run({ user }, intentWithUser.args || {});
-    const toolCalls = intentWithUser.tool === 'execute_action_bundle'
-      ? (Array.isArray(intentWithUser.args?.actions)
-          ? intentWithUser.args.actions.map((action) => ({
-              name: action.tool,
-              mode: 'write',
-              args: action.args || {},
-            }))
-          : [])
-      : [{ name: intentWithUser.tool, mode: 'write', args: intentWithUser.args || {} }];
+    const toolCalls = buildAssistantToolCalls(intentWithUser.tool, intentWithUser.args || {});
+    const writeReply = writeExecutionReply(intentWithUser.tool, result);
 
     return {
       ok: true,
       mode: 'write_executed',
       tool: intentWithUser.tool,
       tool_calls: toolCalls,
-      reply: writeExecutionReply(intentWithUser.tool, result),
+      reply: mergeNaturalReply(pythonDecision?.natural_reply || '', writeReply),
       data: result,
       preview: {
         summary: intentWithUser.summary,
@@ -2506,12 +2640,13 @@ async function processAssistantRequest(user, body = {}) {
 
   const result = await def.run({ user }, intentWithUser.args || {});
   const explainability = buildExplainability(intentWithUser.tool, result, user);
+  const readReply = summarizeRead(intentWithUser.tool, result, user);
   return {
     ok: true,
     mode: 'read',
     tool: intentWithUser.tool,
     tool_calls: [{ name: intentWithUser.tool, mode: 'read', args: intentWithUser.args || {} }],
-    reply: summarizeRead(intentWithUser.tool, result, user),
+    reply: mergeNaturalReply(pythonDecision?.natural_reply || '', readReply),
     data: result,
     explainability,
     execution_frame: buildExecutionFrame({
@@ -2534,6 +2669,7 @@ export default withErrorHandling(async function handler(req, res) {
     sendJson(res, 200, {
       ok: true,
       assistant: 'phase-2.3-nla',
+      engine: isPythonAssistantEngineEnabled() ? 'python+js-fallback' : 'js',
       confirmation_required_for_write: false,
       stream_endpoint: '/api/assistant/stream',
       tools,
@@ -2550,7 +2686,7 @@ export default withErrorHandling(async function handler(req, res) {
   const wantsStream = isStreamRequest(req, body);
 
   try {
-    const payload = await processAssistantRequest(user, body || {});
+    const payload = await processAssistantRequest(req, user, body || {});
     if (wantsStream) {
       await streamPayload(res, payload);
       return;

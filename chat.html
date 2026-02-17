@@ -38,11 +38,18 @@
       <section class="assistant-command-bar" id="assistant-command-bar" aria-label="Smart command suggestions">
         <div class="assistant-command-head">
           <div class="assistant-command-title">Smart Suggestions</div>
-          <label class="assistant-mode-toggle" for="assistant-always-on">
-            <input id="assistant-always-on" type="checkbox">
-            <span class="assistant-mode-slider" aria-hidden="true"></span>
-            <span class="assistant-mode-label">Assistant Always On</span>
-          </label>
+          <div class="assistant-mode-switches">
+            <label class="assistant-mode-toggle" for="chat-bot-mode">
+              <input id="chat-bot-mode" type="checkbox">
+              <span class="assistant-mode-slider" aria-hidden="true"></span>
+              <span class="assistant-mode-label">Bot Mode</span>
+            </label>
+            <label class="assistant-mode-toggle" for="assistant-always-on">
+              <input id="assistant-always-on" type="checkbox">
+              <span class="assistant-mode-slider" aria-hidden="true"></span>
+              <span class="assistant-mode-label">Assistant Always On</span>
+            </label>
+          </div>
         </div>
         <div id="assistant-suggestions" class="assistant-suggestions"></div>
       </section>

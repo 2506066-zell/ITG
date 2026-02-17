@@ -59,6 +59,71 @@ Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless
   - `/ai <prompt>` untuk query assistant (streaming response)
   - `/confirm` untuk menjalankan write action yang menunggu konfirmasi
 
+## Python Brain (Phase 1 Hybrid)
+- Endpoint Python internal: `POST /api/assistant-brain`
+- Alur hybrid:
+  - Frontend tetap ke `POST /api/assistant` / `POST /api/assistant/stream`
+  - `api/assistant.js` akan memanggil Python brain untuk intent + klarifikasi natural
+  - Jika Python gagal/timeout, otomatis fallback ke engine JS lama (non-breaking)
+- Environment variables tambahan:
+  - `ASSISTANT_ENGINE=python` untuk mengaktifkan hybrid mode
+  - `ASSISTANT_BRAIN_URL` opsional (default auto ke `/api/assistant-brain` pada host aktif)
+  - `ASSISTANT_BRAIN_TIMEOUT_MS` opsional (default 1100 ms)
+  - `ASSISTANT_BRAIN_SHARED_SECRET` disarankan (Node kirim header `X-Brain-Secret` ke Python)
+
+## Chatbot Python Stateless (Mobile Couple Productivity)
+- Endpoint utama: `POST /api/chat`
+  - Mode chatbot stateless aktif saat request tanpa `Authorization` Bearer token.
+  - Input: `{ "message": "text user" }`
+  - Output: `{ "reply": "jawaban bot" }`
+- Endpoint Python langsung: `POST /api/chatbot` (rewritten ke `api/chat.py`)
+- Legacy mode tetap aman:
+  - `GET /api/chat`, `DELETE /api/chat`, dan `POST /api/chat` dengan token tetap memakai chat storage lama.
+
+### Struktur File Chatbot
+```
+project/
+  api/
+    chat.py
+  chatbot/
+    intents.py
+    responses.py
+    processor.py
+  requirements.txt
+  vercel.json
+```
+
+### Intent yang didukung
+- Greeting detection (`halo`, `hai`, `hi`, dst.)
+- Check target harian pasangan
+- Reminder acknowledgment
+- Fallback response
+- Tambahan: check-in progres, rekomendasi tugas, dan mode motivasi tegas
+
+### Contoh Request & Response
+Request:
+```bash
+curl -X POST https://<domain>/api/chat \
+  -H "Content-Type: application/json" \
+  -d "{\"message\":\"halo, cek target harian kita\"}"
+```
+
+Response:
+```json
+{
+  "reply": "Target harian pasangan: 1 tugas kuliah prioritas tinggi, 1 sesi belajar fokus 45 menit, lalu check-in malam."
+}
+```
+
+### Deploy singkat
+1. Pastikan `vercel.json` memuat build Python:
+   - `{ "src": "api/chat.py", "use": "@vercel/python" }`
+2. Deploy:
+   - `vercel --prod`
+3. Uji endpoint:
+   - `POST /api/chat` tanpa token untuk mode bot
+   - `POST /api/chat` dengan token untuk simpan chat legacy
+
 ## Koneksi Neon di Vercel (Langkah demi langkah)
 1. Buat project database di Neon.
 2. Buat user/password dan dapatkan Connection String:

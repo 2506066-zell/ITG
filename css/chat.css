@@ -159,6 +159,14 @@
     user-select: none;
 }
 
+.assistant-mode-switches {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .assistant-mode-toggle input {
     position: absolute;
     opacity: 0;
@@ -362,6 +370,12 @@
     border-color: hsla(var(--nebula-core), 0.55);
     background: hsla(var(--nebula-core), 0.2);
     color: hsl(var(--nebula-core));
+}
+
+.assistant-mode-indicator.bot-on {
+    border-color: hsla(148, 69%, 50%, 0.55);
+    background: hsla(148, 69%, 50%, 0.18);
+    color: hsl(148, 69%, 65%);
 }
 
 .chat-input .chat-input-main .input {
