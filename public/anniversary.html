@@ -7,12 +7,14 @@
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/v2-system.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • Anniversary</title>
+  <link rel="stylesheet" href="css/v3-polish.css">
 </head>
 
-<body>
+<body class="v2-page anniversary-page">
   <nav class="navbar">
     <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
     <div class="nav-actions">
@@ -53,6 +55,31 @@
     </div>
     <div class="footer">NZ</div>
   </div>
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <i class="fa-solid fa-house-chimney"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/settings" class="nav-item">
+      <i class="fa-solid fa-gear"></i>
+      <span>Settings</span>
+    </a>
+  </nav>
+
+  <script type="module" src="js/v2-motion.js"></script>
+  <script type="module" src="js/v3-micro.js"></script>
   <script type="module" src="js/anniversary.js"></script>
 </body>
 

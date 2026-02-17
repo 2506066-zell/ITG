@@ -4,6 +4,7 @@ import { get, post, put, del } from './api.js';
 let selectedImageBase64 = null;
 let currentEditId = null;
 let currentEditVersion = null;
+let addOverlay, editOverlay;
 
 // Image compression utility
 function compressImage(file) {
@@ -17,14 +18,13 @@ function compressImage(file) {
         const canvas = document.createElement('canvas');
         const MAX_WIDTH = 800;
         const scaleSize = MAX_WIDTH / img.width;
-        
+
         canvas.width = MAX_WIDTH;
         canvas.height = img.height * scaleSize;
-        
+
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
-        // Compress to JPEG 0.7 quality
+
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         resolve(dataUrl);
       };
@@ -38,104 +38,58 @@ async function load() {
   initProtected();
   const list = document.querySelector('#memories-list');
   list.innerHTML = '';
-  
-  // Skeleton
-  for (let i = 0; i < 3; i++) {
+
+  // Skeletons
+  for (let i = 0; i < 6; i++) {
     const sk = document.createElement('div');
-    sk.className = 'list-item';
-    sk.innerHTML = `<div style="width:80%"><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div></div>`;
+    sk.className = 'card skeleton';
+    sk.style.height = '250px';
     list.appendChild(sk);
   }
-  
+
   const data = await get('/memories');
   list.innerHTML = '';
-  
+
   if (!data.length) {
-    const empty = document.createElement('div');
-    empty.className = 'empty';
-    const icon = document.createElement('i');
-    icon.className = 'fa-solid fa-photo-film';
-    empty.appendChild(icon);
-    const text = document.createTextNode(' Belum ada memory. Tambahkan di form sebelah.');
-    empty.appendChild(text);
-    list.appendChild(empty);
+    list.innerHTML = `
+      <div class="card center muted" style="grid-column: 1 / -1; padding: 40px;">
+        <i class="fa-solid fa-photo-film" style="font-size: 40px; margin-bottom: 12px; opacity: 0.3;"></i>
+        <p>Belum ada memory. Klik tombol + untuk menambahkan.</p>
+      </div>
+    `;
     return;
   }
-  
-  // Sort newest first
+
   data.sort((a, b) => b.id - a.id);
-  
+
   data.forEach(m => {
     const el = document.createElement('div');
-    el.className = 'list-item';
-    el.style.display = 'block'; // Override flex
-    
-    // Header (Title & Actions)
-    const header = document.createElement('div');
-    header.style.display = 'flex';
-    header.style.justifyContent = 'space-between';
-    header.style.alignItems = 'center';
-    header.style.marginBottom = '8px';
-    
-    const titleEl = document.createElement('strong');
-    titleEl.textContent = m.title || 'Untitled';
-    titleEl.style.fontSize = '1.1rem';
-    
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-    
-    // Edit Button
-    const editBtn = document.createElement('button');
-    editBtn.className = 'btn secondary small';
-    editBtn.dataset.id = String(m.id);
-    editBtn.dataset.action = 'edit';
-    editBtn.dataset.title = m.title || '';
-    editBtn.dataset.note = m.note || '';
-    editBtn.dataset.version = String(m.version || 0);
-    editBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
-    
-    // Delete Button
-    const delBtn = document.createElement('button');
-    delBtn.className = 'btn danger small';
-    delBtn.dataset.id = String(m.id);
-    delBtn.dataset.action = 'delete';
-    delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
-    
-    actions.appendChild(editBtn);
-    actions.appendChild(delBtn);
-    header.appendChild(titleEl);
-    header.appendChild(actions);
-    
-    el.appendChild(header);
-    
-    // Content (Image)
+    el.className = 'card memory-card';
+
+    let mediaHtml = '';
     if (m.media_data && m.media_type === 'image') {
-      const img = document.createElement('img');
-      img.src = m.media_data;
-      img.style.width = '100%';
-      img.style.borderRadius = '12px';
-      img.style.marginBottom = '10px';
-      img.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-      img.loading = 'lazy';
-      el.appendChild(img);
+      mediaHtml = `<img src="${m.media_data}" class="memory-img" loading="lazy">`;
     }
-    
-    // Note
-    if (m.note) {
-      const noteEl = document.createElement('div');
-      noteEl.className = 'muted';
-      noteEl.style.whiteSpace = 'pre-wrap';
-      noteEl.textContent = m.note;
-      el.appendChild(noteEl);
-    }
-    
-    // Date
-    const dateEl = document.createElement('div');
-    dateEl.className = 'muted small';
-    dateEl.style.marginTop = '8px';
-    dateEl.style.fontSize = '0.8rem';
-    dateEl.textContent = new Date(m.created_at).toLocaleString();
-    el.appendChild(dateEl);
+
+    el.innerHTML = `
+      ${mediaHtml}
+      <div style="padding: 4px 0 12px 0;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px">
+          <strong style="font-size:1.05rem; line-height:1.2">${m.title || 'Untitled'}</strong>
+          <div class="actions" style="margin-left: 8px;">
+            <button class="btn secondary small p-1" data-id="${m.id}" data-action="edit" 
+              data-title="${m.title || ''}" data-note="${m.note || ''}" data-version="${m.version || 0}">
+              <i class="fa-solid fa-pen" style="font-size:10px"></i>
+            </button>
+            <button class="btn danger small p-1" data-id="${m.id}" data-action="delete">
+              <i class="fa-solid fa-trash" style="font-size:10px"></i>
+            </button>
+          </div>
+        </div>
+        ${m.note ? `<div class="muted small" style="white-space:pre-wrap; font-size:12px; line-height:1.4">${m.note}</div>` : ''}
+        <div class="memory-date">${new Date(m.created_at).toLocaleString()}</div>
+      </div>
+    `;
 
     list.appendChild(el);
   });
@@ -143,11 +97,8 @@ async function load() {
 
 async function handleCreate(e) {
   e.preventDefault();
-  const btn = e.target.querySelector('button[type="submit"]');
-  if (btn) btn.disabled = true;
-  
   const f = new FormData(e.target);
-  
+
   try {
     const body = {
       title: f.get('title'),
@@ -155,115 +106,99 @@ async function handleCreate(e) {
       media_data: selectedImageBase64 || '',
       note: f.get('note')
     };
-    
+
     await post('/memories', body);
-    
-    // Reset form
     e.target.reset();
-    selectedImageBase64 = null;
-    document.getElementById('photo-preview-container').style.display = 'none';
-    document.getElementById('photo-preview').src = '';
-    
+    resetPhotoPreview();
+    closeAddModal();
     load();
-    showToast('Memory uploaded!', 'success');
+    showToast('Memory saved!', 'success');
   } catch (err) {
-    showToast('Failed to save memory: ' + err.message, 'error');
-  } finally {
-    if (btn) btn.disabled = false;
+    showToast('Failed to save memory', 'error');
   }
 }
 
+function resetPhotoPreview() {
+  selectedImageBase64 = null;
+  document.getElementById('photo-preview-container').style.display = 'none';
+  document.getElementById('photo-preview').src = '';
+  document.getElementById('photo-input').value = '';
+}
+
 async function handleActions(e) {
-  const btn = e.target.closest('button');
+  const btn = e.target.closest('[data-action]');
   if (!btn) return;
   const id = btn.dataset.id;
   const action = btn.dataset.action;
-  
+
   if (action === 'delete') {
-    if (!confirm('Delete this memory?')) return;
+    if (!confirm('Hapus memory ini?')) return;
     await del(`/memories?id=${id}`);
     load();
-    showToast('Memory deleted', 'success');
+    showToast('Memory dihapus', 'success');
   } else if (action === 'edit') {
     openEditModal(id, btn.dataset.title, btn.dataset.note, btn.dataset.version);
   }
 }
 
+function openAddModal() {
+  addOverlay.classList.add('active');
+  addOverlay.querySelector('.bottom-sheet').classList.add('active');
+}
+
+function closeAddModal() {
+  addOverlay.classList.remove('active');
+  addOverlay.querySelector('.bottom-sheet').classList.remove('active');
+  resetPhotoPreview();
+}
+
 function openEditModal(id, title, note, version) {
   currentEditId = id;
   currentEditVersion = version ? Number(version) : undefined;
-  const modal = document.getElementById('modal-edit');
-  const titleInput = modal.querySelector('input[name="title"]');
-  const noteInput = modal.querySelector('textarea[name="note"]');
-  
+
+  const titleInput = editOverlay.querySelector('input[name="title"]');
+  const noteInput = editOverlay.querySelector('textarea[name="note"]');
+
   titleInput.value = title;
   noteInput.value = note;
-  modal.classList.add('active');
+
+  editOverlay.classList.add('active');
+  editOverlay.querySelector('.bottom-sheet').classList.add('active');
 }
 
-function initEditModal() {
-  const modal = document.getElementById('modal-edit');
-  const closeBtn = document.getElementById('modal-close');
-  const saveBtn = document.getElementById('modal-save');
-  const titleInput = modal.querySelector('input[name="title"]');
-  const noteInput = modal.querySelector('textarea[name="note"]');
+function closeEditModal() {
+  editOverlay.classList.remove('active');
+  editOverlay.querySelector('.bottom-sheet').classList.remove('active');
+  currentEditId = null;
+}
 
-  const closeModal = () => {
-    modal.classList.remove('active');
-    currentEditId = null;
-  };
-  
-  closeBtn.onclick = closeModal;
-  
-  // Close on outside click
-  modal.onclick = (e) => {
-    if (e.target === modal) closeModal();
-  };
-  
-  saveBtn.onclick = async () => {
-    if (!currentEditId) return;
-    
-    const title = titleInput.value.trim();
-    const note = noteInput.value.trim();
-    
-    if (!title) {
-      showToast('Title cannot be empty', 'error');
+async function handleUpdate() {
+  if (!currentEditId) return;
+
+  const title = editOverlay.querySelector('input[name="title"]').value.trim();
+  const note = editOverlay.querySelector('textarea[name="note"]').value.trim();
+
+  if (!title) { showToast('Title required', 'error'); return; }
+
+  try {
+    const res = await put('/memories', {
+      id: currentEditId,
+      title,
+      note,
+      version: currentEditVersion
+    });
+
+    if (res.error) {
+      showToast(res.error, 'error');
       return;
     }
-    
-    try {
-      saveBtn.disabled = true;
-      const originalText = saveBtn.innerHTML;
-      saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-      
-      const res = await put('/memories', {
-        id: currentEditId,
-        title,
-        note,
-        version: currentEditVersion
-      });
-      
-      if (res.error) {
-        showToast(res.error, 'error');
-        if (res.error.includes('Conflict')) {
-          load();
-          closeModal();
-        }
-        saveBtn.innerHTML = originalText;
-        return;
-      }
-      
-      showToast('Memory updated!', 'success');
-      load();
-      closeModal();
-      saveBtn.innerHTML = originalText;
-    } catch (err) {
-      showToast('Failed to update: ' + err.message, 'error');
-      saveBtn.innerHTML = originalText;
-    } finally {
-      saveBtn.disabled = false;
-    }
-  };
+
+    showToast('Memory updated!', 'success');
+    load();
+    closeEditModal();
+  } catch (err) {
+    showToast('Update failed', 'error');
+  }
 }
 
 function initPhotoUpload() {
@@ -271,41 +206,43 @@ function initPhotoUpload() {
   const preview = document.getElementById('photo-preview');
   const container = document.getElementById('photo-preview-container');
   const removeBtn = document.getElementById('remove-photo');
-  
+
   input.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     if (file.size > 5 * 1024 * 1024) {
-      showToast('Image too large (max 5MB)', 'error');
+      showToast('File terlalu besar (max 5MB)', 'error');
       return;
     }
-    
+
     try {
-      showToast('Compressing image...', 'info');
+      showToast('Memproses gambar...', 'info');
       selectedImageBase64 = await compressImage(file);
       preview.src = selectedImageBase64;
       container.style.display = 'block';
     } catch (err) {
-      showToast('Error reading image', 'error');
-      console.error(err);
+      showToast('Gagal memproses gambar', 'error');
     }
   });
-  
-  removeBtn.addEventListener('click', () => {
-    input.value = '';
-    selectedImageBase64 = null;
-    container.style.display = 'none';
-    preview.src = '';
-  });
+
+  removeBtn.addEventListener('click', resetPhotoPreview);
 }
 
 function init() {
+  addOverlay = document.getElementById('add-overlay');
+  editOverlay = document.getElementById('modal-edit');
+
   document.querySelector('#create-memory').addEventListener('submit', handleCreate);
   document.querySelector('#memories-list').addEventListener('click', handleActions);
+  document.getElementById('open-add').addEventListener('click', openAddModal);
+  document.getElementById('add-cancel').addEventListener('click', closeAddModal);
+  document.getElementById('modal-close').addEventListener('click', closeEditModal);
+  document.getElementById('modal-save').addEventListener('click', handleUpdate);
+
   initPhotoUpload();
-  initEditModal();
   load();
 }
 
 document.addEventListener('DOMContentLoaded', init);
+

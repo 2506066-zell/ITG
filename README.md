@@ -41,6 +41,24 @@ Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless
 - `js/api.js` menambahkan header `Authorization: Bearer <token>` dan fallback ke Mock jika backend tidak tersedia
 - Logout menghapus token dan redirect ke login
 
+## Assistant API (Phase 1)
+- Endpoint: `POST /api/assistant` (auth wajib)
+- Streaming endpoint (SSE): `POST /api/assistant/stream` (auth wajib)
+- Read intent (langsung eksekusi):
+  - body: `{ "message": "jadwal besok" }`
+- Write intent (wajib konfirmasi):
+  1. Kirim intent:
+     - `{ "message": "buat task belajar basis data deadline besok 19:00 priority high" }`
+     - respons: `mode=confirmation_required` + `confirmation_token`
+  2. Konfirmasi eksekusi:
+     - `{ "confirm": true, "confirmation_token": "<token>" }`
+     - respons: `mode=write_executed`
+- Tools read: tasks, schedule, goals, assignments, report, daily brief
+- Tools write: create task, complete task
+- Chat command shortcut:
+  - `/ai <prompt>` untuk query assistant (streaming response)
+  - `/confirm` untuk menjalankan write action yang menunggu konfirmasi
+
 ## Koneksi Neon di Vercel (Langkah demi langkah)
 1. Buat project database di Neon.
 2. Buat user/password dan dapatkan Connection String:

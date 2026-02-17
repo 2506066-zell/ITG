@@ -84,6 +84,9 @@ function render(data) {
   updateCard('cons', data.consistency);
   updateRing('cons-ring', data.consistency.current);
 
+  // Mood
+  if (data.mood) updateMood(data.mood);
+
   // AI Insights
   generateInsights(data);
 }

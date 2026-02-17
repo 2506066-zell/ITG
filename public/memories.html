@@ -1,70 +1,226 @@
-﻿﻿﻿<!doctype html>
+﻿﻿<!doctype html>
 <html lang="en" data-theme="dark">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/v2-system.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • Memories</title>
-</head>
-<body>
-  <nav class="navbar">
-    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
-    <div class="nav-actions">
-      <a class="btn" href="/"><i class="fa-solid fa-house"></i> Home</a>
-      <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
-    </div>
-  </nav>
-  <div class="container">
-    <a class="btn back-home" href="/"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
-    <div class="grid">
-      <div class="card">
-        <div class="section-title">Create Memory</div>
-        <form id="create-memory" class="list">
-          <input class="input" name="title" placeholder="Title" required>
-          
-          <!-- Photo Upload UI -->
-          <div style="position:relative;">
-            <input type="file" id="photo-input" accept="image/*" style="display:none">
-            <button type="button" class="btn secondary" style="width:100%" onclick="document.getElementById('photo-input').click()">
-              <i class="fa-solid fa-camera"></i> Upload Photo
-            </button>
-            <div id="photo-preview-container" style="display:none; margin-top:10px; position:relative;">
-              <img id="photo-preview" src="" style="width:100%; border-radius:10px; max-height:200px; object-fit:cover;">
-              <button type="button" id="remove-photo" class="btn danger small" style="position:absolute; top:5px; right:5px;">
-                <i class="fa-solid fa-times"></i>
-              </button>
-            </div>
-          </div>
-          <!-- End Photo Upload -->
+  <style>
+    /* Local overrides for Memories Grid */
+    .memories-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
 
-          <textarea class="input" name="note" placeholder="Note"></textarea>
-          <button class="btn" type="submit"><i class="fa-solid fa-plus"></i> Add</button>
-        </form>
+    @media (max-width: 992px) {
+      .memories-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .memories-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .memory-card {
+      margin-bottom: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: transform 0.3s ease;
+    }
+
+    .memory-card:hover {
+      transform: translateY(-5px);
+    }
+
+    .memory-img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .fab {
+      position: fixed;
+      bottom: 90px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, hsl(var(--nebula-core)), hsl(var(--nebula-pulse)));
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4), 0 0 15px hsla(var(--nebula-core), 0.3);
+      z-index: 1000;
+      cursor: pointer;
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .fab:hover {
+      transform: scale(1.1) rotate(90deg);
+    }
+
+    .memory-date {
+      font-size: 10px;
+      opacity: 0.5;
+      margin-top: auto;
+      padding-top: 10px;
+    }
+
+    #photo-preview-container {
+      position: relative;
+      margin-top: 10px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid hsla(var(--nebula-core), 0.3);
+    }
+
+    #remove-photo {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 6px 10px;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(5px);
+      border: none;
+      color: white;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+  </style>
+  <link rel="stylesheet" href="css/v3-polish.css">
+</head>
+
+<body class="v2-page memories-page">
+<div class="galaxy-bg">
+  <div class="stars-container">
+    <div class="stars-sm"></div>
+    <div class="stars-lg"></div>
+  </div>
+</div>
+
+<nav class="navbar">
+  <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
+  <div class="nav-actions">
+    <a class="btn" href="/"><i class="fa-solid fa-house"></i> Home</a>
+    <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="section-header" style="margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
+    <h2 style="margin:0"><i class="fa-solid fa-photo-film"></i> Memories</h2>
+    <span class="muted" style="font-size: 14px;">Abadikan momen spesial bersama</span>
+  </div>
+
+  <div id="memories-list" class="memories-grid">
+    <!-- Loading Skeletons or Memories will be injected here -->
+  </div>
+
+  <div class="footer">NZ</div>
+</div>
+
+<!-- FAB -->
+<div class="fab" id="open-add"><i class="fa-solid fa-plus"></i></div>
+
+<!-- ADD MEMORY SHEET -->
+<div class="bottom-sheet-overlay" id="add-overlay">
+  <div class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <h3 style="margin:0 0 20px;font-size:18px">Create Memory</h3>
+    <form id="create-memory" class="list">
+      <div class="form-group">
+        <label class="form-label">Title</label>
+        <input class="input" name="title" placeholder="What happened?" required autocomplete="off">
       </div>
-      <div class="card">
-        <div class="section-title">Memories</div>
-        <div id="memories-list" class="list"></div>
-      </div>
-    </div>
-    <div id="modal-edit" class="modal-overlay">
-      <div class="modal">
-        <div class="section-title">Edit Memory</div>
-        <div class="list">
-          <input class="input" name="title" placeholder="Judul">
-          <textarea class="input" name="note" placeholder="Catatan"></textarea>
-          <div class="actions">
-            <button class="btn" id="modal-save"><i class="fa-solid fa-floppy-disk"></i> Simpan</button>
-            <button class="btn danger" id="modal-close"><i class="fa-solid fa-xmark"></i> Tutup</button>
-          </div>
+
+      <div class="form-group">
+        <label class="form-label">Photo</label>
+        <input type="file" id="photo-input" accept="image/*" style="display:none">
+        <button type="button" class="btn secondary btn-block" onclick="document.getElementById('photo-input').click()">
+          <i class="fa-solid fa-camera"></i> Upload Photo
+        </button>
+        <div id="photo-preview-container" style="display:none;">
+          <img id="photo-preview" src="" style="width:100%; display: block; border-radius: 8px;">
+          <button type="button" id="remove-photo"><i class="fa-solid fa-times"></i></button>
         </div>
       </div>
-    </div>
-    <div class="footer">NZ</div>
+
+      <div class="form-group">
+        <label class="form-label">Note (optional)</label>
+        <textarea class="input" name="note" placeholder="Write something about this moment..."></textarea>
+      </div>
+
+      <div class="sheet-actions" style="margin-top:20px">
+        <button type="button" class="btn secondary" id="add-cancel" style="flex:1">Cancel</button>
+        <button type="submit" class="btn" style="flex:1">Save Memory</button>
+      </div>
+    </form>
   </div>
-  <script type="module" src="js/memories.js"></script>
+</div>
+
+<!-- EDIT MEMORY SHEET -->
+<div class="bottom-sheet-overlay" id="modal-edit">
+  <div class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <h3 style="margin:0 0 20px;font-size:18px">Edit Memory</h3>
+    <div class="list">
+      <div class="form-group">
+        <label class="form-label">Title</label>
+        <input class="input" name="title" placeholder="Judul">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Note</label>
+        <textarea class="input" name="note" placeholder="Catatan"></textarea>
+      </div>
+      <div class="sheet-actions" style="margin-top:20px">
+        <button type="button" class="btn secondary" id="modal-close" style="flex:1">Cancel</button>
+        <button type="button" class="btn" id="modal-save" style="flex:1">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+<nav class="bottom-nav">
+  <a href="/" class="nav-item">
+    <i class="fa-solid fa-house-chimney"></i>
+    <span>Home</span>
+  </a>
+  <a href="/daily-tasks" class="nav-item">
+    <i class="fa-solid fa-list-check"></i>
+    <span>Tasks</span>
+  </a>
+  <a href="/goals" class="nav-item">
+    <i class="fa-solid fa-bullseye"></i>
+    <span>Goals</span>
+  </a>
+  <a href="/chat" class="nav-item">
+    <i class="fa-solid fa-message-heart"></i>
+    <span>Chat</span>
+  </a>
+  <a href="/settings" class="nav-item">
+    <i class="fa-solid fa-gear"></i>
+    <span>Settings</span>
+  </a>
+</nav>
+
+<script type="module" src="js/v2-motion.js"></script>
+<script type="module" src="js/v3-micro.js"></script>
+<script type="module" src="js/memories.js"></script>
 </body>
+
 </html>

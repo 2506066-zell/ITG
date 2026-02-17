@@ -47,6 +47,8 @@ const apiHandler = async (req, res, handlerPath) => {
 // Define Routes manually to match Vercel structure
 const routes = [
   { path: '/api/login', file: '../api/login.js' },
+  { path: '/api/assistant', file: '../api/assistant.js' },
+  { path: '/api/assistant/stream', file: '../api/assistant.js' },
   { path: '/api/tasks', file: '../api/tasks.js' },
   { path: '/api/memories', file: '../api/memories.js' },
   { path: '/api/assignments', file: '../api/assignments.js' },

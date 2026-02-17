@@ -1,6 +1,5 @@
 <!doctype html>
 <html lang="en" data-theme="dark">
-
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,262 +7,191 @@
   <meta name="theme-color" content="#050816">
   <link rel="apple-touch-icon" href="icons/192.png">
 
-  <!-- PERFORMANCE OPTIMIZATION -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/home-v2.css">
+  <link rel="stylesheet" href="css/v2-system.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
-  <title>NZ • Dashboard</title>
-</head>
 
-<body class="dashboard-page">
-  
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NZ">
+  <meta name="format-detection" content="telephone=no">
+
+  <title>NZ - Command Center</title>
+  <link rel="stylesheet" href="css/v3-polish.css">
+</head>
+<body class="v2-page dashboard-page command-center-page">
+  <div class="galaxy-bg">
+    <div class="nebula nebula-orange"></div>
+    <div class="nebula nebula-blue"></div>
+    <div class="nebula nebula-purple"></div>
+    <div class="stars-container">
+      <div class="stars-sm"></div>
+      <div class="stars-lg"></div>
+    </div>
+  </div>
 
   <nav class="navbar">
     <div class="brand">
       <div class="brand-logo"><i class="fa-solid fa-heart"></i></div>
-      <div class="brand-text">NZ <span>SYSTEM</span></div>
+      <div class="brand-text">NZ <span>COMMAND CENTER</span></div>
     </div>
     <div class="nav-actions">
       <a class="btn small secondary" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
     </div>
   </nav>
 
-  <main class="container">
-    <h1 style="font-family: var(--font-head); font-size: clamp(2.8rem, 8vw, 5.6rem); text-align:center; letter-spacing: 0.06em; margin: 10px 0 0; color: var(--text);">I LOVE U</h1>
-
-    <!-- 🚀 HERO DASHBOARD: GROW TOGETHER -->
-    <section class="hero-section">
-      <div class="card hero-card">
-        <header class="hero-header">
-          <div class="section-title"><i class="fa-solid fa-rocket-launch"></i> MISSION: GROW TOGETHER</div>
-          <div class="mission-status"><span class="pulse"></span> ACTIVE</div>
-        </header>
-
-        <div id="countdown" class="countdown">
-          <div class="time-box">
-            <span id="t-days">00</span>
-            <label>DAYS</label>
-          </div>
-          <div class="time-box separator">:</div>
-          <div class="time-box">
-            <span id="t-hours">00</span>
-            <label>HOURS</label>
-          </div>
-          <div class="time-box separator">:</div>
-          <div class="time-box">
-            <span id="t-minutes">00</span>
-            <label>MINUTES</label>
-          </div>
-          <div class="time-box separator">:</div>
-          <div class="time-box">
-            <span id="t-seconds">00</span>
-            <label>SECONDS</label>
-          </div>
+  <main class="container cc-shell">
+    <section class="card cc-card cc-card-alpha cc-reveal" id="today-mission-card">
+      <div class="cc-hero-top">
+        <div class="cc-copy">
+          <p class="cc-kicker">Today Mission</p>
+          <h1 class="cc-heading" id="cc-greeting">Ready to focus</h1>
+          <p class="cc-sub" id="cc-date">Loading mission clock...</p>
         </div>
-
-        <footer class="hero-footer">
-          <div class="muted">INITIATED: 23 NOV 2025</div>
-          <div class="hero-divider"></div>
-          <div class="muted">OBJECTIVE: UNCONDITIONAL SUPPORT</div>
-        </footer>
+        <a href="/daily-tasks" class="btn small"><i class="fa-solid fa-bolt"></i> Planner</a>
       </div>
-    </section>
 
-    <!-- 📊 ANALYTICS HUB -->
-    <section class="analytics-grid">
-      <div class="card stats-card">
-        <div class="section-title"><i class="fa-solid fa-chart-simple"></i> WEEKLY CONTRIBUTION</div>
-        <div id="weekly-stats" class="stats-container">
-          <div class="skeleton skeleton-line"></div>
-          <div class="skeleton skeleton-line" style="width:80%"></div>
+      <div id="countdown" class="cc-countdown">
+        <div class="time-box">
+          <span id="t-days">00</span>
+          <label>Days</label>
+        </div>
+        <div class="time-box">
+          <span id="t-hours">00</span>
+          <label>Hours</label>
+        </div>
+        <div class="time-box">
+          <span id="t-minutes">00</span>
+          <label>Minutes</label>
+        </div>
+        <div class="time-box">
+          <span id="t-seconds">00</span>
+          <label>Seconds</label>
         </div>
       </div>
 
-      <div class="card stats-card">
-        <div class="section-title"><i class="fa-solid fa-wave-pulse"></i> MOOD STABILITY</div>
-        <div id="weekly-mood" class="stats-container">
-          <div class="skeleton skeleton-line"></div>
-          <div class="skeleton skeleton-line" style="width:70%"></div>
+      <div class="cc-metric-row">
+        <div class="cc-metric">
+          <span class="cc-metric-label">Open</span>
+          <strong id="mission-open-count">0</strong>
+        </div>
+        <div class="cc-metric status-warning">
+          <span class="cc-metric-label">Urgent</span>
+          <strong id="mission-urgent-count">0</strong>
+        </div>
+        <div class="cc-metric status-good">
+          <span class="cc-metric-label">Done Today</span>
+          <strong id="mission-completed-count">0</strong>
         </div>
       </div>
+
+      <div class="cc-progress-wrap">
+        <div class="cc-progress-head">
+          <span>Execution Rate</span>
+          <span id="today-progress-value">0%</span>
+        </div>
+        <div class="cc-progress-track">
+          <div class="cc-progress-fill" id="today-progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="cc-list" id="today-mission-list"></div>
     </section>
 
-    <!-- 🛠️ INTERFACE MODULES -->
-    <section class="modules-grid">
-      <h2 class="grid-label">SYSTEM MODULES</h2>
-      <div class="grid home-grid">
-        <a href="/memories" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-sparkles"></i></div>
-          <div class="module-info">
-            <div class="module-name">MEMORIES</div>
-            <div class="muted">Archive moments</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
+    <section class="card cc-card cc-card-beta cc-reveal" id="couple-pulse-card">
+      <div class="cc-section-head">
+        <h2><i class="fa-solid fa-heart-pulse"></i> Couple Pulse</h2>
+        <span class="cc-chip" id="pulse-sync-badge">Sync --</span>
+      </div>
 
-        <a href="/daily-tasks" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-list-check"></i></div>
-          <div class="module-info">
-            <div class="module-name">TASKS</div>
-            <div class="muted">Checklist</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
+      <div class="cc-pulse-grid">
+        <article class="cc-pulse-user" data-user="Zaldy">
+          <header>
+            <span class="cc-user-tag">Zaldy</span>
+            <span class="cc-mood-value" id="pulse-z-mood">--</span>
+          </header>
+          <p class="cc-user-meta">Activities: <strong id="pulse-z-activity">0</strong></p>
+          <div class="cc-bar-track"><div class="cc-bar-fill" id="pulse-z-bar"></div></div>
+        </article>
 
-        <a href="/monthly-todos" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-calendar-check"></i></div>
-          <div class="module-info">
-            <div class="module-name">HABITS</div>
-            <div class="muted">Streaks</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/college-assignments" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-graduation-cap"></i></div>
-          <div class="module-info">
-            <div class="module-name">COLLEGE</div>
-            <div class="muted">Deadlines</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/schedule" class="card module-card">
-          <div class="module-icon"><i class="fa-regular fa-calendar-days"></i></div>
-          <div class="module-info">
-            <div class="module-name">SCHEDULE</div>
-            <div class="muted">Timetable</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/anniversary" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-calendar-heart"></i></div>
-          <div class="module-info">
-            <div class="module-name">ANNIVERSARY</div>
-            <div class="muted">Special date</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/chat" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-message-heart"></i></div>
-          <div class="module-info">
-            <div class="module-name">CHAT</div>
-            <div class="muted">Messages</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/goals" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-bullseye"></i></div>
-          <div class="module-info">
-            <div class="module-name">GOALS</div>
-            <div class="muted">Targets</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
+        <article class="cc-pulse-user" data-user="Nesya">
+          <header>
+            <span class="cc-user-tag">Nesya</span>
+            <span class="cc-mood-value" id="pulse-n-mood">--</span>
+          </header>
+          <p class="cc-user-meta">Activities: <strong id="pulse-n-activity">0</strong></p>
+          <div class="cc-bar-track"><div class="cc-bar-fill" id="pulse-n-bar"></div></div>
+        </article>
       </div>
     </section>
 
-    <footer class="footer">
-      <div class="footer-line"></div>
-      <div class="footer-text">NZ PROTOCOL &copy; 2026</div>
-    </footer>
+    <section class="card cc-card cc-card-beta cc-reveal" id="urgent-radar-card">
+      <div class="cc-section-head">
+        <h2><i class="fa-solid fa-radar"></i> Urgent Radar</h2>
+        <span class="cc-chip status-critical" id="urgent-count">0 item</span>
+      </div>
+      <div class="cc-list" id="urgent-radar-list"></div>
+    </section>
+
+    <section class="card cc-card cc-card-gamma cc-reveal" id="assistant-feed-card">
+      <div class="cc-section-head">
+        <h2><i class="fa-solid fa-wand-magic-sparkles"></i> Assistant Feed</h2>
+        <button class="btn small secondary" id="assistant-refresh"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
+      </div>
+      <div class="cc-feed" id="assistant-feed-list"></div>
+    </section>
+
+    <section class="card cc-card cc-card-gamma cc-reveal" id="quick-dock-card">
+      <div class="cc-section-head">
+        <h2><i class="fa-solid fa-compass-drafting"></i> Quick Dock</h2>
+        <span class="cc-chip" id="cc-updated-at">--</span>
+      </div>
+      <div class="cc-module-grid">
+        <a href="/daily-tasks" class="cc-module"><i class="fa-solid fa-list-check"></i><span>Tasks</span></a>
+        <a href="/college-assignments" class="cc-module"><i class="fa-solid fa-graduation-cap"></i><span>College</span></a>
+        <a href="/schedule" class="cc-module"><i class="fa-regular fa-calendar-days"></i><span>Schedule</span></a>
+        <a href="/monthly-todos" class="cc-module"><i class="fa-solid fa-calendar-check"></i><span>Habits</span></a>
+        <a href="/goals" class="cc-module"><i class="fa-solid fa-bullseye"></i><span>Goals</span></a>
+        <a href="/chat" class="cc-module"><i class="fa-solid fa-message-heart"></i><span>Chat</span></a>
+        <a href="/report" class="cc-module"><i class="fa-solid fa-chart-line"></i><span>Report</span></a>
+        <a href="/memories" class="cc-module"><i class="fa-solid fa-sparkles"></i><span>Memories</span></a>
+        <a href="/anniversary" class="cc-module"><i class="fa-solid fa-calendar-heart"></i><span>Special</span></a>
+      </div>
+    </section>
   </main>
 
-  <script type="module">
-    import { initProtected } from './js/main.js';
-    import { get } from './js/api.js';
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item active">
+      <i class="fa-solid fa-house-chimney"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/settings" class="nav-item">
+      <i class="fa-solid fa-gear"></i>
+      <span>Settings</span>
+    </a>
+  </nav>
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      initProtected();
-
-      // Load Weekly Stats
-      const statsContainer = document.getElementById('weekly-stats');
-      try {
-        const data = await get('/stats');
-        if (data && data.stats) {
-          statsContainer.innerHTML = '';
-          const max = data.combined || 1;
-
-          data.stats.forEach(s => {
-            const user = s.user || 'Unknown';
-            const score = Number(s.total_score);
-            const percent = Math.round((score / max) * 100);
-
-            const row = document.createElement('div');
-            row.className = 'stat-row';
-            row.innerHTML = `
-              <div class="stat-info">
-                <span class="stat-user">${user}</span>
-                <span class="stat-value">${score} <span class="muted-text">XP</span></span>
-              </div>
-              <div class="stat-bar-bg">
-                <div class="stat-bar-fill" style="width:0%"></div>
-              </div>
-            `;
-            statsContainer.appendChild(row);
-
-            setTimeout(() => {
-              row.querySelector('.stat-bar-fill').style.width = `${percent}%`;
-            }, 100);
-          });
-
-          if (data.stats.length === 0) {
-            statsContainer.innerHTML = '<div class="muted center">No mission status reported.</div>';
-          }
-        }
-      } catch (err) {
-        console.error(err);
-        statsContainer.innerHTML = '<div class="muted center">Link failed.</div>';
-      }
-
-      const moodContainer = document.getElementById('weekly-mood');
-      if (moodContainer) {
-        try {
-          const w = await get('/weekly');
-          moodContainer.innerHTML = '';
-          if (!w || !w.users || Object.keys(w.users).length === 0) {
-            moodContainer.innerHTML = '<div class="muted center">No stability data.</div>';
-          } else {
-            const users = Object.keys(w.users);
-            const emoji = n => ({ 1: '😫', 2: '😕', 3: '😐', 4: '🙂', 5: '🤩' }[Math.round(n)] || '😐');
-            users.forEach(u => {
-              const info = w.users[u];
-              const section = document.createElement('div');
-              section.className = 'mood-user-section';
-              section.innerHTML = `
-                <div class="mood-header">
-                  <span class="mood-user">${u}</span>
-                  <span class="mood-sync">SYNC: ${info.correlation ?? '0'}%</span>
-                </div>
-                <div class="mood-grid"></div>
-              `;
-              const grid = section.querySelector('.mood-grid');
-              info.per_day.forEach(p => {
-                const cell = document.createElement('div');
-                cell.className = 'mood-cell';
-                const m = p.mood !== null ? emoji(p.mood) : '—';
-                cell.innerHTML = `<span>${m}</span>`;
-                grid.appendChild(cell);
-              });
-              moodContainer.appendChild(section);
-            });
-          }
-        } catch (err) {
-          console.error(err);
-          moodContainer.innerHTML = '<div class="muted center">Sync error.</div>';
-        }
-      }
-    });
-
-    
-  </script>
+  <script type="module" src="js/v2-motion.js"></script>
+  <script type="module" src="js/v3-micro.js"></script>
+  <script type="module" src="js/home-v2.js"></script>
 </body>
-
 </html>

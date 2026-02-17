@@ -7,6 +7,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/v2-system.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • Goals</title>
@@ -223,9 +224,10 @@
       border-top: 1px solid hsla(var(--nebula-core), 0.3);
     }
   </style>
+  <link rel="stylesheet" href="css/v3-polish.css">
 </head>
 
-<body>
+<body class="v2-page goals-page">
 
   <div class="page-container">
     <header class="page-header">
@@ -301,14 +303,14 @@
           <div class="form-group">
             <label class="form-label">Factors</label>
             <div class="tags-selector" id="eval-tags" style="display:flex;flex-wrap:wrap;gap:8px">
-                <div class="tag-chip" data-val="Lelah">😫 Lelah</div>
-                <div class="tag-chip" data-val="Sakit">🤒 Sakit</div>
-                <div class="tag-chip" data-val="Stres">🤯 Stres</div>
-                <div class="tag-chip" data-val="Biasa">😐 Biasa</div>
-                <div class="tag-chip" data-val="Fokus">🧠 Fokus</div>
-                <div class="tag-chip" data-val="Semangat">🔥 Semangat</div>
-                <div class="tag-chip" data-val="Senang">🥰 Senang</div>
-                <div class="tag-chip" data-val="Produktif">✅ Produktif</div>
+              <div class="tag-chip" data-val="Lelah">😫 Lelah</div>
+              <div class="tag-chip" data-val="Sakit">🤒 Sakit</div>
+              <div class="tag-chip" data-val="Stres">🤯 Stres</div>
+              <div class="tag-chip" data-val="Biasa">😐 Biasa</div>
+              <div class="tag-chip" data-val="Fokus">🧠 Fokus</div>
+              <div class="tag-chip" data-val="Semangat">🔥 Semangat</div>
+              <div class="tag-chip" data-val="Senang">🥰 Senang</div>
+              <div class="tag-chip" data-val="Produktif">✅ Produktif</div>
             </div>
           </div>
           <div class="form-group">
@@ -324,6 +326,31 @@
 
   </div>
 
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <i class="fa-solid fa-house-chimney"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item active">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/settings" class="nav-item">
+      <i class="fa-solid fa-gear"></i>
+      <span>Settings</span>
+    </a>
+  </nav>
+
+  <script type="module" src="js/v2-motion.js"></script>
+  <script type="module" src="js/v3-micro.js"></script>
   <script type="module" src="js/goals.js"></script>
 </body>
 

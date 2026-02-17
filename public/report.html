@@ -1,46 +1,56 @@
-
 <!doctype html>
 <html lang="en" data-theme="dark">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/v2-system.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-  <title>NZ • Report</title>
+  <title>NZ • Raport</title>
   <style>
     .report-card {
       background: var(--glass-bg);
       border: 1px solid var(--glass-border);
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 16px;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 6px;
     }
+
     .stat-value {
-      font-size: 32px;
+      font-size: 24px;
       font-weight: 700;
       font-family: var(--font-head);
       color: var(--text);
     }
+
     .stat-label {
-      font-size: 14px;
+      font-size: 11px;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
     }
+
     .stat-change {
-      font-size: 14px;
+      font-size: 12px;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
     }
-    .stat-change.up { color: var(--success, #4caf50); }
-    .stat-change.down { color: var(--danger, #f44336); }
-    
+
+    .stat-change.up {
+      color: var(--success, #4caf50);
+    }
+
+    .stat-change.down {
+      color: var(--danger, #f44336);
+    }
+
     .filter-tabs {
       display: flex;
       background: var(--glass-bg);
@@ -48,6 +58,7 @@
       border-radius: 12px;
       margin-bottom: 24px;
     }
+
     .filter-tab {
       flex: 1;
       text-align: center;
@@ -57,80 +68,229 @@
       font-weight: 600;
       transition: all 0.2s;
     }
+
     .filter-tab.active {
       background: var(--primary);
       color: #fff;
     }
+
+    /* AI Insights Styles */
+    .insights-card {
+      background: linear-gradient(135deg, hsla(var(--nebula-core), 0.15), hsla(var(--nova-pink), 0.1));
+      border: 1px solid hsla(var(--nebula-core), 0.3);
+      border-radius: 20px;
+      padding: 20px;
+      margin-top: 24px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px -10px hsla(var(--nebula-core), 0.4);
+    }
+
+    .insights-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, hsla(var(--nebula-core), 0.1) 0%, transparent 70%);
+      animation: pulse-slow 8s infinite alternate;
+      z-index: 0;
+    }
+
+    @keyframes pulse-slow {
+      0% {
+        transform: scale(1) translate(0, 0);
+      }
+
+      100% {
+        transform: scale(1.1) translate(5%, 5%);
+      }
+    }
+
+    .insights-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .insights-header i {
+      color: hsl(var(--nebula-core));
+      font-size: 1.2rem;
+    }
+
+    .insights-title {
+      font-family: var(--font-head);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-size: 0.9rem;
+    }
+
+    .insight-text {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: var(--text-100);
+      position: relative;
+      z-index: 1;
+    }
+
+    .insight-tip {
+      margin-top: 16px;
+      padding: 12px;
+      background: hsla(0, 0%, 0%, 0.2);
+      border-radius: 12px;
+      font-size: 0.85rem;
+      display: flex;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .insight-tip i {
+      color: hsl(var(--star-gold));
+    }
   </style>
+  <link rel="stylesheet" href="css/v3-polish.css">
 </head>
-<body>
-  <div class="page-container" style="padding: 20px; max-width: 600px; margin: 0 auto;">
-    
+
+<body class="v2-page report-page">
+  <!-- 🌌 GALAXY BACKGROUND -->
+  <div class="galaxy-background">
+    <div class="stars"></div>
+    <div class="nebula nebula-1"></div>
+    <div class="nebula nebula-2"></div>
+  </div>
+
+  <div class="container">
     <!-- Header -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-      <h1 style="margin:0;font-family:var(--font-head)">Raport Anda</h1>
-      <a href="/" style="color:var(--text);font-size:20px"><i class="fa-solid fa-xmark"></i></a>
-    </div>
+    <header class="report-header">
+      <h1>Performance Raport</h1>
+      <a href="/" class="btn small secondary"><i class="fa-solid fa-xmark"></i></a>
+    </header>
 
     <!-- Filter -->
     <div class="filter-tabs">
-      <div class="filter-tab active" data-type="weekly">Mingguan</div>
-      <div class="filter-tab" data-type="monthly">Bulanan</div>
+      <div class="filter-tab active" data-type="weekly">WEEKLY</div>
+      <div class="filter-tab" data-type="monthly">MONTHLY</div>
     </div>
 
     <!-- Loading -->
     <div id="loading" style="text-align:center;padding:40px">
-      <i class="fa-solid fa-circle-notch fa-spin" style="font-size:24px;color:var(--primary)"></i>
+      <i class="fa-solid fa-circle-notch fa-spin" style="font-size:24px;color:hsl(var(--nebula-core))"></i>
     </div>
 
     <!-- Content -->
     <div id="report-content" style="display:none">
-      
-      <div style="margin-bottom:16px;font-size:14px;color:var(--muted);text-align:center" id="period-label"></div>
+      <div id="period-label" class="muted center mb-4" style="font-size: 0.8rem; margin-bottom: 24px;"></div>
 
-      <!-- Productivity -->
-      <div class="report-card">
-        <div class="stat-label">Produktivitas (Tasks)</div>
-        <div style="display:flex;justify-content:space-between;align-items:end">
-          <div class="stat-value" id="prod-val">0</div>
-          <div class="stat-change" id="prod-change">
-            <i class="fa-solid fa-arrow-up"></i> <span>0%</span>
+      <!-- Stats Grid -->
+      <div class="stat-grid">
+        <!-- Productivity -->
+        <div class="report-card compact-card">
+          <div class="stat-header">
+            <span class="stat-label">Productivity</span>
+          </div>
+          <div class="stat-main">
+            <svg class="glow-ring" viewBox="0 0 100 100">
+              <circle class="bg" cx="50" cy="50" r="40" />
+              <circle class="progress" id="prod-ring" cx="50" cy="50" r="40" />
+            </svg>
+            <div class="stat-center-val" id="prod-val">0</div>
+          </div>
+          <div class="stat-footer">
+            <div class="stat-change" id="prod-change">
+              <i class="fa-solid fa-arrow-up"></i> <span>0%</span>
+            </div>
+            <div class="stat-prev">Prev: <span id="prod-prev">0</span></div>
           </div>
         </div>
-        <div style="font-size:12px;color:var(--muted)">vs periode sebelumnya (<span id="prod-prev">0</span>)</div>
+
+        <!-- Consistency -->
+        <div class="report-card compact-card">
+          <div class="stat-header">
+            <span class="stat-label">Consistency</span>
+          </div>
+          <div class="stat-main">
+            <svg class="glow-ring" viewBox="0 0 100 100">
+              <circle class="bg" cx="50" cy="50" r="40" />
+              <circle class="progress" id="cons-ring" cx="50" cy="50" r="40" />
+            </svg>
+            <div class="stat-center-val" id="cons-val">0</div>
+          </div>
+          <div class="stat-footer">
+            <div class="stat-change" id="cons-change">
+              <i class="fa-solid fa-arrow-up"></i> <span>0%</span>
+            </div>
+            <div class="stat-prev">Prev: <span id="cons-prev">0</span></div>
+          </div>
+        </div>
       </div>
 
-      <!-- Consistency -->
+      <!-- Mood Card -->
       <div class="report-card">
-        <div class="stat-label">Konsistensi (Habits)</div>
-        <div style="display:flex;justify-content:space-between;align-items:end">
-          <div class="stat-value" id="cons-val">0</div>
-          <div class="stat-change" id="cons-change">
-            <i class="fa-solid fa-arrow-up"></i> <span>0%</span>
-          </div>
+        <div class="stat-header">
+          <span class="stat-label">Mood Average</span>
         </div>
-        <div style="font-size:12px;color:var(--muted)">vs periode sebelumnya (<span id="cons-prev">0</span>)</div>
-      </div>
-
-      <!-- Mood -->
-      <div class="report-card">
-        <div class="stat-label">Rata-rata Mood</div>
-        <div style="display:flex;justify-content:space-between;align-items:end">
-          <div class="stat-value" id="mood-val">0.0</div>
-          <div class="stat-change" id="mood-change">
-            <i class="fa-solid fa-arrow-up"></i> <span>0.0</span>
+        <div style="display:flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; flex-direction: column;">
+            <div class="stat-value" id="mood-val" style="font-size: 2.5rem;">0.0</div>
+            <div class="stat-change" id="mood-change">
+              <i class="fa-solid fa-arrow-up"></i> <span>0.0</span>
+            </div>
           </div>
+          <div id="mood-visual" style="font-size: 2.5rem;">✨</div>
         </div>
-        <div style="margin-top:12px">
-          <div style="font-size:12px;margin-bottom:6px;color:var(--muted)">Faktor Utama:</div>
+        <div style="margin-top:20px; border-top: 1px solid var(--glass-border); padding-top: 16px;">
+          <div class="stat-label" style="margin-bottom: 8px;">Core Influencers</div>
           <div id="mood-tags" style="display:flex;gap:8px;flex-wrap:wrap"></div>
         </div>
       </div>
 
+      <!-- AI Cosmic Insights -->
+      <div class="insights-card" id="ai-insights" style="display:none">
+        <div class="insights-header">
+          <i class="fa-solid fa-brain-circuit"></i>
+          <span class="insights-title">Cosmic Insights</span>
+        </div>
+        <div class="insight-text" id="insight-main">Analisis cosmic sedang diproses...</div>
+        <div class="insight-tip" id="insight-tip-container">
+          <i class="fa-solid fa-lightbulb"></i>
+          <span id="insight-tip-text">Tunggu sebentar untuk saran personifikasi...</span>
+        </div>
+      </div>
     </div>
-
   </div>
 
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <i class="fa-solid fa-house-chimney"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/settings" class="nav-item">
+      <i class="fa-solid fa-gear"></i>
+      <span>Settings</span>
+    </a>
+  </nav>
+
+  <script type="module" src="js/v2-motion.js"></script>
+  <script type="module" src="js/v3-micro.js"></script>
   <script type="module" src="js/report.js"></script>
 </body>
+
 </html>

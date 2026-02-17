@@ -11,6 +11,7 @@ async function load(name) {
 
 const routes = new Set([
   'login',
+  'assistant',
   'tasks',
   'memories',
   'assignments',

@@ -145,12 +145,26 @@ function renderGoals() {
 
     // Sliders
     const slider = el.querySelector('input[type="range"]');
+    slider.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10) || 0;
+      const fill = el.querySelector('.progress-fill');
+      const primaryMeta = el.querySelector('.goal-meta span');
+      if (fill) fill.style.width = `${val}%`;
+      if (primaryMeta) primaryMeta.textContent = `${val}% Complete`;
+      el.classList.add('v3-progress-glow');
+      setTimeout(() => el.classList.remove('v3-progress-glow'), 520);
+    });
+
     slider.addEventListener('change', async (e) => {
       const val = parseInt(e.target.value);
       try {
         await put('/goals', { id: g.id, progress: val, version: g.version });
+        showToast('Progress updated', 'success');
         loadData(); // Sync
-      } catch (err) { loadData(); }
+      } catch (err) {
+        showToast('Failed to save progress', 'error');
+        loadData();
+      }
     });
 
     // Delete

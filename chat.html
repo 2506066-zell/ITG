@@ -7,13 +7,15 @@
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/v2-system.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="css/chat.css">
   <title>NZ • Chat</title>
+  <link rel="stylesheet" href="css/v3-polish.css">
 </head>
 
-<body>
+<body class="v2-page chat-page">
   <div class="galaxy-bg">
     <div class="stars-container">
       <div class="stars-sm"></div>
@@ -33,7 +35,7 @@
     <div class="card chat-card">
       <div id="chat-messages" class="chat-messages"></div>
       <form id="chat-form" class="chat-input">
-        <input id="chat-input" class="input" placeholder="Type message" autocomplete="off">
+        <input id="chat-input" class="input" placeholder="Type message or /ai ..." autocomplete="off">
         <button class="btn" type="submit"><i class="fa-solid fa-paper-plane"></i></button>
         <button class="btn danger" type="button" id="chat-clear"><i class="fa-solid fa-trash"></i></button>
       </form>
@@ -63,6 +65,8 @@
     </a>
   </nav>
 
+  <script type="module" src="js/v2-motion.js"></script>
+  <script type="module" src="js/v3-micro.js"></script>
   <script type="module" src="js/chat.js"></script>
 </body>
 

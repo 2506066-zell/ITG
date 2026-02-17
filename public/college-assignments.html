@@ -7,110 +7,233 @@
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/v2-system.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • College Assignments</title>
   <style>
-    .bottom-sheet-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:100;opacity:0;pointer-events:none;transition:opacity .3s}
-    .bottom-sheet-overlay.active{opacity:1;pointer-events:auto}
-    .bottom-sheet{position:absolute;bottom:0;left:0;right:0;background:#15192b;border-top-left-radius:20px;border-top-right-radius:20px;padding:24px;transform:translateY(100%);transition:transform .3s cubic-bezier(.1,.7,.1,1);max-height:85vh;overflow-y:auto;border-top:1px solid rgba(255,255,255,.1)}
-    .bottom-sheet.active{transform:translateY(0)}
-    .sheet-handle{width:40px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 20px}
-    .prio-selector{display:flex;gap:8px}
-    .prio-btn{flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--muted);font-size:12px;text-align:center;cursor:pointer}
-    .prio-btn.active{background:rgba(255,255,255,.1);color:var(--text);border-color:var(--primary)}
+    /* Local overrides for Assignments */
+    .grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .assignment-item {
+      margin-bottom: 8px;
+      padding: 10px 14px !important;
+    }
+
+    .badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: hsla(var(--nebula-core), 0.1);
+      color: hsl(var(--nebula-core));
+      border: 1px solid hsla(var(--nebula-core), 0.2);
+    }
+
+    .badge.success {
+      background: hsla(140, 80%, 50%, 0.1);
+      color: #4ade80;
+      border-color: rgba(74, 222, 128, 0.2);
+    }
+
+    .urgent {
+      border-left: 3px solid hsl(var(--nova-pink)) !important;
+      background: linear-gradient(90deg, hsla(var(--nova-pink), 0.05), transparent) !important;
+    }
+
+    .overdue {
+      opacity: 0.7;
+      filter: grayscale(0.5);
+    }
+
+    .fab {
+      position: fixed;
+      bottom: 90px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, hsl(var(--nebula-core)), hsl(var(--nebula-pulse)));
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4), 0 0 15px hsla(var(--nebula-core), 0.3);
+      z-index: 1000;
+      cursor: pointer;
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .fab:hover {
+      transform: scale(1.1) rotate(90deg);
+    }
   </style>
+  <link rel="stylesheet" href="css/v3-polish.css">
 </head>
 
-<body>
-  <nav class="navbar">
-    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
-    <div class="nav-actions">
-      <a class="btn" href="/"><i class="fa-solid fa-house"></i> Home</a>
-      <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
-    </div>
-  </nav>
-  <div class="container">
-    <a class="btn back-home" href="/"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
-    <div class="grid">
-      <div class="card">
-        <div class="section-title">Add Assignment</div>
-        <form id="create-assignment" class="list">
-          <input class="input" name="title" placeholder="Title" required>
-          <textarea class="input" name="description" placeholder="Description (optional)"></textarea>
-          <div style="display:flex;gap:10px">
-              <input class="input" type="datetime-local" name="deadline" required style="flex:1">
-              <select class="input" name="assigned_to" style="flex:1">
-                  <option value="" selected>Assign to...</option>
-                  <option value="Nesya">Nesya</option>
-                  <option value="Zaldy">Zaldy</option>
-              </select>
-          </div>
-          <button class="btn" type="submit"><i class="fa-solid fa-plus"></i> Add</button>
-        </form>
-      </div>
-      <div class="card">
-        <div class="section-title">Laporan Penyelesaian</div>
-        <div class="list">
-          <div class="stat-row" style="display:flex;justify-content:space-between">
-            <span class="muted">24 jam terakhir</span>
-            <strong id="stat-1d">—</strong>
-          </div>
-          <div class="stat-row" style="display:flex;justify-content:space-between">
-            <span class="muted">3 hari terakhir</span>
-            <strong id="stat-3d">—</strong>
-          </div>
-          <div class="stat-row" style="display:flex;justify-content:space-between">
-            <span class="muted">5 hari terakhir</span>
-            <strong id="stat-5d">—</strong>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="section-title">Assignments</div>
-        <div class="tabs">
-          <div class="tab-header">
-            <h3>Belum Selesai</h3>
-          </div>
-          <div id="assignments-active" class="list"></div>
-
-          <div class="tab-header" style="margin-top:20px;">
-            <h3>Selesai</h3>
-          </div>
-          <div id="assignments-completed" class="list"></div>
-        </div>
-      </div>
-    </div>
-    <div class="footer">NZ</div>
+<body class="v2-page assignments-page">
+<div class="galaxy-bg">
+  <div class="stars-container">
+    <div class="stars-sm"></div>
+    <div class="stars-lg"></div>
   </div>
-  <div class="bottom-sheet-overlay" id="mood-overlay">
-    <div class="bottom-sheet" id="mood-sheet">
+</div>
+
+<nav class="navbar">
+  <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
+  <div class="nav-actions">
+    <a class="btn" href="/"><i class="fa-solid fa-house"></i> Home</a>
+    <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="grid">
+    <div class="card">
+      <div class="section-title"><i class="fa-solid fa-chart-line"></i> Laporan Penyelesaian</div>
+      <div class="list">
+        <div class="stat-row" style="display:flex;justify-content:space-between;margin-bottom:10px">
+          <span class="muted">24 jam terakhir</span>
+          <strong id="stat-1d" style="color:hsl(var(--nebula-core))">0 tugas</strong>
+        </div>
+        <div class="stat-row" style="display:flex;justify-content:space-between;margin-bottom:10px">
+          <span class="muted">3 hari terakhir</span>
+          <strong id="stat-3d" style="color:hsl(var(--nebula-core))">0 tugas</strong>
+        </div>
+        <div class="stat-row" style="display:flex;justify-content:space-between">
+          <span class="muted">5 hari terakhir</span>
+          <strong id="stat-5d" style="color:hsl(var(--nebula-core))">0 tugas</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="grid-row: span 2;">
+      <div class="section-title"><i class="fa-solid fa-list-ul"></i> Assignments</div>
+      <div id="assignments-active" class="list"></div>
+      <div class="section-title" style="margin-top:24px; opacity:0.6"><i class="fa-solid fa-circle-check"></i> Selesai
+      </div>
+      <div id="assignments-completed" class="list" style="opacity:0.7"></div>
+    </div>
+  </div>
+  <div class="footer">NZ</div>
+</div>
+
+<!-- FAB -->
+<div class="fab" id="open-add"><i class="fa-solid fa-plus"></i></div>
+
+<!-- ADD ASSIGNMENT SHEET -->
+<div class="bottom-sheet-overlay" id="add-overlay">
+  <div class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <h3 style="margin:0 0 20px;font-size:18px">Add Assignment</h3>
+    <form id="create-assignment" class="list">
+      <div class="form-group">
+        <label class="form-label">Title</label>
+        <input class="input" name="title" placeholder="What needs to be done?" required autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description (optional)</label>
+        <textarea class="input" name="description" placeholder="Add more details..."></textarea>
+      </div>
+      <div class="form-row" style="display:flex; gap:12px">
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Deadline</label>
+          <input class="input" type="datetime-local" name="deadline" required>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Assign to</label>
+          <select class="input" name="assigned_to" style="appearance:none">
+            <option value="Nesya">Nesya</option>
+            <option value="Zaldy">Zaldy</option>
+          </select>
+        </div>
+      </div>
+      <div class="sheet-actions" style="margin-top:20px">
+        <button type="button" class="btn secondary" id="add-cancel" style="flex:1">Cancel</button>
+        <button type="submit" class="btn" style="flex:1">Save Assignment</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="bottom-sheet-overlay" id="mood-overlay">
+  <div class="bottom-sheet" id="mood-sheet">
+    <div class="mood-glow-overlay" id="mood-glow"></div>
+    <div class="mood-sheet-content">
       <div class="sheet-handle"></div>
       <h3 style="margin:0 0 20px;font-size:18px">Catat Mood Setelah Selesai</h3>
       <form id="mood-form">
         <div class="form-group">
           <label class="form-label">Bagaimana perasaan Anda?</label>
-          <div class="prio-selector" id="mood-grid" style="gap:8px">
-            <button type="button" class="prio-btn" data-val="1">😫</button>
-            <button type="button" class="prio-btn" data-val="2">😕</button>
-            <button type="button" class="prio-btn" data-val="3">😐</button>
-            <button type="button" class="prio-btn" data-val="4">🙂</button>
-            <button type="button" class="prio-btn" data-val="5">🤩</button>
+          <div class="prio-selector" id="mood-grid" style="gap:10px; padding: 10px 0;">
+            <button type="button" class="prio-btn mood-btn-enhanced" data-val="1">😫</button>
+            <button type="button" class="prio-btn mood-btn-enhanced" data-val="2">😕</button>
+            <button type="button" class="prio-btn mood-btn-enhanced" data-val="3">😐</button>
+            <button type="button" class="prio-btn mood-btn-enhanced" data-val="4">🙂</button>
+            <button type="button" class="prio-btn mood-btn-enhanced" data-val="5">🤩</button>
           </div>
           <input type="hidden" name="mood" id="mood-value" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Catatan (opsional)</label>
-          <textarea name="note" id="mood-note" class="input" placeholder="Contoh: Selesai tugas, rasanya lega"></textarea>
+          <label class="form-label">Faktor (Pilih semua yang relevan)</label>
+          <div class="tags-selector" id="mood-tags" style="display:flex;flex-wrap:wrap;gap:8px">
+            <div class="tag-chip tag-chip-enhanced" data-val="Lelah">😫 Lelah</div>
+            <div class="tag-chip tag-chip-enhanced" data-val="Sakit">🤒 Sakit</div>
+            <div class="tag-chip tag-chip-enhanced" data-val="Stres">🤯 Stres</div>
+            <div class="tag-chip tag-chip-enhanced" data-val="Biasa">😐 Biasa</div>
+            <div class="tag-chip tag-chip-enhanced" data-val="Fokus">🧠 Fokus</div>
+            <div class="tag-chip tag-chip-enhanced" data-val="Semangat">🔥 Semangat</div>
+            <div class="tag-chip tag-chip-enhanced" data-val="Senang">🥰 Senang</div>
+            <div class="tag-chip tag-chip-enhanced" data-val="Produktif">✅ Produktif</div>
+          </div>
         </div>
-        <div class="sheet-actions" style="display:flex;gap:12px;margin-top:12px">
-          <button type="button" class="btn secondary" id="mood-cancel" style="flex:1">Lewati</button>
-          <button type="submit" class="btn" style="flex:1">Simpan</button>
+        <div class="form-group">
+          <label class="form-label">Catatan (opsional)</label>
+          <textarea name="note" id="mood-note" class="form-input"
+            placeholder="Contoh: Selesai tugas, rasanya lega"></textarea>
+        </div>
+        <div class="sheet-actions">
+          <button type="button" class="btn secondary btn-block" id="mood-cancel">Lewati</button>
+          <button type="submit" class="btn btn-block">Simpan</button>
         </div>
       </form>
     </div>
   </div>
-  <script type="module" src="js/assignments.js"></script>
+</div>
+<nav class="bottom-nav">
+  <a href="/" class="nav-item">
+    <i class="fa-solid fa-house-chimney"></i>
+    <span>Home</span>
+  </a>
+  <a href="/daily-tasks" class="nav-item">
+    <i class="fa-solid fa-list-check"></i>
+    <span>Tasks</span>
+  </a>
+  <a href="/goals" class="nav-item">
+    <i class="fa-solid fa-bullseye"></i>
+    <span>Goals</span>
+  </a>
+  <a href="/chat" class="nav-item">
+    <i class="fa-solid fa-message-heart"></i>
+    <span>Chat</span>
+  </a>
+  <a href="/settings" class="nav-item">
+    <i class="fa-solid fa-gear"></i>
+    <span>Settings</span>
+  </a>
+</nav>
+
+<script type="module" src="js/v2-motion.js"></script>
+<script type="module" src="js/v3-micro.js"></script>
+<script type="module" src="js/assignments.js"></script>
 </body>
 
 </html>
