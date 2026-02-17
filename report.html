@@ -1,6 +1,6 @@
-
 <!doctype html>
 <html lang="en" data-theme="dark">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -20,27 +20,36 @@
       flex-direction: column;
       gap: 12px;
     }
+
     .stat-value {
       font-size: 32px;
       font-weight: 700;
       font-family: var(--font-head);
       color: var(--text);
     }
+
     .stat-label {
       font-size: 14px;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 1px;
     }
+
     .stat-change {
       font-size: 14px;
       display: flex;
       align-items: center;
       gap: 4px;
     }
-    .stat-change.up { color: var(--success, #4caf50); }
-    .stat-change.down { color: var(--danger, #f44336); }
-    
+
+    .stat-change.up {
+      color: var(--success, #4caf50);
+    }
+
+    .stat-change.down {
+      color: var(--danger, #f44336);
+    }
+
     .filter-tabs {
       display: flex;
       background: var(--glass-bg);
@@ -48,6 +57,7 @@
       border-radius: 12px;
       margin-bottom: 24px;
     }
+
     .filter-tab {
       flex: 1;
       text-align: center;
@@ -57,15 +67,17 @@
       font-weight: 600;
       transition: all 0.2s;
     }
+
     .filter-tab.active {
       background: var(--primary);
       color: #fff;
     }
   </style>
 </head>
+
 <body>
   <div class="page-container" style="padding: 20px; max-width: 600px; margin: 0 auto;">
-    
+
     <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
       <h1 style="margin:0;font-family:var(--font-head)">Raport Anda</h1>
@@ -85,7 +97,7 @@
 
     <!-- Content -->
     <div id="report-content" style="display:none">
-      
+
       <div style="margin-bottom:16px;font-size:14px;color:var(--muted);text-align:center" id="period-label"></div>
 
       <!-- Productivity -->
@@ -131,6 +143,30 @@
 
   </div>
 
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <i class="fa-solid fa-house-chimney"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/settings" class="nav-item">
+      <i class="fa-solid fa-gear"></i>
+      <span>Settings</span>
+    </a>
+  </nav>
+
   <script type="module" src="js/report.js"></script>
 </body>
+
 </html>

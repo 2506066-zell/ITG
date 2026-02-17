@@ -260,6 +260,36 @@ body {
     box-shadow: 0 0 15px hsla(var(--nebula-core), 0.1);
 }
 
+/* Snooze Styling */
+.snooze-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 12px;
+    background: hsla(0, 0%, 100%, 0.05);
+    border: 1px solid var(--glass-border);
+    color: hsl(var(--text-300));
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.snooze-btn:hover {
+    background: hsla(var(--nebula-core), 0.1);
+    border-color: hsla(var(--nebula-core), 0.4);
+    color: hsl(var(--nebula-core));
+}
+
+#goal-group .form-input {
+    background: hsla(0, 0%, 100%, 0.02);
+    border: 1px dashed var(--glass-border);
+}
+
+#goal-group .form-input:focus {
+    border-style: solid;
+    border-color: hsl(var(--nebula-core));
+}
+
 /* Skeleton */
 .skeleton-row {
     height: 70px;

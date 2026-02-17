@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿<!doctype html>
+﻿﻿<!doctype html>
 <html lang="en" data-theme="dark">
 
 <head>
@@ -106,6 +106,22 @@
         <input type="hidden" name="priority" id="task-priority" value="medium">
       </div>
 
+      <div class="form-group" id="goal-group">
+        <label class="form-label">Link to Goal</label>
+        <select name="goal_id" id="task-goal" class="form-input" style="appearance:none">
+          <option value="">None</option>
+        </select>
+      </div>
+
+      <div id="snooze-section" style="display:none; margin-bottom: 20px;">
+        <label class="form-label">Snooze Task</label>
+        <div class="prio-selector" style="gap:8px">
+          <button type="button" class="snooze-btn" data-min="60">1 Hour</button>
+          <button type="button" class="snooze-btn" data-min="1440">1 Day</button>
+          <button type="button" class="snooze-btn" data-min="custom">Custom</button>
+        </div>
+      </div>
+
       <div class="sheet-actions">
         <button type="button" class="btn secondary btn-block" id="sheet-cancel">Cancel</button>
         <button type="submit" class="btn btn-block">Save Task</button>
@@ -155,6 +171,29 @@
       </form>
     </div>
   </div>
+
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <i class="fa-solid fa-house-chimney"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item active">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/settings" class="nav-item">
+      <i class="fa-solid fa-gear"></i>
+      <span>Settings</span>
+    </a>
+  </nav>
 
   <script type="module" src="js/tasks_v2.js"></script>
 </body>

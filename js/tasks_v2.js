@@ -3,6 +3,7 @@ import { get, post, put, del } from './api.js';
 
 // State
 let tasks = [];
+let goals = [];
 let currentFilter = 'today'; // today, upcoming, completed
 let currentSort = 'deadline'; // deadline, priority
 let selectedIds = new Set();
@@ -29,8 +30,30 @@ const moodNoteEl = document.getElementById('mood-note');
 async function init() {
   initProtected();
   setupEventListeners();
-  await loadTasks();
+  await Promise.all([loadTasks(), fetchGoals()]);
   setupMoodEvents();
+}
+
+async function fetchGoals() {
+  try {
+    const list = await get('/goals');
+    goals = list.filter(g => !g.completed && !g.is_deleted);
+    populateGoalSelector();
+  } catch (err) {
+    console.error('Failed to load goals', err);
+  }
+}
+
+function populateGoalSelector() {
+  const sel = document.getElementById('task-goal');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">None</option>';
+  goals.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g.id;
+    opt.textContent = g.title;
+    sel.appendChild(opt);
+  });
 }
 
 // Load Data
@@ -66,63 +89,63 @@ function render() {
   // Split by User
   // For 'today' and 'upcoming' filter, we split.
   // For 'completed', maybe just one list or split too? Let's split for consistency.
-  
+
   const users = ['Nesya', 'Zaldy'];
   const grouped = { Nesya: [], Zaldy: [], Other: [] };
-  
+
   // Custom sorting for grouped items
   const processList = (list) => {
-      // Sort within group
-      return sortTasks(list);
+    // Sort within group
+    return sortTasks(list);
   };
 
   sorted.forEach(task => {
-      const assignee = task.assigned_to || 'Other';
-      if (users.includes(assignee)) {
-          grouped[assignee].push(task);
-      } else {
-          grouped.Other.push(task);
-      }
+    const assignee = task.assigned_to || 'Other';
+    if (users.includes(assignee)) {
+      grouped[assignee].push(task);
+    } else {
+      grouped.Other.push(task);
+    }
   });
 
   const createSection = (title, taskList) => {
-      if (taskList.length === 0) return document.createDocumentFragment();
-      
-      const sec = document.createElement('div');
-      sec.className = 'task-section';
-      sec.style.marginBottom = '24px';
-      
-      const head = document.createElement('div');
-      head.className = 'section-header';
-      head.style.padding = '0 16px 8px';
-      head.style.fontSize = '12px';
-      head.style.fontWeight = '700';
-      head.style.color = 'var(--text-muted)';
-      head.style.textTransform = 'uppercase';
-      head.style.letterSpacing = '1px';
-      head.style.display = 'flex';
-      head.style.alignItems = 'center';
-      head.style.gap = '8px';
-      
-      // Avatar/Icon for section
-      const icon = title === 'Nesya' ? '<i class="fa-solid fa-venus" style="color:#ff69b4"></i>' : 
-                   (title === 'Zaldy' ? '<i class="fa-solid fa-mars" style="color:#00bfff"></i>' : '<i class="fa-solid fa-users"></i>');
-      
-      head.innerHTML = `${icon} ${title} <span style="font-size:10px;opacity:0.7;margin-left:auto">${taskList.length}</span>`;
-      
-      sec.appendChild(head);
-      
-      taskList.forEach(task => {
-          sec.appendChild(createTaskEl(task));
-      });
-      
-      return sec;
+    if (taskList.length === 0) return document.createDocumentFragment();
+
+    const sec = document.createElement('div');
+    sec.className = 'task-section';
+    sec.style.marginBottom = '24px';
+
+    const head = document.createElement('div');
+    head.className = 'section-header';
+    head.style.padding = '0 16px 8px';
+    head.style.fontSize = '12px';
+    head.style.fontWeight = '700';
+    head.style.color = 'var(--text-muted)';
+    head.style.textTransform = 'uppercase';
+    head.style.letterSpacing = '1px';
+    head.style.display = 'flex';
+    head.style.alignItems = 'center';
+    head.style.gap = '8px';
+
+    // Avatar/Icon for section
+    const icon = title === 'Nesya' ? '<i class="fa-solid fa-venus" style="color:#ff69b4"></i>' :
+      (title === 'Zaldy' ? '<i class="fa-solid fa-mars" style="color:#00bfff"></i>' : '<i class="fa-solid fa-users"></i>');
+
+    head.innerHTML = `${icon} ${title} <span style="font-size:10px;opacity:0.7;margin-left:auto">${taskList.length}</span>`;
+
+    sec.appendChild(head);
+
+    taskList.forEach(task => {
+      sec.appendChild(createTaskEl(task));
+    });
+
+    return sec;
   };
 
   taskListEl.appendChild(createSection('Nesya', grouped.Nesya));
   taskListEl.appendChild(createSection('Zaldy', grouped.Zaldy));
   if (grouped.Other.length > 0) {
-      taskListEl.appendChild(createSection('Others', grouped.Other));
+    taskListEl.appendChild(createSection('Others', grouped.Other));
   }
 }
 
@@ -130,7 +153,7 @@ function createTaskEl(task) {
   const el = document.createElement('div');
   el.className = `task-item ${task.completed ? 'completed' : ''}`;
   el.dataset.id = task.id;
-  
+
   // Swipe Backgrounds
   const swipeActions = document.createElement('div');
   swipeActions.className = 'swipe-actions';
@@ -154,10 +177,10 @@ function createTaskEl(task) {
   const check = document.createElement('div');
   check.className = 'task-check';
   if (isMultiSelectMode) {
-      check.innerHTML = selectedIds.has(String(task.id)) ? '<i class="fa-solid fa-check" style="font-size:10px"></i>' : '';
-      if (selectedIds.has(String(task.id))) check.style.background = 'var(--primary)';
+    check.innerHTML = selectedIds.has(String(task.id)) ? '<i class="fa-solid fa-check" style="font-size:10px"></i>' : '';
+    if (selectedIds.has(String(task.id))) check.style.background = 'var(--primary)';
   } else {
-      check.innerHTML = task.completed ? '<i class="fa-solid fa-check" style="font-size:10px"></i>' : '';
+    check.innerHTML = task.completed ? '<i class="fa-solid fa-check" style="font-size:10px"></i>' : '';
   }
   // Prevent click propagation for checkbox specific logic if needed, but tap on item handles it usually.
   content.appendChild(check);
@@ -165,15 +188,15 @@ function createTaskEl(task) {
   // Text Info
   const info = document.createElement('div');
   info.className = 'task-content';
-  
+
   const title = document.createElement('div');
   title.className = 'task-title';
   title.textContent = task.title;
   info.appendChild(title);
-  
+
   const meta = document.createElement('div');
   meta.className = 'task-meta';
-  
+
   // Priority Dot
   const prioDot = document.createElement('div');
   prioDot.className = `priority-dot p-${task.priority || 'medium'}`;
@@ -185,8 +208,8 @@ function createTaskEl(task) {
     // Format: "Today, 10:00" or "Nov 23"
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
-    const timeStr = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    const dateStr = isToday ? 'Today' : d.toLocaleDateString([], {day:'numeric', month:'short'});
+    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = isToday ? 'Today' : d.toLocaleDateString([], { day: 'numeric', month: 'short' });
     meta.appendChild(document.createTextNode(`${dateStr}, ${timeStr}`));
   }
 
@@ -214,7 +237,7 @@ function createTaskEl(task) {
 
   info.appendChild(meta);
   if (task.assigned_to || (task.completed && task.completed_by)) {
-      info.appendChild(userMeta);
+    info.appendChild(userMeta);
   }
   content.appendChild(info);
 
@@ -230,7 +253,7 @@ function setupInteractions(el, task) {
   // Tap
   el.addEventListener('click', (e) => {
     if (activeSwipeEl) return; // Ignore tap if swiping
-    
+
     if (isMultiSelectMode) {
       toggleSelection(task.id);
     } else {
@@ -250,50 +273,50 @@ function setupInteractions(el, task) {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
     activeSwipeEl = null; // Reset
-    
+
     timer = setTimeout(() => {
       if (!isMultiSelectMode) {
         enterMultiSelectMode(task.id);
         navigator.vibrate?.(50);
       }
     }, 500);
-  }, {passive: true});
+  }, { passive: true });
 
   el.addEventListener('touchend', () => clearTimeout(timer));
   el.addEventListener('touchmove', (e) => {
     const diffY = Math.abs(e.touches[0].clientY - touchStartY);
     if (diffY > 10) clearTimeout(timer); // Cancel on scroll
-    
+
     // Horizontal Swipe Logic
     if (isMultiSelectMode) return;
     const diffX = e.touches[0].clientX - touchStartX;
-    
+
     // Only handle horizontal
     if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 20) {
-       // e.preventDefault(); // Passive listener issue, can't preventDefault here easily without active listener
-       // Just visual feedback here
-       const content = el.querySelector('.task-content-wrapper');
-       content.style.transform = `translateX(${diffX}px)`;
-       
-       const leftBg = el.querySelector('.swipe-left'); // Edit/Delete (Swipe Right -> Left?) No.
-       // Swipe Right (diffX > 0) -> Complete (Green)
-       // Swipe Left (diffX < 0) -> Delete (Red)
-       
-       if (diffX > 0) {
-         el.querySelector('.swipe-left').style.opacity = Math.min(diffX / 100, 1);
-       } else {
-         el.querySelector('.swipe-right').style.opacity = Math.min(Math.abs(diffX) / 100, 1);
-       }
-       
-       activeSwipeEl = el;
+      // e.preventDefault(); // Passive listener issue, can't preventDefault here easily without active listener
+      // Just visual feedback here
+      const content = el.querySelector('.task-content-wrapper');
+      content.style.transform = `translateX(${diffX}px)`;
+
+      const leftBg = el.querySelector('.swipe-left'); // Edit/Delete (Swipe Right -> Left?) No.
+      // Swipe Right (diffX > 0) -> Complete (Green)
+      // Swipe Left (diffX < 0) -> Delete (Red)
+
+      if (diffX > 0) {
+        el.querySelector('.swipe-left').style.opacity = Math.min(diffX / 100, 1);
+      } else {
+        el.querySelector('.swipe-right').style.opacity = Math.min(Math.abs(diffX) / 100, 1);
+      }
+
+      activeSwipeEl = el;
     }
-  }, {passive: true});
+  }, { passive: true });
 
   el.addEventListener('touchend', (e) => {
     if (!activeSwipeEl) return;
     const diffX = e.changedTouches[0].clientX - touchStartX;
     const content = el.querySelector('.task-content-wrapper');
-    
+
     if (Math.abs(diffX) > 100) {
       // Trigger Action
       if (diffX > 0) {
@@ -307,9 +330,9 @@ function setupInteractions(el, task) {
       content.style.transition = 'transform 0.2s';
       content.style.transform = 'translateX(0)';
       setTimeout(() => {
-         content.style.transition = '';
-         el.querySelector('.swipe-left').style.opacity = 0;
-         el.querySelector('.swipe-right').style.opacity = 0;
+        content.style.transition = '';
+        el.querySelector('.swipe-left').style.opacity = 0;
+        el.querySelector('.swipe-right').style.opacity = 0;
       }, 200);
     } else {
       // Bounce back
@@ -325,15 +348,15 @@ function setupInteractions(el, task) {
 // Logic Helpers
 function filterTasks(list) {
   const now = new Date();
-  now.setHours(0,0,0,0);
-  
+  now.setHours(0, 0, 0, 0);
+
   return list.filter(t => {
     const d = t.deadline ? new Date(t.deadline) : null;
-    if (d) d.setHours(0,0,0,0);
+    if (d) d.setHours(0, 0, 0, 0);
 
     if (currentFilter === 'completed') return t.completed;
     if (t.completed) return false; // Hide completed in other tabs
-    
+
     if (currentFilter === 'today') {
       // Show tasks with deadline today or earlier (overdue), or no deadline? 
       // Planner usually: No deadline = Backlog/Anytime. Today = Today + Overdue.
@@ -364,7 +387,7 @@ function updateHeaderStats() {
   const completed = tasks.filter(t => t.completed).length;
   const total = tasks.length;
   const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
-  
+
   document.getElementById('completed-count').textContent = completed;
   document.getElementById('total-count').textContent = total;
   document.getElementById('percent-count').textContent = percent + '%';
@@ -375,9 +398,9 @@ function updateHeaderStats() {
 async function toggleComplete(task) {
   // Optimistic UI
   task.completed = !task.completed;
-  render(); 
+  render();
   updateHeaderStats();
-  
+
   try {
     await put('/tasks', { id: task.id, completed: task.completed, version: task.version });
     showToast(task.completed ? 'Task completed' : 'Task reopened', 'success');
@@ -398,7 +421,7 @@ async function deleteTask(id) {
   tasks = tasks.filter(t => t.id !== id);
   render();
   updateHeaderStats();
-  
+
   try {
     await del(`/tasks?id=${id}`);
     showToast('Task deleted');
@@ -431,11 +454,11 @@ function toggleSelection(id) {
   const sid = String(id);
   if (selectedIds.has(sid)) selectedIds.delete(sid);
   else selectedIds.add(sid);
-  
+
   if (selectedIds.size === 0) exitMultiSelectMode();
   else {
-      render();
-      updateMultiToolbar();
+    render();
+    updateMultiToolbar();
   }
 }
 
@@ -447,26 +470,34 @@ function updateMultiToolbar() {
 function openSheet(task = null) {
   const isEdit = !!task;
   document.getElementById('sheet-title').textContent = isEdit ? 'Edit Task' : 'New Task';
-  
+
   // Reset Form
   taskForm.reset();
   document.querySelectorAll('.prio-btn').forEach(b => b.classList.remove('active'));
-  
+
   if (isEdit) {
     document.getElementById('task-id').value = task.id;
     document.getElementById('task-title').value = task.title;
-    if (task.deadline) document.getElementById('task-deadline').value = task.deadline.slice(0,16); // format for datetime-local
+    if (task.deadline) document.getElementById('task-deadline').value = task.deadline.slice(0, 16); // format for datetime-local
     if (task.assigned_to) document.getElementById('task-assigned').value = task.assigned_to;
-    
+    if (task.goal_id) document.getElementById('task-goal').value = task.goal_id;
+
     const prio = task.priority || 'medium';
     document.getElementById('task-priority').value = prio;
     document.querySelector(`.prio-btn[data-val="${prio}"]`).classList.add('active');
+
+    // Snooze visible only on edit
+    const snoozeSection = document.getElementById('snooze-section');
+    if (snoozeSection) snoozeSection.style.display = 'block';
   } else {
     document.getElementById('task-id').value = '';
+    document.getElementById('task-goal').value = '';
     document.querySelector('.prio-btn[data-val="medium"]').classList.add('active');
-    // Default assigned to current user? Handled by backend if null.
+
+    const snoozeSection = document.getElementById('snooze-section');
+    if (snoozeSection) snoozeSection.style.display = 'none';
   }
-  
+
   sheetOverlay.classList.add('active');
   sheet.classList.add('active');
 }
@@ -490,11 +521,11 @@ function setupMoodEvents() {
   // Tag Chips
   const tagContainer = document.getElementById('mood-tags');
   if (tagContainer) {
-      tagContainer.querySelectorAll('.tag-chip').forEach(chip => {
-          chip.addEventListener('click', () => {
-              chip.classList.toggle('active');
-          });
+    tagContainer.querySelectorAll('.tag-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        chip.classList.toggle('active');
       });
+    });
   }
 
   document.getElementById('mood-cancel')?.addEventListener('click', () => {
@@ -504,13 +535,13 @@ function setupMoodEvents() {
     e.preventDefault();
     const val = moodValueEl.value;
     if (!val) { showToast('Pilih mood', 'error'); return; }
-    
+
     // Collect tags
     const tags = [];
     if (tagContainer) {
-        tagContainer.querySelectorAll('.tag-chip.active').forEach(chip => {
-            tags.push(chip.dataset.val);
-        });
+      tagContainer.querySelectorAll('.tag-chip.active').forEach(chip => {
+        tags.push(chip.dataset.val);
+      });
     }
 
     const body = { mood: val, note: moodNoteEl.value, tags: tags, date: new Date().toISOString() };
@@ -532,9 +563,9 @@ function openMoodPrompt(note) {
   // Reset Tags
   const tagContainer = document.getElementById('mood-tags');
   if (tagContainer) {
-      tagContainer.querySelectorAll('.tag-chip').forEach(x => x.classList.remove('active'));
+    tagContainer.querySelectorAll('.tag-chip').forEach(x => x.classList.remove('active'));
   }
-  
+
   moodOverlay.classList.add('active');
   moodSheet.classList.add('active');
 }
@@ -546,6 +577,38 @@ function closeMoodPrompt() {
 
 // Event Listeners
 function setupEventListeners() {
+  // Sort Trigger
+  document.getElementById('sort-trigger')?.addEventListener('click', () => {
+    currentSort = currentSort === 'deadline' ? 'priority' : 'deadline';
+    showToast(`Sorted by ${currentSort}`, 'info');
+    render();
+  });
+
+  // Snooze Buttons
+  document.querySelectorAll('.snooze-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      let mins = btn.dataset.min;
+      if (mins === 'custom') {
+        const input = prompt('Snooze for how many minutes?', '60');
+        mins = parseInt(input);
+      } else {
+        mins = parseInt(mins);
+      }
+
+      const id = document.getElementById('task-id').value;
+      if (!id || isNaN(mins)) return;
+
+      try {
+        await post('/tasks/snooze', { taskId: id, snoozeMinutes: mins });
+        showToast(`Task snoozed for ${mins} mins`, 'success');
+        closeSheet();
+        loadTasks();
+      } catch (err) {
+        showToast('Failed to snooze', 'error');
+      }
+    });
+  });
+
   // Filter Chips
   document.querySelectorAll('.filter-chip[data-filter]').forEach(el => {
     el.addEventListener('click', () => {
@@ -579,10 +642,10 @@ function setupEventListeners() {
     e.preventDefault();
     const fd = new FormData(taskForm);
     const data = Object.fromEntries(fd.entries());
-    
+
     const isEdit = !!data.id;
     const method = isEdit ? put : post;
-    
+
     try {
       await method('/tasks', data);
       closeSheet();
@@ -592,31 +655,31 @@ function setupEventListeners() {
       showToast('Error saving task', 'error');
     }
   });
-  
+
   // Multi Actions
   document.getElementById('bulk-delete').addEventListener('click', async () => {
-      if (!confirm(`Delete ${selectedIds.size} tasks?`)) return;
-      // In real app, bulk API. Here loop.
-      for (const id of selectedIds) {
-          await del(`/tasks?id=${id}`);
-      }
-      exitMultiSelectMode();
-      loadTasks();
-      showToast('Tasks deleted');
+    if (!confirm(`Delete ${selectedIds.size} tasks?`)) return;
+    // In real app, bulk API. Here loop.
+    for (const id of selectedIds) {
+      await del(`/tasks?id=${id}`);
+    }
+    exitMultiSelectMode();
+    loadTasks();
+    showToast('Tasks deleted');
   });
-  
+
   document.getElementById('bulk-complete').addEventListener('click', async () => {
-      // Loop
-      for (const id of selectedIds) {
-          const t = tasks.find(x => String(x.id) === id);
-          if (t && !t.completed) {
-              await put('/tasks', { id: t.id, completed: true, version: t.version });
-          }
+    // Loop
+    for (const id of selectedIds) {
+      const t = tasks.find(x => String(x.id) === id);
+      if (t && !t.completed) {
+        await put('/tasks', { id: t.id, completed: true, version: t.version });
       }
-      exitMultiSelectMode();
-      loadTasks();
-      showToast('Tasks completed');
-      openMoodPrompt('Selesai beberapa tugas');
+    }
+    exitMultiSelectMode();
+    loadTasks();
+    showToast('Tasks completed');
+    openMoodPrompt('Selesai beberapa tugas');
   });
 }
 
