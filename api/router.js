@@ -21,6 +21,7 @@ const routes = new Set([
   'stats',
   'schedule',
   'chat',
+  'chatbot-llm',
   'weekly',
   'monthly',
   'monthly_stats',
@@ -29,6 +30,7 @@ const routes = new Set([
   'notifications',
   'proactive',
   'reports',
+  'chatbot_profile',
   'study_plan',
   'study_progress',
   'unified_memory'

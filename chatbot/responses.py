@@ -49,6 +49,12 @@ RESPONSE_TEMPLATES = {
         "Kalau ragu, pilih tugas yang paling mengurangi beban pikiran jika selesai sekarang.",
         "Strategi cepat: satu tugas utama, satu tugas pendukung, lalu check-in ke pasangan.",
     ],
+    "study_schedule": [
+        "Siap. Aku bisa susun jadwal belajar dari waktu kosong. Sebutkan hari (hari ini/besok), target menit, dan window (pagi/siang/malam).",
+        "Bisa banget. Kirim format cepat: 'jadwal belajar besok 150 menit pagi' biar aku susun slot belajar paling realistis.",
+        "Aku siap bikin study plan dari jam kosong. Kasih preferensi target menit dan waktu fokus favoritmu dulu.",
+        "Oke, kita bikin jadwal belajar yang doable. Tentukan hari + durasi target, nanti aku pecah jadi sesi fokus.",
+    ],
     "toxic_motivation": [
         "Stop overthinking. Pilih satu tugas, kerjain 30 menit, beres.",
         "No excuse mode: jangan tunggu mood. Mulai sekarang.",

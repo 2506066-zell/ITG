@@ -29,6 +29,14 @@ INTENT_RULES: tuple[IntentRule, ...] = (
         _compile(r"\b(rekomendasi|rekomendasi tugas|saran tugas|prioritas|task apa dulu|tugas apa dulu)\b"),
     ),
     IntentRule(
+        "study_schedule",
+        _compile(
+            r"(?:\b(jadwal belajar|study plan|rencana belajar|sesi belajar)\b.*\b(waktu kosong|jam kosong|slot kosong|free slot|free time|waktu luang)\b)|"
+            r"(?:\b(buat|buatkan|susun|atur|generate|carikan|rancang)\b.*\b(jadwal belajar|study plan|rencana belajar)\b)|"
+            r"(?:^(jadwal belajar|study plan)\b)"
+        ),
+    ),
+    IntentRule(
         "affirmation",
         _compile(r"\b(oke|ok|siap|gas|lanjut|deal|sip|mantap|yuk)\b"),
     ),

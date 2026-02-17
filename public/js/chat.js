@@ -1,5 +1,6 @@
 import { initProtected } from './main.js';
-import { get, post, del } from './api.js';
+import { get, post, put, del } from './api.js';
+import { trackActivity } from './activity-tracker.js';
 
 let pollingInterval;
 let pendingConfirmationToken = '';
@@ -9,6 +10,8 @@ let assistantAlwaysOn = false;
 let chatbotStatelessMode = false;
 let lastDraftTemplatePattern = '';
 let lastDraftPlaceholderIndex = -1;
+let botProfileSyncBusy = false;
+let lastBotProfileSyncedHash = '';
 
 const ASSISTANT_ALWAYS_ON_KEY = 'assistant_always_on_v1';
 const CHATBOT_STATELESS_MODE_KEY = 'chatbot_stateless_mode_v1';
@@ -27,6 +30,12 @@ const BASE_COMMAND_SUGGESTIONS = [
   { label: 'Assignment Pending', command: 'assignment pending' },
   { label: 'Bundle Cepat', command: 'buat task review materi deadline besok 19:00 lalu atur target belajar 180 menit' },
 ];
+
+function trackZaiActivity(eventName, payload = {}, options = {}) {
+  try {
+    trackActivity(eventName, payload, options);
+  } catch {}
+}
 
 function normalizeAssistantInput(raw = '') {
   return String(raw || '')
@@ -133,6 +142,47 @@ function writeBotAdaptiveProfile(profile) {
   try {
     localStorage.setItem(CHATBOT_ADAPTIVE_PROFILE_KEY, JSON.stringify(sanitizeAdaptiveProfile(profile)));
   } catch {}
+}
+
+function profileHash(profile) {
+  return JSON.stringify(sanitizeAdaptiveProfile(profile));
+}
+
+async function loadBotAdaptiveProfileFromServer() {
+  try {
+    const token = localStorage.getItem('token') || '';
+    if (!token) return readBotAdaptiveProfile();
+    const serverProfile = await get('/chatbot_profile');
+    const merged = sanitizeAdaptiveProfile(serverProfile || {});
+    writeBotAdaptiveProfile(merged);
+    lastBotProfileSyncedHash = profileHash(merged);
+    return merged;
+  } catch {
+    return readBotAdaptiveProfile();
+  }
+}
+
+async function syncBotAdaptiveProfileToServer(profile, options = {}) {
+  const force = Boolean(options && options.force);
+  try {
+    const token = localStorage.getItem('token') || '';
+    if (!token) return;
+    if (botProfileSyncBusy && !force) return;
+
+    const clean = sanitizeAdaptiveProfile(profile || readBotAdaptiveProfile());
+    const hash = profileHash(clean);
+    if (!force && hash === lastBotProfileSyncedHash) return;
+
+    botProfileSyncBusy = true;
+    const saved = await put('/chatbot_profile', clean);
+    const normalizedSaved = sanitizeAdaptiveProfile(saved || clean);
+    writeBotAdaptiveProfile(normalizedSaved);
+    lastBotProfileSyncedHash = profileHash(normalizedSaved);
+  } catch {
+    // Keep local profile as fallback when network or backend is unavailable.
+  } finally {
+    botProfileSyncBusy = false;
+  }
 }
 
 function deriveAdaptiveProfileFromMessage(message = '', baseProfile = null) {
@@ -622,6 +672,88 @@ function renderBotQuickChips(contentEl, suggestions = []) {
   contentEl.appendChild(row);
 }
 
+async function sendBotFeedback(payload = {}) {
+  const responseId = String(payload.response_id || '').trim();
+  if (!responseId) return null;
+  const helpful = payload.helpful === true ? true : (payload.helpful === false ? false : null);
+  if (helpful === null) return null;
+
+  trackZaiActivity('zai_feedback_submit', {
+    response_id: responseId,
+    helpful,
+    intent: String(payload.intent || '').trim().toLowerCase() || null,
+  }, { source: 'chatbot' });
+
+  const result = await post('/chat', {
+    mode: 'bot',
+    stateless: true,
+    feedback: {
+      response_id: responseId,
+      helpful,
+      intent: String(payload.intent || '').trim().toLowerCase() || null,
+      suggestion_command: payload.suggestion_command || null,
+    },
+  });
+
+  trackZaiActivity('zai_feedback_saved', {
+    response_id: responseId,
+    helpful,
+  }, { source: 'chatbot' });
+
+  return result;
+}
+
+function renderBotFeedbackRow(contentEl, payload = {}) {
+  if (!contentEl) return;
+  const prev = contentEl.querySelector('.assistant-evidence-row.bot-feedback-row');
+  if (prev) prev.remove();
+
+  const responseId = String(payload.response_id || '').trim();
+  if (!responseId) return;
+
+  const row = document.createElement('div');
+  row.className = 'assistant-evidence-row bot-feedback-row';
+
+  const makeButton = (label, helpful, tone) => {
+    const btn = document.createElement('button');
+    btn.className = `assistant-evidence-chip tone-${tone}`;
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.title = helpful ? 'Kirim feedback: berguna' : 'Kirim feedback: kurang pas';
+    btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      const all = row.querySelectorAll('button');
+      all.forEach((item) => { item.disabled = true; });
+      const status = document.createElement('span');
+      status.className = 'assistant-feedback-status';
+      status.textContent = 'Menyimpan feedback...';
+      row.appendChild(status);
+      try {
+        await sendBotFeedback({
+          response_id: responseId,
+          helpful,
+          intent: payload.intent,
+          suggestion_command: payload.suggestion_command || null,
+        });
+        status.textContent = helpful ? 'Tersimpan. Z AI akan pakai pola ini.' : 'Tersimpan. Z AI akan menyesuaikan respon.';
+      } catch {
+        trackZaiActivity('zai_feedback_failed', {
+          response_id: responseId,
+          helpful,
+          intent: String(payload.intent || '').trim().toLowerCase() || null,
+        }, { source: 'chatbot' });
+        status.textContent = 'Feedback gagal tersimpan.';
+        all.forEach((item) => { item.disabled = false; });
+      }
+    });
+    return btn;
+  };
+
+  row.appendChild(makeButton('Berguna', true, 'success'));
+  row.appendChild(makeButton('Kurang Pas', false, 'warning'));
+  contentEl.appendChild(row);
+}
+
 function consumePendingAiFromUrl() {
   try {
     const url = new URL(window.location.href);
@@ -811,6 +943,11 @@ function buildCommandSuggestions(payload) {
 function executeSuggestedCommand(command = '') {
   const normalized = String(command || '').trim();
   if (!normalized) return;
+  trackZaiActivity('zai_suggestion_click', {
+    command: normalized.slice(0, 180),
+    assistant_always_on: assistantAlwaysOn,
+    bot_mode: chatbotStatelessMode,
+  }, { source: 'chat' });
   stageAssistantDraft(normalized);
 }
 
@@ -842,6 +979,9 @@ async function runAssistant(promptOrCommand) {
   let contentEl = null;
 
   if (assistantBusy) {
+    trackZaiActivity('zai_prompt_skipped_busy', {
+      input: trimmed.slice(0, 220),
+    }, { source: 'assistant' });
     appendLocalSystemMessage('Assistant', 'Assistant masih memproses request sebelumnya.');
     return;
   }
@@ -864,6 +1004,11 @@ async function runAssistant(promptOrCommand) {
       return;
     }
 
+    trackZaiActivity('zai_prompt', {
+      message: prompt.slice(0, 260),
+      mode: assistantAlwaysOn ? 'assistant_always_on' : 'manual_ai',
+    }, { source: 'assistant' });
+
     contentEl = appendLocalSystemMessage('Assistant', '');
     if (contentEl) {
       contentEl.textContent = '...';
@@ -881,6 +1026,15 @@ async function runAssistant(promptOrCommand) {
     }
     lastAssistantPayload = result;
 
+    const reliability = result?.reliability || {};
+    trackZaiActivity('zai_reply', {
+      mode: String(result?.mode || ''),
+      intent: String(result?.intent || ''),
+      tool: String(result?.tool || ''),
+      reliability_status: String(reliability.status || ''),
+      reliability_score: Number.isFinite(Number(reliability.score)) ? Number(reliability.score) : null,
+    }, { source: 'assistant' });
+
     const formatted = formatAssistantReply(result);
     if (contentEl) {
       contentEl.textContent = formatted || result.reply || 'Selesai.';
@@ -891,6 +1045,9 @@ async function runAssistant(promptOrCommand) {
     }
     renderCommandSuggestions(result);
   } catch (err) {
+    trackZaiActivity('zai_reply_failed', {
+      error: String(err?.message || 'unknown error').slice(0, 180),
+    }, { source: 'assistant' });
     if (contentEl) {
       contentEl.classList.remove('v3-assistant-typing');
       contentEl.textContent = `Assistant error: ${err.message || 'unknown error'}`;
@@ -908,8 +1065,13 @@ async function runStatelessBot(message = '') {
   if (!text) return;
 
   const currentUser = localStorage.getItem('user') || 'You';
+  trackZaiActivity('zai_prompt', {
+    message: text.slice(0, 260),
+    mode: 'bot_stateless',
+  }, { source: 'chatbot' });
   let profile = deriveAdaptiveProfileFromMessage(text, readBotAdaptiveProfile());
   writeBotAdaptiveProfile(profile);
+  syncBotAdaptiveProfileToServer(profile).catch(() => {});
   appendLocalChatMessage(currentUser, text, { me: true });
 
   let contentEl = appendLocalSystemMessage('Companion Bot', '...');
@@ -925,17 +1087,32 @@ async function runStatelessBot(message = '') {
     const reply = String(result?.reply || '').trim() || 'Aku belum punya jawaban yang tepat untuk itu.';
     const suggestions = normalizeBotQuickSuggestions(result?.suggestions);
     profile = updateAdaptiveProfileFromBotResult(result, profile);
+    syncBotAdaptiveProfileToServer(profile).catch(() => {});
+    trackZaiActivity('zai_reply', {
+      mode: 'bot_stateless',
+      intent: String(result?.intent || ''),
+      response_id: String(result?.response_id || ''),
+      reliability_status: String(result?.reliability?.status || ''),
+      reliability_score: Number.isFinite(Number(result?.reliability?.score)) ? Number(result.reliability.score) : null,
+      suggestion_count: suggestions.length,
+    }, { source: 'chatbot' });
     if (contentEl) {
       contentEl.classList.remove('v3-assistant-typing');
       contentEl.textContent = reply;
       contentEl.classList.add('v3-assistant-arrived');
       renderBotQuickChips(contentEl, suggestions);
+      renderBotFeedbackRow(contentEl, result);
       setTimeout(() => contentEl.classList.remove('v3-assistant-arrived'), 520);
       return;
     }
     const fallbackContent = appendLocalSystemMessage('Companion Bot', reply);
     renderBotQuickChips(fallbackContent, suggestions);
+    renderBotFeedbackRow(fallbackContent, result);
   } catch (err) {
+    trackZaiActivity('zai_reply_failed', {
+      mode: 'bot_stateless',
+      error: String(err?.message || 'unknown error').slice(0, 180),
+    }, { source: 'chatbot' });
     const textErr = `Bot error: ${err?.message || 'unknown error'}`;
     if (contentEl) {
       contentEl.classList.remove('v3-assistant-typing');
@@ -996,6 +1173,12 @@ async function send(e) {
   const input = document.querySelector('#chat-input');
   const text = normalizeAssistantInput(input.value || '');
   if (!text) return;
+
+  trackZaiActivity('chat_input_submit', {
+    chars: text.length,
+    assistant_always_on: assistantAlwaysOn,
+    bot_mode: chatbotStatelessMode,
+  }, { source: 'chat' });
 
   input.disabled = true;
   try {
@@ -1059,6 +1242,12 @@ function init() {
   document.querySelector('#chat-clear').addEventListener('click', clearAll);
   assistantAlwaysOn = readAssistantAlwaysOnPreference();
   writeBotAdaptiveProfile(readBotAdaptiveProfile());
+  loadBotAdaptiveProfileFromServer()
+    .then((profile) => {
+      writeBotAdaptiveProfile(profile);
+      syncAssistantModeUI();
+    })
+    .catch(() => {});
   chatbotStatelessMode = readChatbotStatelessPreference();
   if (assistantAlwaysOn && chatbotStatelessMode) {
     chatbotStatelessMode = false;
@@ -1070,6 +1259,10 @@ function init() {
   if (alwaysOnToggle) {
     alwaysOnToggle.addEventListener('change', (event) => {
       assistantAlwaysOn = Boolean(event.target && event.target.checked);
+      trackZaiActivity('zai_mode_toggle', {
+        mode: 'assistant_always_on',
+        enabled: assistantAlwaysOn,
+      }, { source: 'chat' });
       if (assistantAlwaysOn && chatbotStatelessMode) {
         chatbotStatelessMode = false;
         writeChatbotStatelessPreference(false);
@@ -1089,6 +1282,10 @@ function init() {
   if (botModeToggle) {
     botModeToggle.addEventListener('change', (event) => {
       chatbotStatelessMode = Boolean(event.target && event.target.checked);
+      trackZaiActivity('zai_mode_toggle', {
+        mode: 'bot_stateless',
+        enabled: chatbotStatelessMode,
+      }, { source: 'chat' });
       if (chatbotStatelessMode && assistantAlwaysOn) {
         assistantAlwaysOn = false;
         writeAssistantAlwaysOnPreference(false);

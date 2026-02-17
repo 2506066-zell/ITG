@@ -75,10 +75,37 @@ Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless
 - Endpoint utama: `POST /api/chat`
   - Mode chatbot stateless aktif saat request tanpa `Authorization` Bearer token.
   - Input: `{ "message": "text user", "context": { "tone_mode": "supportive|strict|balanced", "focus_minutes": 25, "focus_window": "any|morning|afternoon|evening", "recent_intents": [] } }`
-  - Output: `{ "reply": "jawaban bot", "intent": "nama_intent", "adaptive": { ... }, "suggestions": [{ "label": "...", "command": "...", "tone": "info" }] }`
+  - Output: `{ "reply": "jawaban bot", "intent": "nama_intent", "response_id": "uuid", "engine": "rule-engine-v1|python-v1|llm-v1", "router": { "mode": "hybrid", ... }, "adaptive": { ... }, "planner": { ... }, "reliability": { "status": "safe|needs_clarification|ambiguous", "score": 0-100 }, "unified_memory": { ... }, "memory_update": { ... }, "feedback_profile": { ... }, "suggestions": [{ "label": "...", "command": "...", "tone": "info" }] }`
+  - Feedback loop (learning):
+    - `POST /api/chat` dengan body `{ "mode": "bot", "stateless": true, "feedback": { "response_id": "<uuid>", "helpful": true|false, "intent": "..." } }`
+    - Z AI akan menyimpan feedback dan menyesuaikan rekomendasi per user.
+- Endpoint profile adaptif lintas device (auth wajib):
+  - `GET /api/chatbot_profile`
+  - `PUT /api/chatbot_profile`
+  - Payload profile:
+    - `{ "tone_mode": "supportive|strict|balanced", "focus_minutes": 25, "focus_window": "any|morning|afternoon|evening", "recent_intents": ["evaluation", "recommend_task"] }`
 - Endpoint Python langsung: `POST /api/chatbot` (rewritten ke `api/chat.py`)
+  - Output Python: `{ "reply": "...", "intent": "...", "adaptive": { ... }, "planner": { ... }, "memory_update": { ... }, "suggestions": [...] }`
 - Legacy mode tetap aman:
   - `GET /api/chat`, `DELETE /api/chat`, dan `POST /api/chat` dengan token tetap memakai chat storage lama.
+
+### Hybrid Brain Router (Tahap 1)
+- Router engine di `POST /api/chat` (mode stateless):
+  - `rule-engine-v1` untuk pesan sederhana (latency rendah)
+  - `python-v1` untuk pesan kompleks (planner + adaptive)
+  - opsional `llm-v1` via endpoint `POST /api/chatbot-llm`
+- Environment variables:
+  - `CHATBOT_ENGINE_MODE=hybrid|rule|python|llm` (default `hybrid`)
+  - `CHATBOT_COMPLEXITY_THRESHOLD=20..95` (default `56`)
+  - `CHATBOT_LLM_ENABLED=true|false` (opsional)
+  - `CHATBOT_LLM_URL=https://...` (opsional)
+  - `CHATBOT_LLM_USE_LOCAL_PATH=true` untuk mencoba `https://<host>/api/chatbot-llm` saat `CHATBOT_LLM_URL` kosong (opsional)
+  - `CHATBOT_LLM_TIMEOUT_MS=1700` (opsional)
+  - `CHATBOT_LLM_SHARED_SECRET=...` (opsional)
+  - `CHATBOT_LLM_API_KEY=...` (wajib jika pakai endpoint internal `api/chatbot-llm`)
+  - `CHATBOT_LLM_MODEL=gpt-4o-mini` (opsional)
+  - `CHATBOT_LLM_API_URL=https://api.openai.com/v1/chat/completions` (opsional, OpenAI-compatible)
+  - `CHATBOT_LLM_AUTH_HEADER=Authorization` dan `CHATBOT_LLM_AUTH_PREFIX=Bearer ` (opsional)
 
 ### Struktur File Chatbot
 ```
@@ -123,6 +150,25 @@ Response:
 3. Uji endpoint:
    - `POST /api/chat` tanpa token untuk mode bot
    - `POST /api/chat` dengan token untuk simpan chat legacy
+
+## User Activity Tracking (Z AI)
+- Endpoint: `POST /api/activity` (auth wajib)
+  - Single event:
+    - `{ "event_name": "zai_prompt", "page_path": "/chat.html", "payload": { "mode": "bot_stateless" } }`
+  - Batch event:
+    - `{ "events": [ { ... }, { ... } ] }`
+- Endpoint: `GET /api/activity` (auth wajib)
+  - Query opsional:
+    - `limit=80`
+    - `event_name=zai_reply`
+    - `page_path=/chat.html`
+- Legacy compatibility:
+  - `GET /api/activity?entity_type=task&entity_id=12` tetap baca `activity_logs` lama.
+- Frontend tracker:
+  - `js/activity-tracker.js` otomatis track:
+    - `page_view`, `nav_open`, `ui_click`, `api_write`
+    - event khusus chat: `zai_prompt`, `zai_reply`, `zai_feedback_saved`, dll
+  - Queue lokal akan di-flush periodik ke `/api/activity` saat user login.
 
 ## Koneksi Neon di Vercel (Langkah demi langkah)
 1. Buat project database di Neon.

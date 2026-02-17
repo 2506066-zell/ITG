@@ -132,6 +132,64 @@ CREATE TABLE IF NOT EXISTS activity_logs (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- 11b. User Activity Events (analytics trail for Z AI)
+CREATE TABLE IF NOT EXISTS user_activity_events (
+  id BIGSERIAL PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  session_id VARCHAR(80),
+  event_name VARCHAR(80) NOT NULL,
+  page_path VARCHAR(200),
+  entity_type VARCHAR(80),
+  entity_id VARCHAR(80),
+  source VARCHAR(40) NOT NULL DEFAULT 'web',
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  client_ts TIMESTAMPTZ,
+  server_ts TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 12. Chatbot Adaptive Profile (cross-device memory profile)
+CREATE TABLE IF NOT EXISTS chatbot_profiles (
+  user_id VARCHAR(60) PRIMARY KEY,
+  tone_mode VARCHAR(20) NOT NULL DEFAULT 'supportive',
+  focus_minutes INTEGER NOT NULL DEFAULT 25,
+  focus_window VARCHAR(20) NOT NULL DEFAULT 'any',
+  recent_intents JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 13. Z AI Unified Memory State
+CREATE TABLE IF NOT EXISTS z_ai_user_memory (
+  user_id VARCHAR(60) PRIMARY KEY,
+  last_intent VARCHAR(80),
+  focus_topic VARCHAR(80),
+  memory JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 14. Z AI Memory Events (planner/execution traces)
+CREATE TABLE IF NOT EXISTS z_ai_memory_events (
+  id SERIAL PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  message TEXT NOT NULL,
+  intent VARCHAR(80),
+  reply TEXT,
+  planner JSONB NOT NULL DEFAULT '{}'::jsonb,
+  context JSONB NOT NULL DEFAULT '{}'::jsonb,
+  topics JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 15. Z AI Feedback Events (learning loop)
+CREATE TABLE IF NOT EXISTS z_ai_feedback_events (
+  id SERIAL PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  response_id VARCHAR(80),
+  intent VARCHAR(80),
+  helpful BOOLEAN NOT NULL,
+  suggestion_command TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed) WHERE is_deleted = FALSE;
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to) WHERE is_deleted = FALSE;
@@ -140,3 +198,9 @@ CREATE INDEX IF NOT EXISTS idx_monthly_todos_user_month ON monthly_todos(user_id
 CREATE INDEX IF NOT EXISTS idx_monthly_logs_todo ON monthly_todo_logs(monthly_todo_id);
 CREATE INDEX IF NOT EXISTS idx_evaluations_user ON evaluations(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_entity ON activity_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_user_activity_user_time ON user_activity_events(user_id, server_ts DESC);
+CREATE INDEX IF NOT EXISTS idx_user_activity_event_name ON user_activity_events(event_name);
+CREATE INDEX IF NOT EXISTS idx_chatbot_profiles_updated_at ON chatbot_profiles(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_zai_user_memory_updated_at ON z_ai_user_memory(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_zai_memory_events_user_time ON z_ai_memory_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_zai_feedback_events_user_time ON z_ai_feedback_events(user_id, created_at DESC);

@@ -55,9 +55,9 @@ function explainabilityText(explainability) {
   if (!ex) return '';
   const chunks = [];
   const whyItems = Array.isArray(ex.why) ? ex.why.filter(Boolean) : [];
-  if (whyItems.length) chunks.push(`Kenapa: ${whyItems[0]}`);
-  if (ex.impact) chunks.push(`Dampak: ${ex.impact}`);
-  if (ex.risk) chunks.push(`Risiko: ${ex.risk}`);
+  if (whyItems.length) chunks.push(`Z AI lihat: ${whyItems[0]}`);
+  if (ex.impact) chunks.push(`Kalau dieksekusi sekarang: ${ex.impact}`);
+  if (ex.risk) chunks.push(`Catatan Z AI: ${ex.risk}`);
   return chunks.join('\n');
 }
 
@@ -241,7 +241,7 @@ function buildAssistantEvidenceChips(payload) {
 
   if (explain.confidence) {
     chips.push({
-      label: `Confidence ${String(explain.confidence).toUpperCase()}`,
+      label: `Z AI ${String(explain.confidence).toUpperCase()}`,
       tone: confidenceTone(explain.confidence),
       command: 'tampilkan memory hari ini',
     });
@@ -691,7 +691,7 @@ function buildAssistantFeedItems() {
 
   if (state.assistant && state.assistant.reply) {
     feed.push({
-      tag: 'AI Brief',
+      tag: 'Z AI Brief',
       text: mergeFeedTextWithExplain(state.assistant.reply, state.assistant.explainability),
       chips: buildAssistantEvidenceChips(state.assistant),
       at: null,

@@ -87,11 +87,15 @@ class handler(BaseHTTPRequestHandler):  # pylint: disable=invalid-name
             return
 
         context = payload.get("context") if isinstance(payload.get("context"), dict) else None
-        result = process_message_payload(message, context)
+        memory = payload.get("memory") if isinstance(payload.get("memory"), dict) else None
+        planner = payload.get("planner") if isinstance(payload.get("planner"), dict) else None
+        result = process_message_payload(message, context, memory, planner)
         reply = str(result.get("reply", "")).strip()
         suggestions = result.get("suggestions")
         intent = str(result.get("intent", "")).strip()
         adaptive = result.get("adaptive")
+        planner_out = result.get("planner")
+        memory_update = result.get("memory_update")
 
         payload_out = {"reply": reply}
         if isinstance(suggestions, list):
@@ -100,4 +104,8 @@ class handler(BaseHTTPRequestHandler):  # pylint: disable=invalid-name
             payload_out["intent"] = intent
         if isinstance(adaptive, dict):
             payload_out["adaptive"] = adaptive
+        if isinstance(planner_out, dict):
+            payload_out["planner"] = planner_out
+        if isinstance(memory_update, dict):
+            payload_out["memory_update"] = memory_update
         _send_json(self, 200, payload_out)

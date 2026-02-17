@@ -1,5 +1,6 @@
 const base = '/api';
 const getToken = () => localStorage.getItem('token') || '';
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const authHeader = () => {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
@@ -11,8 +12,25 @@ const handle401 = (res) => {
   }
 };
 
+function emitApiAction(path, method, status) {
+  try {
+    const normalizedPath = String(path || '').trim();
+    const normalizedMethod = String(method || 'GET').toUpperCase();
+    if (!normalizedPath || normalizedPath === '/activity' || normalizedPath.startsWith('/activity?')) return;
+    if (!WRITE_METHODS.has(normalizedMethod)) return;
+    document.dispatchEvent(new CustomEvent('zai:api-action', {
+      detail: {
+        path: normalizedPath,
+        method: normalizedMethod,
+        status: Number(status || 0),
+      },
+    }));
+  } catch {}
+}
+
 export async function apiFetch(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...authHeader(), ...(options.headers || {}) };
+  const method = String(options.method || 'GET').toUpperCase();
 
   // OPTIMIZATION: Use AbortController to timeout slow requests
   const controller = new AbortController();
@@ -32,6 +50,8 @@ export async function apiFetch(path, options = {}) {
     if ((res.status === 404 || res.status === 405) || isHtml || res.status >= 500 || (res.status === 401 && path !== '/login')) {
       throw new Error(`Backend error: ${res.status}`);
     }
+
+    emitApiAction(path, method, res.status);
 
     if (path !== '/login') handle401(res);
     return res;

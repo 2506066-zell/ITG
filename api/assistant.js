@@ -1308,11 +1308,28 @@ function summarizeRead(toolName, data, user) {
   }
 
   if (toolName === 'get_daily_brief') {
-    const lines = [];
-    lines.push(`Task pending: ${data.tasks.length}`);
-    lines.push(`Assignment pending: ${data.assignments.length}`);
-    lines.push(`Jadwal hari ini: ${data.schedule.length}`);
-    return lines.join(' | ');
+    const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+    const assignments = Array.isArray(data.assignments) ? data.assignments : [];
+    const schedule = Array.isArray(data.schedule) ? data.schedule : [];
+    const merged = [...tasks, ...assignments];
+    const risk = analyzeDeadlineRisk(merged);
+    const top = risk.nearest;
+
+    if (merged.length === 0 && schedule.length === 0) {
+      return 'Z AI cek cepat: hari ini relatif longgar. Belum ada tugas atau jadwal yang menekan.';
+    }
+
+    const riskText = risk.overdue > 0
+      ? `${risk.overdue} item sudah overdue, ini perlu diselamatkan dulu.`
+      : (risk.due12h > 0
+        ? `${risk.due12h} item due <=12 jam, sebaiknya dieksekusi sekarang.`
+        : (risk.due24h > 0 ? `${risk.due24h} item due <=24 jam, jangan ditunda.` : 'Tekanan deadline masih aman.'));
+
+    const nextStep = top && top.title
+      ? `Mulai dari "${top.title}" selama 25 menit.`
+      : 'Ambil satu prioritas teratas dan jalankan sprint 25 menit.';
+
+    return `Z AI cek cepat: ada ${tasks.length} task, ${assignments.length} assignment, dan ${schedule.length} jadwal hari ini. ${riskText} ${nextStep}`;
   }
 
   if (toolName === 'get_unified_memory') {

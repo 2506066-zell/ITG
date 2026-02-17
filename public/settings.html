@@ -65,6 +65,53 @@
           </button>
         </div>
       </div>
+      <div class="card activity-analytics-card">
+        <div class="section-title"><i class="fa-solid fa-chart-simple"></i> Z AI Activity Analytics</div>
+        <div class="activity-analytics-head">
+          <div id="activity-analytics-updated" class="muted small">Belum ada data.</div>
+          <button id="refresh-activity-analytics-btn" class="btn small secondary" type="button">
+            <i class="fa-solid fa-rotate-right"></i> Refresh
+          </button>
+        </div>
+
+        <div class="activity-kpi-grid">
+          <div class="activity-kpi">
+            <span>Total Events (7d)</span>
+            <strong id="activity-total-events">0</strong>
+          </div>
+          <div class="activity-kpi">
+            <span>Active Days (7d)</span>
+            <strong id="activity-active-days">0/7</strong>
+          </div>
+          <div class="activity-kpi">
+            <span>Current Streak</span>
+            <strong id="activity-streak-days">0 hari</strong>
+          </div>
+          <div class="activity-kpi">
+            <span>Reply Rate</span>
+            <strong id="activity-reply-rate">0%</strong>
+          </div>
+        </div>
+
+        <div class="activity-analytics-grid">
+          <section class="activity-panel">
+            <h3>Funnel Z AI (7 Hari)</h3>
+            <div id="activity-funnel-list" class="activity-list"></div>
+          </section>
+          <section class="activity-panel">
+            <h3>Top Events</h3>
+            <div id="activity-top-events" class="activity-list"></div>
+          </section>
+          <section class="activity-panel">
+            <h3>Hourly Heatmap</h3>
+            <div id="activity-hourly-heatmap" class="activity-heatmap"></div>
+          </section>
+          <section class="activity-panel">
+            <h3>Retention Harian (7 Hari)</h3>
+            <div id="activity-retention-rows" class="activity-list"></div>
+          </section>
+        </div>
+      </div>
       <div class="card">
         <div class="section-title">App Info</div>
         <button id="install-btn" class="btn primary" style="display:none; width:100%; margin-bottom:10px">

@@ -1,3 +1,5 @@
+import { startActivityTracker } from './activity-tracker.js';
+
 function requireAuth() {
   const t = localStorage.getItem('token');
   if (!t) location.href = '/login.html';
@@ -63,6 +65,7 @@ function runWhenIdle(task) {
 
 export function initProtected() {
   requireAuth();
+  startActivityTracker();
   registerSW()
     .then(() => runWhenIdle(() => {
       ensurePushSubscription().catch(() => {});
