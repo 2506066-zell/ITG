@@ -1461,6 +1461,87 @@ textarea {
   color: hsl(var(--nebula-core));
 }
 
+/* 🎯 INTERACTIVE BRIEFING & RECOMMENDATIONS */
+.recommendation-box {
+  background: hsla(var(--nebula-core), 0.1);
+  border: 1px dashed hsla(var(--nebula-core), 0.3);
+  border-radius: 16px;
+  padding: 16px;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.recommendation-box::after {
+  content: 'COSMIC PICK';
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 8px;
+  font-weight: 800;
+  color: hsl(var(--nebula-core));
+  letter-spacing: 1px;
+  opacity: 0.6;
+}
+
+.recommendation-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: hsl(var(--nebula-core));
+  letter-spacing: 0.5px;
+}
+
+.recommendation-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recommendation-content i {
+  font-size: 1.2rem;
+  color: hsl(var(--star-gold));
+  filter: drop-shadow(0 0 8px hsla(var(--star-gold), 0.4));
+}
+
+.recommendation-task {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-100);
+}
+
+.workload-alert {
+  font-size: 0.75rem;
+  color: hsl(var(--nova-pink));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+/* 🏮 ADAPTIVE URGENCY SHIFTS & COLORS */
+.status-urgent.workload-high {
+  animation: pulse-urgent 2s infinite ease-in-out;
+}
+
+@keyframes pulse-urgent {
+  0% {
+    box-shadow: 0 0 0 0 hsla(var(--nova-pink), 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px hsla(var(--nova-pink), 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 hsla(var(--nova-pink), 0);
+  }
+}
+
 /* 🏮 SMART NUDGE & STATUS COLORS */
 .ambient-nudge {
   position: relative;

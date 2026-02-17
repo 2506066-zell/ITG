@@ -47,6 +47,7 @@
       <div class="card briefing-card">
         <div class="briefing-greeting" id="briefing-greeting">Good Morning!</div>
         <div class="briefing-summary" id="briefing-summary">Checking the cosmic tides for you...</div>
+        <div id="briefing-recommendation"></div>
         <div class="briefing-items" id="briefing-items">
           <!-- Items injected via JS -->
         </div>
@@ -352,7 +353,10 @@
           }
           summaryEl.innerHTML = summary;
 
-          // 🏎️ Intelligent Sorting & Priority Mapping
+          // 🏎️ Intelligent Sorting & Adaptive Pressure Mapping
+          const workloadHigh = (pendingTasks.length + urgentAssignments.length) > 5;
+          const urgencyBuffer = workloadHigh ? 3600000 : 0; // 1 hour shift if busy
+
           const allPriorities = [
             ...urgentAssignments.map(a => {
               const diff = new Date(a.deadline).getTime() - Date.now();
@@ -361,17 +365,20 @@
                 title: a.title,
                 deadline: new Date(a.deadline),
                 diff: diff,
-                urgent: diff < 43200000
+                urgent: diff < (43200000 + urgencyBuffer),
+                complexity: a.title.length > 20 ? 1 : 0
               };
             }),
             ...pendingTasks.map(t => {
               const diff = t.deadline ? new Date(t.deadline).getTime() - Date.now() : Infinity;
+              const isComplex = t.priority === 'high' || t.title.length > 25;
               return {
                 type: 'task',
                 title: t.title,
                 deadline: t.deadline ? new Date(t.deadline) : null,
                 diff: diff,
-                urgent: t.priority === 'high' || diff < 43200000
+                urgent: t.priority === 'high' || diff < (43200000 + (isComplex ? 3600000 : 0) + urgencyBuffer),
+                complexity: isComplex ? 1 : 0
               };
             })
           ];
@@ -379,23 +386,56 @@
           // Auto-Sort: Most urgent at the top
           allPriorities.sort((a, b) => a.diff - b.diff);
 
+          // 🎯 NEXT BEST ACTION (Mood-Task Matching)
+          try {
+            const evals = await get('/evaluations');
+            const latestMood = evals.length > 0 ? evals[evals.length - 1].score : 3;
+            const recEl = document.getElementById('briefing-recommendation');
+
+            let bestAction = allPriorities[0]; // Default to most urgent
+            if (latestMood >= 4) {
+              // High mood -> Suggest toughest/priority task even if slightly less urgent
+              bestAction = allPriorities.find(p => p.complexity > 0) || allPriorities[0];
+            } else if (latestMood <= 2) {
+              // Low mood -> Suggest an "Easy Win"
+              bestAction = allPriorities.find(p => p.complexity === 0) || allPriorities[0];
+            }
+
+            if (bestAction && recEl) {
+              recEl.innerHTML = `
+                <div class="recommendation-box">
+                  <div class="recommendation-label">Saran Cosmic Hari Ini</div>
+                  <div class="recommendation-content">
+                    <i class="fa-solid ${bestAction.complexity > 0 ? 'fa-rocket' : 'fa-feather-pointed'}"></i>
+                    <div class="recommendation-task">${bestAction.title}</div>
+                  </div>
+                  ${workloadHigh ? `<div class="workload-alert"><i class="fa-solid fa-gauge-high"></i> Beban kerja tinggi. Threshold adaptif aktif.</div>` : ''}
+                </div>
+              `;
+            }
+          } catch (e) { console.error("Rec failed", e); }
+
           allPriorities.slice(0, 4).forEach(p => {
             const item = document.createElement('div');
             let statusClass = 'status-relaxed';
             let timeText = '';
 
-            if (p.diff < 10800000) { // < 3h
+            // Adaptive Thresholds
+            const urgentThreshold = 10800000 + urgencyBuffer;
+            const warningThreshold = 43200000 + urgencyBuffer;
+
+            if (p.diff < urgentThreshold) {
               statusClass = 'status-urgent';
               timeText = 'MENDESAK';
-            } else if (p.diff < 43200000) { // < 12h
+            } else if (p.diff < warningThreshold) {
               statusClass = 'status-warning';
               timeText = 'SEGERA';
-            } else if (p.diff < 86400000) { // < 24h
+            } else if (p.diff < 86400000) {
               statusClass = 'status-relaxed';
               timeText = 'HARI INI';
             }
 
-            item.className = `briefing-item ${p.type} ${statusClass} ${p.urgent ? 'ambient-nudge' : ''}`;
+            item.className = `briefing-item ${p.type} ${statusClass} ${p.urgent ? 'ambient-nudge' : ''} ${workloadHigh && statusClass === 'status-urgent' ? 'workload-high' : ''}`;
             const icon = p.type === 'assignment' ? 'fa-graduation-cap' : 'fa-list-check';
             item.innerHTML = `
               <i class="fa-solid ${icon}"></i> 

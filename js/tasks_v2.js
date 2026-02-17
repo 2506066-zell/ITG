@@ -209,13 +209,20 @@ function createTaskEl(task) {
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
 
+    const pendingCount = tasks.filter(t => !t.completed).length;
+    const workloadHigh = pendingCount > 5;
+    const buffer = workloadHigh ? 3600000 : 0; // 1 hour buffer relative to thresholds if busy
+
     let urgencyClass = '';
     if (diff > 0 && !task.completed) {
-      if (diff < 10800000) urgencyClass = 'status-urgent';
-      else if (diff < 43200000) urgencyClass = 'status-warning';
+      if (diff < (10800000 + buffer)) urgencyClass = 'status-urgent';
+      else if (diff < (43200000 + buffer)) urgencyClass = 'status-warning';
       else if (diff < 86400000) urgencyClass = 'status-relaxed';
     }
-    if (urgencyClass) el.classList.add(urgencyClass);
+    if (urgencyClass) {
+      el.classList.add(urgencyClass);
+      if (workloadHigh && urgencyClass === 'status-urgent') el.classList.add('workload-high');
+    }
 
     const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const dateStr = isToday ? 'Today' : d.toLocaleDateString([], { day: 'numeric', month: 'short' });
@@ -712,6 +719,52 @@ function setupEventListeners() {
     showToast('Tasks completed');
     openMoodPrompt('Selesai beberapa tugas');
   });
+
+  // --- ⚡ QUICK CAPTURE LOGIC ---
+  const quickInput = document.getElementById('quick-task-input');
+  const quickBtn = document.getElementById('quick-task-btn');
+
+  const submitQuickTask = async () => {
+    const title = quickInput.value.trim();
+    if (!title) return;
+
+    // Smart Defaults
+    const user = localStorage.getItem('user') || 'Zaldy';
+    const data = {
+      title: title,
+      priority: 'medium',
+      assigned_to: user,
+      completed: false
+    };
+
+    try {
+      quickInput.value = '';
+      quickInput.blur();
+
+      const newTasks = await post('/tasks', data);
+      showToast('Ide tersimpan! ⚡', 'success');
+
+      // Full reload to sync state and trigger render with animations
+      await loadTasks();
+
+      // Optional: Add a 'pop' animation class to the newest element
+      if (newTasks && newTasks.length > tasks.length) {
+        const latest = document.querySelector(`.task-item[data-id="${newTasks[newTasks.length - 1].id}"]`);
+        if (latest) {
+          latest.style.animation = 'pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        }
+      }
+    } catch (err) {
+      showToast('Gagal menyimpan ide', 'error');
+      quickInput.value = title; // Restore if failed
+    }
+  };
+
+  quickInput?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') submitQuickTask();
+  });
+
+  quickBtn?.addEventListener('click', submitQuickTask);
 }
 
 function renderSkeleton() {
