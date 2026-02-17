@@ -1,0 +1,11 @@
+[project]
+name = "itg-couple-productivity-chatbot"
+version = "0.1.0"
+description = "Stateless Python chatbot endpoints for ITG couple productivity app"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false
+
