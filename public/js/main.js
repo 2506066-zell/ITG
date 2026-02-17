@@ -12,10 +12,13 @@ export async function registerSW() {
     try {
       const registration = await navigator.serviceWorker.register('/sw.js');
       console.log('SW Registered:', registration.scope);
+      return registration;
     } catch (err) {
       console.error('SW Registration failed:', err);
+      return null;
     }
   }
+  return null;
 }
 function loadTheme() {
   const t = localStorage.getItem('theme') || 'dark';
@@ -50,11 +53,77 @@ export function showToast(text, type = 'info', timeout = 2500) {
 }
 export function initProtected() {
   requireAuth();
-  registerSW();
+  registerSW()
+    .then(() => ensurePushSubscription())
+    .catch(() => {});
   loadTheme();
   setReducedMotion();
   startHeroTimer();
   initParallax();
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function ensurePushSubscription() {
+  if (typeof window === 'undefined') return;
+  if (window.__pushSubscriptionInitDone) return;
+  window.__pushSubscriptionInitDone = true;
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return;
+  }
+
+  const token = localStorage.getItem('token');
+  if (!token) return;
+
+  try {
+    const keyRes = await fetch('/api/notifications', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!keyRes.ok) return;
+    const keyPayload = await keyRes.json();
+    const publicKey = keyPayload && keyPayload.publicKey;
+    if (!publicKey) return;
+
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+
+    const promptKey = 'push_permission_prompted_once';
+    if (!sub && Notification.permission === 'default' && !localStorage.getItem(promptKey)) {
+      localStorage.setItem(promptKey, '1');
+      await Notification.requestPermission();
+    }
+
+    if (!sub && Notification.permission !== 'granted') return;
+
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+
+    await fetch('/api/notifications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(sub),
+    });
+  } catch (err) {
+    console.warn('Push subscription skipped:', err);
+  }
 }
 
 function setReducedMotion() {

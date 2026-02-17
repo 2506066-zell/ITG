@@ -49,13 +49,21 @@ export async function sendNotificationToUser(userId, payload) {
     if (!publicVapidKey || !privateVapidKey) return;
     
     const r = await pool.query('SELECT * FROM push_subscriptions WHERE user_id = $1', [userId]);
+    let sentCount = 0;
     const promises = r.rows.map(async sub => {
+        let keys = sub.keys;
+        if (typeof keys === 'string') {
+          try { keys = JSON.parse(keys); } catch { keys = null; }
+        }
+        if (!keys || !keys.p256dh || !keys.auth) return;
+
         const pushSubscription = {
             endpoint: sub.endpoint,
-            keys: sub.keys
+            keys
         };
         try {
             await webpush.sendNotification(pushSubscription, JSON.stringify(payload));
+            sentCount++;
         } catch (err) {
             if (err.statusCode === 410 || err.statusCode === 404) {
                 // Subscription expired/invalid
@@ -66,4 +74,5 @@ export async function sendNotificationToUser(userId, payload) {
         }
     });
     await Promise.all(promises);
+    return sentCount;
 }

@@ -27,6 +27,7 @@ const routes = new Set([
   'health',
   'evaluations',
   'notifications',
+  'proactive',
   'reports'
 ]);
 

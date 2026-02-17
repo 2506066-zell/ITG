@@ -63,7 +63,10 @@ const routes = [
   { path: '/api/monthly_stats', file: '../api/monthly_stats.js' },
   { path: '/api/evaluations', file: '../api/evaluations.js' },
   { path: '/api/weekly', file: '../api/weekly.js' },
-  { path: '/api/reports', file: '../api/reports.js' }
+  { path: '/api/reports', file: '../api/reports.js' },
+  { path: '/api/notifications', file: '../api/notifications.js' },
+  { path: '/api/proactive', file: '../api/proactive.js' },
+  { path: '/api/cron/proactive-engine', file: '../api/cron/proactive_engine.js' }
 ];
 
 routes.forEach(route => {

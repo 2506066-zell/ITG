@@ -7,6 +7,7 @@ const state = {
   assignments: [],
   weekly: null,
   assistant: null,
+  proactive: null,
   lastUpdated: null,
 };
 
@@ -116,7 +117,7 @@ function renderTodayMission() {
   }
 
   const html = items.slice(0, 5).map((item) => {
-    const subtitle = item.assigned_to ? `${item.type} · ${item.assigned_to}` : item.type;
+    const subtitle = item.assigned_to ? `${item.type} - ${item.assigned_to}` : item.type;
     const safeTitle = escapeHtml(item.title || 'Untitled');
     const safeSub = escapeHtml(subtitle);
     return `
@@ -196,30 +197,50 @@ function buildAssistantFeedItems() {
   const feed = [];
   const missionItems = collectMissionItems();
   const urgentCount = missionItems.filter((i) => i.urgency === 'critical').length;
+  const proactiveItems = state.proactive && Array.isArray(state.proactive.items) ? state.proactive.items : [];
+
+  proactiveItems.slice(0, 3).forEach((item) => {
+    const eventType = (item.event_type || '').toString();
+    let tag = 'Proactive';
+    if (eventType === 'morning_brief') tag = 'Morning Brief';
+    if (eventType === 'urgent_radar') tag = 'Urgent Radar';
+    if (eventType === 'mood_drop_alert') tag = 'Mood Alert';
+    if (eventType === 'checkin_suggestion') tag = 'Check-In';
+    feed.push({ tag, text: item.body || item.title || 'New proactive update.', at: item.created_at || null });
+  });
 
   if (state.assistant && state.assistant.reply) {
-    feed.push({ tag: 'AI Brief', text: state.assistant.reply });
+    feed.push({ tag: 'AI Brief', text: state.assistant.reply, at: null });
   }
 
   if (urgentCount > 0) {
-    feed.push({ tag: 'Focus', text: `Ada ${urgentCount} item kritis. Ambil satu item paling atas lalu sprint 25 menit sekarang.` });
+    feed.push({ tag: 'Focus', text: `Ada ${urgentCount} item kritis. Ambil satu item paling atas lalu sprint 25 menit sekarang.`, at: null });
   }
 
   const usersData = state.weekly && state.weekly.users ? state.weekly.users : {};
   USERS.forEach((u) => {
     const mood = Number((usersData[u] && usersData[u].avg_mood) || 0);
     if (mood > 0 && mood < 3) {
-      feed.push({ tag: 'Support', text: `${u} lagi drop. Switch ke task ringan dan kirim check-in singkat di chat.` });
+      feed.push({ tag: 'Support', text: `${u} lagi drop. Switch ke task ringan dan kirim check-in singkat di chat.`, at: null });
     }
   });
 
   const upcoming = missionItems.filter((i) => i.badge === 'Today' || i.badge === '<12h').length;
   if (upcoming > 2) {
-    feed.push({ tag: 'Execution', text: 'Gunakan pola 1-1-1: 1 tugas besar, 1 tugas menengah, 1 quick win.' });
+    feed.push({ tag: 'Execution', text: 'Gunakan pola 1-1-1: 1 tugas besar, 1 tugas menengah, 1 quick win.', at: null });
+  }
+
+  const proactiveUrgent = Number(state.proactive && state.proactive.signals ? state.proactive.signals.urgent_count : 0);
+  if (proactiveUrgent > 0) {
+    feed.push({
+      tag: 'Radar',
+      text: `Proactive Engine mendeteksi ${proactiveUrgent} item due <2 jam. Reprioritize sekarang.`,
+      at: null,
+    });
   }
 
   if (feed.length === 0) {
-    feed.push({ tag: 'Calm Mode', text: 'Sistem stabil. Pakai momentum ini buat progress goals jangka panjang.' });
+    feed.push({ tag: 'Calm Mode', text: 'Sistem stabil. Pakai momentum ini buat progress goals jangka panjang.', at: null });
   }
 
   return feed.slice(0, 5);
@@ -234,7 +255,7 @@ function renderAssistantFeed() {
     <article class="cc-feed-item">
       <div class="cc-feed-head">
         <span>${escapeHtml(item.tag)}</span>
-        <span>${escapeHtml(nowLabel())}</span>
+        <span>${escapeHtml(item.at ? nowLabel(new Date(item.at)) : nowLabel())}</span>
       </div>
       <p class="cc-feed-text">${escapeHtml(item.text)}</p>
     </article>
@@ -257,11 +278,22 @@ function renderAll() {
 
 function applyRevealMotion() {
   const cards = [...document.querySelectorAll('.cc-reveal')];
+  if (!cards.length) return;
+  document.body.classList.add('cc-motion-ready');
   cards.forEach((el, idx) => {
     el.style.setProperty('--reveal-delay', `${idx * 90}ms`);
     requestAnimationFrame(() => {
       el.classList.add('is-visible');
     });
+  });
+}
+
+function revealCardsImmediately() {
+  const cards = [...document.querySelectorAll('.cc-reveal')];
+  cards.forEach((el) => {
+    el.classList.add('is-visible');
+    el.style.opacity = '1';
+    el.style.transform = 'none';
   });
 }
 
@@ -291,14 +323,16 @@ async function loadDashboardData({ silent = false } = {}) {
     get('/tasks'),
     get('/assignments'),
     get('/weekly'),
+    get('/proactive?limit=12'),
     post('/assistant', { message: 'ringkasan hari ini' }),
   ]);
 
-  const [tasksRes, assignmentsRes, weeklyRes, assistantRes] = requests;
+  const [tasksRes, assignmentsRes, weeklyRes, proactiveRes, assistantRes] = requests;
 
   state.tasks = tasksRes.status === 'fulfilled' && Array.isArray(tasksRes.value) ? tasksRes.value : [];
   state.assignments = assignmentsRes.status === 'fulfilled' && Array.isArray(assignmentsRes.value) ? assignmentsRes.value : [];
   state.weekly = weeklyRes.status === 'fulfilled' ? weeklyRes.value : null;
+  state.proactive = proactiveRes.status === 'fulfilled' ? proactiveRes.value : null;
   state.assistant = assistantRes.status === 'fulfilled' ? assistantRes.value : null;
   state.lastUpdated = new Date();
 
@@ -325,15 +359,32 @@ function initActions() {
 }
 
 async function init() {
-  initProtected();
+  try {
+    initProtected();
+  } catch (err) {
+    console.error('initProtected failed:', err);
+  }
+
   renderHeaderMeta();
   applyRevealMotion();
   initActions();
-  await loadDashboardData({ silent: false });
+
+  try {
+    await loadDashboardData({ silent: false });
+  } catch (err) {
+    console.error('Dashboard init load failed:', err);
+    revealCardsImmediately();
+  }
 
   setInterval(() => {
-    loadDashboardData({ silent: true }).catch(() => {});
+    loadDashboardData({ silent: true }).catch(() => {
+      revealCardsImmediately();
+    });
   }, 60 * 1000);
 }
 
-document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

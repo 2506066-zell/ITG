@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cf-v17';
+const CACHE_NAME = 'cf-v19';
 const ASSETS = [
   '/',
   '/login',
@@ -110,6 +110,54 @@ self.addEventListener('fetch', e => {
         return res;
       }).catch(() => cached);
       return cached || fetchPromise;
+    })
+  );
+});
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data ? event.data.text() : '' };
+  }
+
+  const title = payload.title || 'NZ Assistant';
+  const body = payload.body || 'Ada update baru dari Proactive Engine.';
+  const url = payload.url || (payload.data && payload.data.url) || '/';
+  const actions = Array.isArray(payload.actions) ? payload.actions : [];
+  const tag = payload.tag || 'nz-proactive';
+
+  const options = {
+    body,
+    icon: '/icons/192.png',
+    badge: '/icons/192.png',
+    vibrate: [120, 40, 120],
+    data: { url },
+    actions,
+    tag,
+    renotify: true,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification && event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          const samePath = new URL(client.url).pathname === new URL(targetUrl, self.location.origin).pathname;
+          if (samePath) return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+      return undefined;
     })
   );
 });

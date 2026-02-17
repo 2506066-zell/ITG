@@ -437,11 +437,16 @@
 }
 
 .cc-reveal {
+  opacity: 1;
+  transform: none;
+}
+
+body.cc-motion-ready .cc-reveal {
   opacity: 0;
   transform: translateY(18px);
 }
 
-.cc-reveal.is-visible {
+body.cc-motion-ready .cc-reveal.is-visible {
   animation: cc-rise 550ms cubic-bezier(0.2, 0.85, 0.3, 1) forwards;
   animation-delay: var(--reveal-delay, 0ms);
 }
