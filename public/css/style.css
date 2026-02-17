@@ -467,6 +467,7 @@ a:hover {
 
 /* INPUTS - Tech Panel Style */
 .input,
+.form-input,
 select,
 textarea {
   width: 100%;
@@ -480,11 +481,49 @@ textarea {
   backdrop-filter: blur(8px);
 }
 
-.input:focus {
+.input:focus,
+.form-input:focus,
+select:focus,
+textarea:focus {
   outline: none;
   border-color: hsl(var(--nebula-core));
   background: hsla(230, 35%, 7%, 0.8);
   box-shadow: 0 0 15px hsla(var(--nebula-core), 0.2);
+}
+
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--text-300));
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.sheet-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.sheet-actions .btn {
+  flex: 1;
+  min-height: 46px;
 }
 
 /* UTILS */
@@ -1339,11 +1378,13 @@ textarea {
   background: hsl(var(--space-900)) !important;
   border-top: 1px solid hsla(var(--nebula-core), 0.3) !important;
   border-radius: 24px 24px 0 0 !important;
-  padding: 24px 20px !important;
+  padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px)) !important;
   transform: translateY(100%);
   transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1) !important;
-  max-height: 90vh;
+  max-height: min(90vh, calc(100dvh - 12px));
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   position: relative;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
 }
@@ -1801,5 +1842,21 @@ textarea {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .sheet-actions {
+    position: sticky;
+    bottom: 0;
+    padding-top: 10px;
+    padding-bottom: calc(2px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, hsla(var(--space-900), 0), hsla(var(--space-900), 0.92) 36%);
+    backdrop-filter: blur(4px);
   }
 }

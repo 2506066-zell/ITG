@@ -42,6 +42,10 @@ function setupEvents() {
     if (e.target === sheetOverlay) closeSheet();
   });
 
+  document.querySelectorAll('[data-close-sheet]').forEach((btn) => {
+    btn.addEventListener('click', closeSheet);
+  });
+
   // Mood Selection
   document.querySelectorAll('.mood-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -243,9 +247,15 @@ function openSheet() {
     document.querySelectorAll('#eval-tags .tag-chip').forEach(c => c.classList.remove('active'));
     document.getElementById('mood-input').value = '';
   }
+
+  setTimeout(() => {
+    const first = sheet.querySelector('form[style*="block"] .form-input, form[style*="block"] input, form[style*="block"] textarea, form[style*="block"] select');
+    first?.focus();
+  }, 120);
 }
 
 function closeSheet() {
   sheetOverlay.classList.remove('active');
   sheet.classList.remove('active');
+  document.activeElement?.blur();
 }

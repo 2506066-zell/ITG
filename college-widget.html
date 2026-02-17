@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050816">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NZ Widget">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/192.png">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/v2-system.css">
+  <link rel="stylesheet" href="css/college-widget.css">
+  <script src="js/perf-mode.js"></script>
+  <title>NZ - Widget Tugas Kuliah</title>
+</head>
+<body class="v2-page college-widget-page">
+  <div class="galaxy-bg">
+    <div class="stars-container">
+      <div class="stars-sm"></div>
+      <div class="stars-lg"></div>
+    </div>
+  </div>
+
+  <main class="widget-shell">
+    <header class="widget-head">
+      <div>
+        <p class="widget-kicker">NZ Mini Widget</p>
+        <h1>Tugas Kuliah</h1>
+        <p class="widget-sub" id="widget-updated-at">Updated --</p>
+      </div>
+      <button type="button" class="btn small secondary" id="widget-refresh-btn">Refresh</button>
+    </header>
+
+    <section class="widget-stats">
+      <article class="widget-stat">
+        <span>Pending</span>
+        <strong id="widget-pending-count">0</strong>
+      </article>
+      <article class="widget-stat warning">
+        <span>Due &lt; 24h</span>
+        <strong id="widget-urgent-count">0</strong>
+      </article>
+      <article class="widget-stat critical">
+        <span>Overdue</span>
+        <strong id="widget-overdue-count">0</strong>
+      </article>
+    </section>
+
+    <section class="widget-list-wrap">
+      <div class="widget-list" id="widget-assignment-list"></div>
+    </section>
+
+    <section class="widget-actions">
+      <a href="/college-assignments" class="btn small">Open Full</a>
+      <a href="/chat?ai=assignment%20pending%20saya%20apa" class="btn small secondary">Ask Assistant</a>
+    </section>
+
+    <p class="widget-hint">Pin halaman ini ke homescreen untuk akses cepat tugas kuliah.</p>
+  </main>
+
+  <script type="module" src="js/college-widget.js"></script>
+</body>
+</html>

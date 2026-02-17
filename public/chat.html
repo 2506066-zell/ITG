@@ -35,8 +35,12 @@
   <div class="container chat-container">
     <div class="card chat-card">
       <div id="chat-messages" class="chat-messages"></div>
+      <section class="assistant-command-bar" id="assistant-command-bar" aria-label="Smart command suggestions">
+        <div class="assistant-command-title">Smart Suggestions</div>
+        <div id="assistant-suggestions" class="assistant-suggestions"></div>
+      </section>
       <form id="chat-form" class="chat-input">
-        <input id="chat-input" class="input" placeholder="Type message or /ai ..." autocomplete="off">
+        <input id="chat-input" class="input" placeholder="Type message, /ai ..., atau tap suggestion" autocomplete="off">
         <button class="btn" type="submit"><i class="fa-solid fa-paper-plane"></i></button>
         <button class="btn danger" type="button" id="chat-clear"><i class="fa-solid fa-trash"></i></button>
       </form>

@@ -48,6 +48,19 @@
     </div>
   </nav>
 
+  <section class="cc-reminder-banner" id="task-reminder-banner" hidden>
+    <div class="cc-reminder-copy">
+      <p class="cc-reminder-kicker">Task Reminder</p>
+      <p class="cc-reminder-title" id="task-reminder-title">Ada tugas penting yang perlu kamu cek.</p>
+      <p class="cc-reminder-sub" id="task-reminder-sub">Buka sekarang agar tidak telat.</p>
+    </div>
+    <div class="cc-reminder-actions">
+      <button type="button" class="btn small" id="task-reminder-open"><i class="fa-solid fa-bolt"></i> Buka</button>
+      <button type="button" class="btn small secondary" id="task-reminder-snooze">Snooze 1h</button>
+      <button type="button" class="btn small secondary" id="task-reminder-dismiss">Tutup</button>
+    </div>
+  </section>
+
   <main class="container cc-shell">
     <section class="card cc-card cc-card-alpha cc-reveal" id="today-mission-card">
       <div class="cc-hero-top">
@@ -141,6 +154,14 @@
       <div class="cc-list" id="urgent-radar-list"></div>
     </section>
 
+    <section class="card cc-card cc-card-beta cc-reveal" id="study-mission-card">
+      <div class="cc-section-head">
+        <h2><i class="fa-solid fa-brain"></i> Study Mission</h2>
+        <a class="btn small secondary" href="/schedule"><i class="fa-solid fa-up-right-from-square"></i> Open</a>
+      </div>
+      <div class="cc-list" id="study-mission-list"></div>
+    </section>
+
     <section class="card cc-card cc-card-gamma cc-reveal" id="assistant-feed-card">
       <div class="cc-section-head">
         <h2><i class="fa-solid fa-wand-magic-sparkles"></i> Assistant Feed</h2>
@@ -157,6 +178,7 @@
       <div class="cc-module-grid">
         <a href="/daily-tasks" class="cc-module"><i class="fa-solid fa-list-check"></i><span>Tasks</span></a>
         <a href="/college-assignments" class="cc-module"><i class="fa-solid fa-graduation-cap"></i><span>College</span></a>
+        <a href="/college-widget" class="cc-module"><i class="fa-solid fa-table-cells"></i><span>Widget</span></a>
         <a href="/schedule" class="cc-module"><i class="fa-regular fa-calendar-days"></i><span>Schedule</span></a>
         <a href="/monthly-todos" class="cc-module"><i class="fa-solid fa-calendar-check"></i><span>Habits</span></a>
         <a href="/goals" class="cc-module"><i class="fa-solid fa-bullseye"></i><span>Goals</span></a>

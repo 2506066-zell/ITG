@@ -28,7 +28,10 @@ const routes = new Set([
   'evaluations',
   'notifications',
   'proactive',
-  'reports'
+  'reports',
+  'study_plan',
+  'study_progress',
+  'unified_memory'
 ]);
 
 export default async function handler(req, res) {

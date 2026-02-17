@@ -220,9 +220,15 @@
     }
 
     /* Sheet Overrides */
-    .sheet {
+    .goals-create-sheet {
       background: hsl(var(--space-900)) !important;
       border-top: 1px solid hsla(var(--nebula-core), 0.3);
+      max-height: min(88vh, calc(100dvh - 10px));
+    }
+
+    .goals-create-sheet form {
+      display: flex;
+      flex-direction: column;
     }
   </style>
   <link rel="stylesheet" href="css/v3-polish.css">
@@ -261,8 +267,8 @@
     <div class="fab" id="fab-add"><i class="fa-solid fa-plus"></i></div>
 
     <!-- SHEET -->
-    <div class="sheet-overlay" id="sheet-overlay">
-      <div class="sheet" id="sheet">
+    <div class="sheet-overlay bottom-sheet-overlay" id="sheet-overlay">
+      <div class="sheet bottom-sheet goals-create-sheet" id="sheet">
         <div style="width:40px;height:4px;background:rgba(255,255,255,0.2);border-radius:2px;margin:0 auto 20px"></div>
         <h3 style="margin:0 0 20px;font-size:18px" id="sheet-title">New Goal</h3>
 
@@ -285,7 +291,10 @@
             <label class="form-label">Target Date</label>
             <input type="date" name="deadline" class="form-input">
           </div>
-          <button type="submit" class="btn" style="width:100%">Create Goal</button>
+          <div class="sheet-actions">
+            <button type="button" class="btn secondary btn-block" data-close-sheet>Cancel</button>
+            <button type="submit" class="btn btn-block">Create Goal</button>
+          </div>
         </form>
 
         <!-- EVAL FORM -->
@@ -319,7 +328,10 @@
             <textarea name="note" class="form-input" rows="3" placeholder="Highlights of the day..."
               required></textarea>
           </div>
-          <button type="submit" class="btn" style="width:100%">Save Log</button>
+          <div class="sheet-actions">
+            <button type="button" class="btn secondary btn-block" data-close-sheet>Cancel</button>
+            <button type="submit" class="btn btn-block">Save Log</button>
+          </div>
         </form>
 
       </div>

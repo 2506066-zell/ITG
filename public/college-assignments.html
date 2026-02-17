@@ -127,6 +127,29 @@
     .fab:hover {
       transform: scale(1.1) rotate(90deg);
     }
+
+    .lms-quick {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .lms-url {
+      font-size: 11px;
+      opacity: 0.72;
+      word-break: break-all;
+    }
+
+    .lms-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .lms-actions .btn {
+      flex: 1;
+      min-width: 140px;
+    }
   </style>
   <link rel="stylesheet" href="css/v3-polish.css">
 </head>
@@ -149,6 +172,21 @@
 
 <div class="container">
   <div class="grid">
+    <div class="card">
+      <div class="section-title"><i class="fa-solid fa-graduation-cap"></i> LMS Kampus</div>
+      <div class="lms-quick">
+        <div id="lms-url-label" class="lms-url">-</div>
+        <div class="lms-actions">
+          <button id="open-lms-btn" class="btn">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Open LMS
+          </button>
+          <a href="/settings" class="btn secondary">
+            <i class="fa-solid fa-sliders"></i> Ubah URL
+          </a>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="section-title"><i class="fa-solid fa-chart-line"></i> Laporan Penyelesaian</div>
       <div class="list">

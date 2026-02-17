@@ -4,6 +4,8 @@ import { get, post, put, del } from './api.js';
 let timerInterval;
 let moodOverlay, moodSheet, moodForm, moodGrid, moodValueEl, moodNoteEl;
 let addOverlay, addForm;
+const LMS_URL_KEY = 'college_lms_url';
+const DEFAULT_LMS_URL = 'https://elearning.itg.ac.id/student_area/tugas/index';
 
 function formatCountdown(ms) {
   if (ms <= 0) return 'Overdue';
@@ -197,6 +199,7 @@ function init() {
   addOverlay = document.getElementById('add-overlay');
   document.getElementById('open-add').addEventListener('click', openAddModal);
   document.getElementById('add-cancel').addEventListener('click', closeAddModal);
+  setupLmsQuickAccess();
 
   load();
   moodOverlay = document.getElementById('mood-overlay');
@@ -206,6 +209,32 @@ function init() {
   moodValueEl = document.getElementById('mood-value');
   moodNoteEl = document.getElementById('mood-note');
   setupMoodEvents();
+}
+
+function getLmsUrl() {
+  const stored = (localStorage.getItem(LMS_URL_KEY) || '').trim();
+  if (stored) return stored;
+  localStorage.setItem(LMS_URL_KEY, DEFAULT_LMS_URL);
+  return DEFAULT_LMS_URL;
+}
+
+function setupLmsQuickAccess() {
+  const openBtn = document.getElementById('open-lms-btn');
+  const label = document.getElementById('lms-url-label');
+  if (!openBtn || !label) return;
+
+  const url = getLmsUrl();
+  label.textContent = url;
+
+  openBtn.addEventListener('click', () => {
+    try {
+      const parsed = new URL(url);
+      if (!/^https?:$/.test(parsed.protocol)) throw new Error('invalid protocol');
+      window.open(parsed.toString(), '_blank', 'noopener,noreferrer');
+    } catch {
+      showToast('URL LMS tidak valid. Ubah di Settings.', 'error');
+    }
+  });
 }
 
 function openAddModal() {

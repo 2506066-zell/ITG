@@ -1,5 +1,8 @@
 import { initProtected, setTheme, logout, showToast } from './main.js';
 
+const LMS_URL_KEY = 'college_lms_url';
+const DEFAULT_LMS_URL = 'https://elearning.itg.ac.id/student_area/tugas/index';
+
 function init() {
   initProtected();
   const current = localStorage.getItem('theme') || 'dark';
@@ -31,6 +34,7 @@ function init() {
   });
   document.addEventListener('performance-mode-changed', (e) => syncPerfUI(e.detail));
   document.querySelector('#logout-btn').addEventListener('click', logout);
+  initLmsSettings();
 
   // Install Button Logic
   const installBtn = document.getElementById('install-btn');
@@ -75,6 +79,46 @@ function init() {
       window.deferredPrompt = null;
       installBtn.innerHTML = originalText;
       installBtn.disabled = false;
+    }
+  });
+}
+
+function normalizeLmsUrl(raw) {
+  const value = (raw || '').trim();
+  if (!value) return '';
+  const parsed = new URL(value);
+  if (!/^https?:$/.test(parsed.protocol)) {
+    throw new Error('invalid protocol');
+  }
+  return parsed.toString();
+}
+
+function initLmsSettings() {
+  const input = document.getElementById('lms-url-input');
+  const saveBtn = document.getElementById('save-lms-btn');
+  const openBtn = document.getElementById('open-lms-settings-btn');
+  if (!input || !saveBtn || !openBtn) return;
+
+  const current = localStorage.getItem(LMS_URL_KEY) || DEFAULT_LMS_URL;
+  input.value = current;
+
+  saveBtn.addEventListener('click', () => {
+    try {
+      const normalized = normalizeLmsUrl(input.value || DEFAULT_LMS_URL);
+      localStorage.setItem(LMS_URL_KEY, normalized);
+      input.value = normalized;
+      showToast('URL LMS tersimpan', 'success');
+    } catch {
+      showToast('URL LMS tidak valid', 'error');
+    }
+  });
+
+  openBtn.addEventListener('click', () => {
+    try {
+      const url = normalizeLmsUrl(input.value || DEFAULT_LMS_URL);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch {
+      showToast('URL LMS tidak valid', 'error');
     }
   });
 }

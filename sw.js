@@ -1,9 +1,11 @@
-const CACHE_NAME = 'cf-v19';
+const CACHE_NAME = 'cf-v22';
 const ASSETS = [
   '/',
   '/login',
+  '/college-widget',
   'login.html',
   'index.html',
+  'college-widget.html',
   'memories.html',
   'anniversary.html',
   'daily-tasks.html',
@@ -19,6 +21,7 @@ const ASSETS = [
   'css/v3-polish.css',
   'css/home-v2.css',
   'css/chat.css',
+  'css/college-widget.css',
   'css/daily-tasks.css',
   'css/orbit.css',
   'css/login-futuristik.css',
@@ -39,6 +42,7 @@ const ASSETS = [
   'js/monthly_todos.js',
   'js/schedule.js',
   'js/chat.js',
+  'js/college-widget.js',
   'js/settings.js',
   'js/report.js',
   'icons/192.png',

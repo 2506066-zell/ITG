@@ -100,6 +100,131 @@
     justify-content: center;
 }
 
+.assistant-command-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px 8px;
+    border-top: 1px solid var(--glass-border);
+    background: linear-gradient(180deg, hsla(var(--space-950), 0.08), hsla(var(--space-950), 0.22));
+}
+
+.assistant-command-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: hsl(var(--text-500));
+}
+
+.assistant-suggestions {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.assistant-suggestions::-webkit-scrollbar {
+    display: none;
+}
+
+.assistant-suggestion-chip {
+    border: 1px solid hsla(var(--nebula-core), 0.28);
+    background: hsla(var(--space-950), 0.4);
+    color: hsl(var(--text-200));
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.assistant-suggestion-chip:hover,
+.assistant-suggestion-chip:focus-visible {
+    border-color: hsla(var(--nebula-core), 0.6);
+    background: hsla(var(--nebula-core), 0.16);
+    transform: translateY(-1px);
+}
+
+.assistant-suggestion-chip.is-confirm {
+    border-color: hsla(40, 88%, 64%, 0.52);
+    background: hsla(40, 88%, 64%, 0.13);
+    color: hsl(40, 88%, 64%);
+}
+
+.assistant-suggestion-chip.is-urgent {
+    border-color: hsla(348, 74%, 63%, 0.5);
+    background: hsla(348, 74%, 63%, 0.14);
+    color: hsl(348, 74%, 63%);
+}
+
+.assistant-evidence-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    justify-content: center;
+}
+
+.assistant-evidence-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    border: 1px solid hsla(0, 0%, 100%, 0.22);
+    background: hsla(0, 0%, 100%, 0.08);
+    color: hsl(var(--text-200));
+    white-space: nowrap;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.assistant-evidence-chip:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+
+.assistant-evidence-chip:not(:disabled):hover,
+.assistant-evidence-chip:not(:disabled):focus-visible {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+}
+
+.assistant-evidence-chip.tone-critical {
+    border-color: hsla(348, 74%, 63%, 0.55);
+    background: hsla(348, 74%, 63%, 0.18);
+    color: hsl(348, 74%, 63%);
+}
+
+.assistant-evidence-chip.tone-warning {
+    border-color: hsla(40, 88%, 64%, 0.58);
+    background: hsla(40, 88%, 64%, 0.18);
+    color: hsl(40, 88%, 64%);
+}
+
+.assistant-evidence-chip.tone-success {
+    border-color: hsla(150, 60%, 54%, 0.5);
+    background: hsla(150, 60%, 54%, 0.16);
+    color: hsl(150, 60%, 54%);
+}
+
+.assistant-evidence-chip.tone-info {
+    border-color: hsla(var(--nebula-core), 0.5);
+    background: hsla(var(--nebula-core), 0.16);
+    color: hsl(var(--nebula-core));
+}
+
 /* Chat Input Refinement */
 .chat-input {
     display: flex;
@@ -150,4 +275,20 @@
     padding: 0 !important;
     overflow: hidden;
     background: var(--glass-bg);
+}
+
+@media (max-width: 640px) {
+    .assistant-command-bar {
+        padding: 10px 12px 6px;
+    }
+
+    .assistant-suggestion-chip {
+        padding: 6px 10px;
+        font-size: 11px;
+    }
+
+    .assistant-evidence-chip {
+        font-size: 9.5px;
+        padding: 3px 8px;
+    }
 }

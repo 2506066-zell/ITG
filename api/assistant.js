@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { pool, readBody, verifyToken, logActivity, withErrorHandling, sendJson } from './_lib.js';
 import { sendNotificationToUser } from './notifications.js';
+import { buildUnifiedMemorySnapshot, normalizeMemoryDate, clampStudyTargetMinutes } from './_unified_memory.js';
+import { generateStudyPlanSnapshot, setStudyPreference } from './study_plan.js';
 
 const ASSISTANT_ISSUER = 'cute-futura-assistant';
 const ASSISTANT_AUDIENCE = 'cute-futura-assistant';
@@ -155,11 +157,267 @@ function parseScheduleArgs(message = '') {
   return { day_id: now.getDay() === 0 ? 7 : now.getDay() };
 }
 
+function toDateText(dateObj) {
+  if (!dateObj || Number.isNaN(dateObj.getTime())) return null;
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function parseStudyWindow(message = '') {
+  const lower = message.toLowerCase();
+  if (/(pagi|morning)/i.test(lower)) return 'morning';
+  if (/(siang|afternoon)/i.test(lower)) return 'afternoon';
+  if (/(malam|evening|night)/i.test(lower)) return 'evening';
+  return 'any';
+}
+
+function parseStudyTarget(message = '') {
+  const hit = message.match(/(\d{2,3})\s*(?:menit|minutes|min)\b/i);
+  if (!hit) return null;
+  return clampStudyTargetMinutes(hit[1], 150);
+}
+
+function parseStudyPlanArgs(message = '') {
+  const date = parseDateFromText(message);
+  const target = parseStudyTarget(message);
+  const windowName = parseStudyWindow(message);
+  const args = {};
+  if (date) args.date = toDateText(date);
+  if (target !== null) args.target_minutes = target;
+  if (windowName !== 'any') args.preferred_window = windowName;
+  return args;
+}
+
+function parseStudyPreferencePayload(message = '') {
+  const target = parseStudyTarget(message);
+  const windowName = parseStudyWindow(message);
+  const date = parseDateFromText(message);
+  const args = {};
+  if (target !== null) args.target_minutes = target;
+  if (windowName !== 'any') args.preferred_window = windowName;
+  if (date) args.preview_date = toDateText(date);
+  return args;
+}
+
+function parseUnifiedMemoryArgs(message = '') {
+  const date = parseDateFromText(message);
+  return { date: date ? toDateText(date) : null };
+}
+
+function isLikelyCreateShorthandSegment(segment = '', kind = 'task') {
+  const text = segment.trim();
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const headPattern = kind === 'assignment' ? /^(assignment|tugas kuliah)\b/i : /^(task|tugas)\b/i;
+  if (!headPattern.test(text)) return false;
+
+  if (/\b(pending|list|daftar|apa|belum|show|lihat|cek|status|report|ringkasan|summary)\b/i.test(lower)) {
+    return false;
+  }
+
+  const tokens = text.split(/\s+/).filter(Boolean);
+  if (tokens.length < 3) return false;
+  return true;
+}
+
+function parseBundleActionSegment(segment = '') {
+  const msg = segment.trim();
+  if (!msg) return null;
+  const lower = msg.toLowerCase();
+
+  const explicitCreateTask = /\b(?:buat|tambah|add|create)\s+(?:task|tugas)\b/i.test(lower);
+  if (explicitCreateTask || isLikelyCreateShorthandSegment(msg, 'task')) {
+    const normalized = explicitCreateTask ? msg : `buat task ${msg}`;
+    return {
+      tool: 'create_task',
+      mode: 'write',
+      args: parseCreateTaskPayload(normalized),
+      summary: 'Buat task baru',
+    };
+  }
+
+  const explicitCreateAssignment = /\b(?:buat|tambah|add|create)\s+(?:assignment|tugas kuliah)\b/i.test(lower);
+  if (explicitCreateAssignment || isLikelyCreateShorthandSegment(msg, 'assignment')) {
+    const normalized = explicitCreateAssignment ? msg : `buat assignment ${msg}`;
+    return {
+      tool: 'create_assignment',
+      mode: 'write',
+      args: parseCreateAssignmentPayload(normalized),
+      summary: 'Buat assignment baru',
+    };
+  }
+
+  if (/(ubah|update|ganti|reschedule|geser)/i.test(lower) && /(deadline|due)/i.test(lower) && /(task|tugas)/i.test(lower)) {
+    const args = parseTaskDeadlineUpdatePayload(msg);
+    return {
+      tool: 'update_task_deadline',
+      mode: 'write',
+      args,
+      summary: args.id ? `Ubah deadline task #${args.id}` : 'Ubah deadline task',
+    };
+  }
+
+  const completeTaskMatch = lower.match(/(?:selesaikan|complete|done|tandai)\s+(?:task|tugas)(?:\s*id)?\s*#?(\d+)/i);
+  if (completeTaskMatch) {
+    return {
+      tool: 'complete_task',
+      mode: 'write',
+      args: { id: Number(completeTaskMatch[1]) },
+      summary: `Tandai task #${completeTaskMatch[1]} selesai`,
+    };
+  }
+
+  const completeAssignmentMatch = lower.match(/(?:selesaikan|complete|done|tandai)\s+(?:assignment|tugas kuliah)(?:\s*id)?\s*#?(\d+)/i);
+  if (completeAssignmentMatch) {
+    return {
+      tool: 'complete_assignment',
+      mode: 'write',
+      args: { id: Number(completeAssignmentMatch[1]) },
+      summary: `Tandai assignment #${completeAssignmentMatch[1]} selesai`,
+    };
+  }
+
+  if (/(geser|pindah|reschedule)/i.test(lower) && /(sesi belajar|study session|jadwal belajar|study plan)/i.test(lower)) {
+    return {
+      tool: 'replan_study_window',
+      mode: 'write',
+      args: parseStudyPreferencePayload(msg),
+      summary: 'Re-plan sesi belajar',
+    };
+  }
+
+  if (/(target belajar|study target|mode belajar|window belajar|atur belajar|set belajar)/i.test(lower)) {
+    return {
+      tool: 'set_study_preferences',
+      mode: 'write',
+      args: parseStudyPreferencePayload(msg),
+      summary: 'Atur preferensi study plan',
+    };
+  }
+
+  return null;
+}
+
+function normalizeChatMessageForBundle(message = '') {
+  return message
+    .replace(/\r?\n+/g, ' ')
+    .replace(/[!?]+/g, '.')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stripLeadingChatFiller(text = '') {
+  return text
+    .replace(/^(?:(?:tolong|please|pls|bisa|boleh|dong|ya|yuk|aku|saya|mau|ingin|minta)\s+)+/i, '')
+    .trim();
+}
+
+function splitBundleByConnectors(text = '') {
+  return text
+    .split(/\s*(?:;|\.|(?:,\s*)?(?:dan|and|lalu|kemudian|terus|habis itu|setelah itu))\s*/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function extractWriteActionChunks(text = '') {
+  const starts = [];
+  const actionStartRegex = /(?:^|\s)(?:(?:buat|tambah|add|create)\s+(?:task|tugas|assignment|tugas kuliah)\b|(?:selesaikan|complete|done|tandai)\s+(?:task|tugas|assignment|tugas kuliah)\b|(?:ubah|update|ganti|reschedule|geser)\s+(?:deadline|due)\b|(?:geser|pindah|reschedule)\s+(?:sesi belajar|study session|jadwal belajar|study plan)\b|(?:atur|set|ubah|ganti)\s+(?:target belajar|study target|mode belajar|window belajar|atur belajar|set belajar)\b|(?:task|tugas|assignment|tugas kuliah)\b)/gi;
+
+  let match;
+  while ((match = actionStartRegex.exec(text)) !== null) {
+    let idx = match.index;
+    while (idx < text.length && /\s/.test(text[idx])) idx += 1;
+    if (idx >= text.length) continue;
+    if (!starts.includes(idx)) starts.push(idx);
+  }
+
+  if (starts.length < 2) return [];
+  starts.sort((a, b) => a - b);
+
+  const chunks = [];
+  for (let i = 0; i < starts.length; i += 1) {
+    const start = starts[i];
+    const end = i + 1 < starts.length ? starts[i + 1] : text.length;
+    const chunk = text.slice(start, end).trim();
+    if (chunk) chunks.push(chunk);
+  }
+  return chunks;
+}
+
+function parseActionBundle(message = '') {
+  const normalized = stripLeadingChatFiller(normalizeChatMessageForBundle(message));
+  if (!normalized) return null;
+
+  const parseSegments = (segments = []) => {
+    const actions = [];
+    for (const segment of segments) {
+      const action = parseBundleActionSegment(segment);
+      if (action) actions.push(action);
+    }
+    return actions;
+  };
+
+  const explicitSegments = splitBundleByConnectors(normalized);
+  if (explicitSegments.length >= 2) {
+    const actions = parseSegments(explicitSegments);
+    if (actions.length >= 2) return actions;
+  }
+
+  const smartChunks = extractWriteActionChunks(normalized);
+  if (smartChunks.length >= 2) {
+    const actions = parseSegments(smartChunks);
+    if (actions.length >= 2) return actions;
+  }
+
+  return null;
+}
+
+function normalizeIntentArgsForUser(toolName, args, user) {
+  const out = { ...(args || {}) };
+  if ((toolName === 'create_task' || toolName === 'create_assignment') && !out.assigned_to) {
+    out.assigned_to = user;
+  }
+  return out;
+}
+
+function normalizeIntentForUser(intent, user) {
+  if (!intent) return intent;
+  if (intent.tool === 'execute_action_bundle') {
+    const actions = Array.isArray(intent.args?.actions)
+      ? intent.args.actions.map((action) => ({
+          ...action,
+          args: normalizeIntentArgsForUser(action.tool, action.args || {}, user),
+        }))
+      : [];
+    return {
+      ...intent,
+      args: { ...(intent.args || {}), actions },
+    };
+  }
+  return {
+    ...intent,
+    args: normalizeIntentArgsForUser(intent.tool, intent.args || {}, user),
+  };
+}
+
 function detectIntent(message = '') {
   const msg = message.trim();
   const lower = msg.toLowerCase();
 
   if (!msg) return null;
+
+  const bundleActions = parseActionBundle(msg);
+  if (bundleActions) {
+    const summaries = bundleActions.map((x) => x.summary).join(', ');
+    return {
+      tool: 'execute_action_bundle',
+      mode: 'write',
+      args: { actions: bundleActions },
+      summary: `Jalankan ${bundleActions.length} aksi: ${summaries}`,
+    };
+  }
 
   const createTaskMatch = lower.match(/^(buat|tambah|add|create)\s+(task|tugas)\b/);
   if (createTaskMatch) {
@@ -208,6 +466,42 @@ function detectIntent(message = '') {
       mode: 'write',
       args: { id: Number(completeAssignmentMatch[1]) },
       summary: `Tandai assignment #${completeAssignmentMatch[1]} selesai`,
+    };
+  }
+
+  if (/(memory|konteks|context|snapshot|status lengkap|ringkasan lengkap)/i.test(lower)) {
+    return {
+      tool: 'get_unified_memory',
+      mode: 'read',
+      args: parseUnifiedMemoryArgs(msg),
+      summary: 'Ambil unified memory snapshot',
+    };
+  }
+
+  if (/(study plan|jadwal belajar|rencana belajar|plan belajar)/i.test(lower)) {
+    return {
+      tool: 'get_study_plan',
+      mode: 'read',
+      args: parseStudyPlanArgs(msg),
+      summary: 'Lihat smart study plan',
+    };
+  }
+
+  if (/(geser|pindah|reschedule)/i.test(lower) && /(sesi belajar|study session|jadwal belajar|study plan)/i.test(lower)) {
+    return {
+      tool: 'replan_study_window',
+      mode: 'write',
+      args: parseStudyPreferencePayload(msg),
+      summary: 'Re-plan sesi belajar',
+    };
+  }
+
+  if (/(target belajar|study target|mode belajar|window belajar|atur belajar|set belajar)/i.test(lower)) {
+    return {
+      tool: 'set_study_preferences',
+      mode: 'write',
+      args: parseStudyPreferencePayload(msg),
+      summary: 'Atur preferensi study plan',
     };
   }
 
@@ -301,6 +595,225 @@ function formatDeadline(iso) {
   });
 }
 
+function hoursUntil(deadline) {
+  if (!deadline) return null;
+  const t = new Date(deadline).getTime();
+  if (!Number.isFinite(t)) return null;
+  return (t - Date.now()) / 3600000;
+}
+
+function analyzeDeadlineRisk(items = []) {
+  let overdue = 0;
+  let due12h = 0;
+  let due24h = 0;
+  let withDeadline = 0;
+  let nearest = null;
+  for (const item of items) {
+    const h = hoursUntil(item?.deadline);
+    if (h === null) continue;
+    withDeadline += 1;
+    if (!nearest || h < nearest.hoursLeft) {
+      nearest = {
+        id: item.id || null,
+        title: item.title || '',
+        hoursLeft: h,
+      };
+    }
+    if (h <= 0) overdue += 1;
+    else if (h <= 12) due12h += 1;
+    else if (h <= 24) due24h += 1;
+  }
+  return { overdue, due12h, due24h, withDeadline, nearest };
+}
+
+function buildExplainability(toolName, data, user) {
+  const nowIso = new Date().toISOString();
+  const empty = {
+    why: [],
+    impact: '',
+    risk: '',
+    recommended_action: '',
+    confidence: '',
+    generated_at: nowIso,
+  };
+
+  if (toolName === 'get_tasks') {
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const risk = analyzeDeadlineRisk(items);
+    const highPriority = items.filter((x) => (x?.priority || '').toLowerCase() === 'high').length;
+    const why = [];
+    why.push(`Terdeteksi ${items.length} task aktif untuk ${user}.`);
+    if (highPriority > 0) why.push(`${highPriority} task berprioritas tinggi perlu diprioritaskan.`);
+    if (risk.overdue + risk.due12h + risk.due24h > 0) {
+      why.push(`${risk.overdue + risk.due12h + risk.due24h} task memiliki tekanan deadline <=24 jam.`);
+    }
+
+    const nearestLabel = risk.nearest
+      ? `Fokus ke task #${risk.nearest.id || '?'} "${risk.nearest.title}" dalam sprint 25 menit.`
+      : 'Ambil 1 task prioritas tertinggi lalu kerjakan fokus 25 menit.';
+
+    return {
+      why: why.slice(0, 3),
+      impact: items.length ? 'Eksekusi task teratas sekarang menurunkan beban kritis hari ini.' : 'Tidak ada task aktif, waktu bisa dialihkan ke goals jangka panjang.',
+      risk: risk.overdue > 0
+        ? `${risk.overdue} task sudah overdue.`
+        : (risk.due12h + risk.due24h > 0 ? `${risk.due12h + risk.due24h} task berisiko telat jika ditunda.` : 'Risiko task rendah untuk saat ini.'),
+      recommended_action: nearestLabel,
+      confidence: risk.withDeadline > 0 ? 'high' : 'medium',
+      generated_at: nowIso,
+    };
+  }
+
+  if (toolName === 'get_assignments') {
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const risk = analyzeDeadlineRisk(items);
+    const why = [`Ada ${items.length} assignment pending yang terdeteksi.`];
+    if (risk.overdue + risk.due12h + risk.due24h > 0) {
+      why.push(`${risk.overdue + risk.due12h + risk.due24h} assignment berada pada zona deadline dekat.`);
+    }
+
+    return {
+      why: why.slice(0, 3),
+      impact: items.length ? 'Menyicil assignment terdekat menjaga konsistensi nilai dan mengurangi stress akhir.' : 'Tidak ada assignment pending, kapasitas belajar lebih longgar.',
+      risk: risk.overdue > 0
+        ? `${risk.overdue} assignment sudah overdue.`
+        : (risk.due12h + risk.due24h > 0 ? `${risk.due12h + risk.due24h} assignment berisiko terlambat <=24 jam.` : 'Risiko assignment rendah.'),
+      recommended_action: risk.nearest
+        ? `Kerjakan assignment #${risk.nearest.id || '?'} minimal 30 menit sekarang.`
+        : 'Review rubrik assignment berikutnya untuk antisipasi beban.',
+      confidence: risk.withDeadline > 0 ? 'high' : 'medium',
+      generated_at: nowIso,
+    };
+  }
+
+  if (toolName === 'get_daily_brief') {
+    const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+    const assignments = Array.isArray(data?.assignments) ? data.assignments : [];
+    const schedule = Array.isArray(data?.schedule) ? data.schedule : [];
+    const merged = [...tasks, ...assignments];
+    const risk = analyzeDeadlineRisk(merged);
+    const total = merged.length;
+
+    return {
+      why: [
+        `Ringkasan menghitung ${tasks.length} task, ${assignments.length} assignment, dan ${schedule.length} jadwal hari ini.`,
+        risk.overdue + risk.due12h + risk.due24h > 0
+          ? `Ada ${risk.overdue + risk.due12h + risk.due24h} item dengan tekanan deadline.`
+          : 'Tidak ada tekanan deadline kritis pada snapshot ini.',
+      ],
+      impact: total > 0
+        ? 'Prioritas yang jelas membantu kamu eksekusi tanpa context-switch berlebih.'
+        : 'Beban harian ringan, ini slot bagus untuk deep work atau recovery.',
+      risk: risk.overdue > 0
+        ? `${risk.overdue} item sudah overdue.`
+        : (risk.due12h > 0 ? `${risk.due12h} item due <=12 jam.` : (risk.due24h > 0 ? `${risk.due24h} item due <=24 jam.` : 'Risiko deadline saat ini rendah.')),
+      recommended_action: risk.nearest
+        ? `Mulai dari "${risk.nearest.title}" lalu lanjut item kedua setelah 25 menit.`
+        : 'Pertahankan ritme dengan 1 sesi fokus sebelum malam.',
+      confidence: 'high',
+      generated_at: nowIso,
+    };
+  }
+
+  if (toolName === 'get_unified_memory') {
+    const counters = data?.counters || {};
+    const mood = data?.mood || {};
+    const streak = data?.streak || {};
+    const reco = data?.assistant_memory?.focus_recommendation || '';
+    const urgent = Number(counters.urgent_items || 0);
+    const moodAvg = Number(mood.avg_7d || 0);
+    const streakCurrent = Number(streak.current_days || 0);
+
+    return {
+      why: [
+        `Snapshot menggabungkan signal task=${Number(counters.tasks_pending || 0)}, assignment=${Number(counters.assignments_pending || 0)}, urgent=${urgent}.`,
+        `Mood 7 hari=${moodAvg.toFixed(2)} dan streak belajar=${streakCurrent} hari dipakai sebagai konteks keputusan.`,
+      ],
+      impact: reco || 'Konteks terpadu membantu assistant memberi prioritas yang lebih presisi.',
+      risk: urgent > 0
+        ? `${urgent} item ada di zona waspada/kritis.`
+        : (moodAvg > 0 && moodAvg < 2.8 ? 'Energi terdeteksi rendah, risiko drop fokus meningkat.' : 'Risiko operasional harian relatif stabil.'),
+      recommended_action: reco || 'Jalankan 1 sprint fokus sekarang untuk menjaga momentum.',
+      confidence: 'high',
+      generated_at: nowIso,
+    };
+  }
+
+  if (toolName === 'get_study_plan') {
+    const summary = data?.summary || {};
+    const sessions = Array.isArray(data?.sessions) ? data.sessions : [];
+    const criticalSessions = Number(summary.critical_sessions || 0);
+    const planned = Number(summary.planned_minutes || 0);
+    const target = Number(data?.target_minutes || summary.target_minutes || planned || 0);
+    const load = String(summary.focus_load || 'light');
+    const first = sessions[0] || null;
+
+    return {
+      why: [
+        `Plan membagi target ${target || planned} menit menjadi ${Number(summary.sessions || sessions.length || 0)} sesi.`,
+        `Load terdeteksi ${load} dengan ${criticalSessions} sesi kritis.`,
+      ],
+      impact: sessions.length
+        ? 'Penjadwalan sesi mengurangi keputusan spontan dan meningkatkan konsistensi belajar.'
+        : 'Belum ada sesi, jadi kamu bisa menyesuaikan window belajar sebelum hari berjalan.',
+      risk: criticalSessions > 0
+        ? `${criticalSessions} sesi kritis menandakan tekanan deadline tinggi.`
+        : (sessions.length === 0 ? 'Tanpa sesi terjadwal, risiko target belajar meleset meningkat.' : 'Risiko belajar terkontrol selama sesi dijalankan.'),
+      recommended_action: first
+        ? `Jalankan sesi pertama ${first.start}-${first.end}: ${first.title}.`
+        : 'Coba re-plan ke window pagi atau naikkan target menit.',
+      confidence: sessions.length > 0 ? 'high' : 'medium',
+      generated_at: nowIso,
+    };
+  }
+
+  if (toolName === 'get_report') {
+    const taskDone = Number(data?.completed_tasks || 0);
+    const assignmentDone = Number(data?.completed_assignments || 0);
+    const avgMood = Number(data?.avg_mood || 0);
+    const period = String(data?.type || 'weekly');
+    return {
+      why: [`Report ${period} dihitung dari aktivitas selesai dan evaluasi mood pada periode terpilih.`],
+      impact: 'Trend ini membantu kalibrasi target minggu berikutnya agar tetap realistis.',
+      risk: avgMood > 0 && avgMood < 2.8
+        ? 'Mood rata-rata rendah, risiko burnout meningkat bila beban tidak dikendalikan.'
+        : (taskDone + assignmentDone === 0 ? 'Output periode ini rendah, risiko penumpukan backlog meningkat.' : 'Risiko performa moderat.'),
+      recommended_action: 'Tentukan 1 prioritas utama untuk periode berikutnya dan lock di awal hari.',
+      confidence: 'high',
+      generated_at: nowIso,
+    };
+  }
+
+  if (toolName === 'get_schedule') {
+    const items = Array.isArray(data?.items) ? data.items : [];
+    return {
+      why: [`Ada ${items.length} kelas pada ${dayLabel(data?.day_id)}.`],
+      impact: 'Mengetahui jadwal lebih awal membantu memblok waktu fokus di sela kelas.',
+      risk: items.length >= 5 ? 'Hari cukup padat, risiko kelelahan dan task spillover meningkat.' : 'Risiko jadwal relatif terkendali.',
+      recommended_action: items.length ? 'Sisakan minimal 1 slot 25 menit untuk task prioritas.' : 'Gunakan hari kosong untuk progress assignment.',
+      confidence: 'high',
+      generated_at: nowIso,
+    };
+  }
+
+  if (toolName === 'get_goals') {
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const avg = items.length
+      ? items.reduce((acc, g) => acc + Number(g?.progress || 0), 0) / items.length
+      : 0;
+    return {
+      why: [`Ada ${items.length} goal aktif dengan rata-rata progress ${avg.toFixed(1)}%.`],
+      impact: 'Monitoring goal menjaga kerja harian tetap align ke outcome jangka panjang.',
+      risk: items.length > 0 && avg < 35 ? 'Progress goal masih rendah, risiko tidak tercapai tepat waktu meningkat.' : 'Risiko goal moderat.',
+      recommended_action: 'Pilih 1 goal utama dan kaitkan dengan task hari ini.',
+      confidence: items.length ? 'medium' : 'low',
+      generated_at: nowIso,
+    };
+  }
+
+  return empty;
+}
+
 function summarizeRead(toolName, data, user) {
   if (toolName === 'get_tasks') {
     if (!data.items.length) return `Tidak ada task aktif untuk ${user}.`;
@@ -336,6 +849,22 @@ function summarizeRead(toolName, data, user) {
     lines.push(`Assignment pending: ${data.assignments.length}`);
     lines.push(`Jadwal hari ini: ${data.schedule.length}`);
     return lines.join(' | ');
+  }
+
+  if (toolName === 'get_unified_memory') {
+    const c = data.counters || {};
+    const streak = data.streak || {};
+    const mood = data.mood || {};
+    const reco = data.assistant_memory?.focus_recommendation || '';
+    return `Memory ${data.date}: task ${c.tasks_pending || 0}, assignment ${c.assignments_pending || 0}, urgent ${c.urgent_items || 0}, study ${c.study_done_minutes || 0} menit, streak ${streak.current_days || 0} hari, mood ${mood.avg_7d || 0}. ${reco}`;
+  }
+
+  if (toolName === 'get_study_plan') {
+    const s = data.summary || {};
+    const first = Array.isArray(data.sessions) && data.sessions.length
+      ? `${data.sessions[0].start}-${data.sessions[0].end} ${data.sessions[0].title}`
+      : 'no session';
+    return `Study plan ${data.date}: ${s.sessions || 0} sesi, ${s.planned_minutes || 0} menit, load ${s.focus_load || 'light'}, first ${first}`;
   }
 
   if (toolName === 'help') {
@@ -514,6 +1043,121 @@ async function toolGetDailyBrief(ctx, args = {}) {
     assignments: assignments.rows,
     schedule: schedule.rows,
   };
+}
+
+function tomorrowDateText() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return toDateText(d);
+}
+
+async function toolGetUnifiedMemory(ctx, args = {}) {
+  const date = normalizeMemoryDate(args.date || '');
+  return buildUnifiedMemorySnapshot(ctx.user, { date });
+}
+
+async function toolGetStudyPlan(ctx, args = {}) {
+  const dateText = args.date ? normalizeMemoryDate(args.date) : '';
+  const targetMinutes = args.target_minutes !== undefined
+    ? clampStudyTargetMinutes(args.target_minutes, 150)
+    : undefined;
+  const preferredWindow = args.preferred_window || undefined;
+  return generateStudyPlanSnapshot(ctx.user, {
+    dateText,
+    targetMinutes,
+    preferredWindow,
+  });
+}
+
+async function toolSetStudyPreferences(ctx, args = {}) {
+  const patch = {};
+  if (args.target_minutes !== undefined) {
+    patch.target_minutes = clampStudyTargetMinutes(args.target_minutes, 150);
+  }
+  if (args.preferred_window !== undefined) {
+    patch.preferred_window = args.preferred_window;
+  }
+  if (Object.keys(patch).length === 0) {
+    const err = new Error('Sertakan target menit atau mode window belajar.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const preference = await setStudyPreference(ctx.user, patch);
+  const previewDate = args.preview_date ? normalizeMemoryDate(args.preview_date) : '';
+  let preview = null;
+  if (previewDate) {
+    preview = await generateStudyPlanSnapshot(ctx.user, {
+      dateText: previewDate,
+      targetMinutes: preference.target_minutes,
+      preferredWindow: preference.preferred_window,
+    });
+  }
+  return { preference, preview };
+}
+
+async function toolReplanStudyWindow(ctx, args = {}) {
+  const patch = {};
+  if (args.preferred_window !== undefined) patch.preferred_window = args.preferred_window;
+  if (args.target_minutes !== undefined) patch.target_minutes = clampStudyTargetMinutes(args.target_minutes, 150);
+  if (Object.keys(patch).length === 0) patch.preferred_window = 'morning';
+
+  const preference = await setStudyPreference(ctx.user, patch);
+  const targetDate = args.preview_date ? normalizeMemoryDate(args.preview_date) : tomorrowDateText();
+  const preview = await generateStudyPlanSnapshot(ctx.user, {
+    dateText: targetDate,
+    targetMinutes: preference.target_minutes,
+    preferredWindow: preference.preferred_window,
+  });
+  return { preference, preview, replan_date: targetDate };
+}
+
+async function toolExecuteActionBundle(ctx, args = {}) {
+  const actions = Array.isArray(args.actions) ? args.actions : [];
+  if (actions.length < 2) {
+    const err = new Error('Bundle aksi minimal berisi 2 aksi write.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const executed = [];
+  for (let i = 0; i < actions.length; i += 1) {
+    const action = actions[i] || {};
+    const toolName = String(action.tool || '').trim();
+    if (!toolName || toolName === 'execute_action_bundle') {
+      const err = new Error(`Tool bundle tidak valid pada aksi ${i + 1}.`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const def = TOOLS[toolName];
+    if (!def || def.mode !== 'write') {
+      const err = new Error(`Aksi ${i + 1} menggunakan tool write yang tidak valid: ${toolName}`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const actionArgs = normalizeIntentArgsForUser(toolName, action.args || {}, ctx.user);
+    try {
+      const result = await def.run({ user: ctx.user }, actionArgs);
+      executed.push({
+        index: i + 1,
+        tool: toolName,
+        summary: action.summary || toolName,
+        args: actionArgs,
+        result,
+      });
+    } catch (err) {
+      const doneLabel = executed.length
+        ? `Aksi sebelumnya sudah sukses: ${executed.map((x) => `${x.index}.${x.tool}`).join(', ')}.`
+        : 'Belum ada aksi yang dieksekusi.';
+      const wrapped = new Error(`Bundle berhenti di aksi ${i + 1} (${toolName}): ${err.message}. ${doneLabel}`);
+      wrapped.statusCode = errorStatus(err);
+      throw wrapped;
+    }
+  }
+
+  return { actions: executed, count: executed.length };
 }
 
 async function toolCreateTask(ctx, args = {}) {
@@ -824,6 +1468,12 @@ const TOOLS = {
         'Selesaikan task: "selesaikan task 12"',
         'Buat assignment: "buat assignment makalah AI deadline 2026-03-01 20:00"',
         'Selesaikan assignment: "selesaikan assignment 5"',
+        'Unified memory: "tampilkan memory hari ini"',
+        'Study plan: "jadwal belajar besok pagi"',
+        'Set target belajar: "atur target belajar 180 menit"',
+        'Re-plan study: "geser sesi belajar malam ini ke besok pagi"',
+        'Bundle multi-aksi: "buat task ... dan buat assignment ... dan atur target belajar 180 menit"',
+        'Bundle chat-like: "tolong buat task revisi bab 2 besok 19:00 buat assignment AI minggu depan lalu atur target belajar 200 menit"',
       ],
     }),
   },
@@ -833,11 +1483,16 @@ const TOOLS = {
   get_assignments: { mode: 'read', run: toolGetAssignments },
   get_report: { mode: 'read', run: toolGetReport },
   get_daily_brief: { mode: 'read', run: toolGetDailyBrief },
+  get_unified_memory: { mode: 'read', run: toolGetUnifiedMemory },
+  get_study_plan: { mode: 'read', run: toolGetStudyPlan },
+  execute_action_bundle: { mode: 'write', run: toolExecuteActionBundle },
   create_task: { mode: 'write', run: toolCreateTask },
   create_assignment: { mode: 'write', run: toolCreateAssignment },
   update_task_deadline: { mode: 'write', run: toolUpdateTaskDeadline },
   complete_task: { mode: 'write', run: toolCompleteTask },
   complete_assignment: { mode: 'write', run: toolCompleteAssignment },
+  set_study_preferences: { mode: 'write', run: toolSetStudyPreferences },
+  replan_study_window: { mode: 'write', run: toolReplanStudyWindow },
 };
 
 function buildConfirmationToken(user, tool, args, summary, originalMessage) {
@@ -893,6 +1548,15 @@ function createError(message, statusCode = 400) {
 }
 
 function writeExecutionReply(toolName, result) {
+  if (toolName === 'execute_action_bundle') {
+    const actions = Array.isArray(result.actions) ? result.actions : [];
+    if (!actions.length) return 'Bundle selesai tanpa aksi.';
+    const details = actions
+      .map((entry) => `${entry.index}. ${writeExecutionReply(entry.tool, entry.result)}`)
+      .join(' | ');
+    return `Bundle ${actions.length} aksi berhasil: ${details}`;
+  }
+
   if (toolName === 'create_task') {
     const item = result.item;
     return `Task berhasil dibuat: #${item.id} ${item.title} (priority ${item.priority}, deadline ${formatDeadline(item.deadline)})`;
@@ -920,6 +1584,22 @@ function writeExecutionReply(toolName, result) {
       return `Assignment #${result.item.id} sudah completed.`;
     }
     return `Assignment #${result.item.id} ditandai selesai.`;
+  }
+
+  if (toolName === 'set_study_preferences') {
+    const p = result.preference || {};
+    const base = `Preferensi belajar disimpan: target ${p.target_minutes || 150} menit, window ${p.preferred_window || 'any'}.`;
+    if (result.preview && result.preview.summary) {
+      return `${base} Preview ${result.preview.date}: ${result.preview.summary.sessions || 0} sesi, ${result.preview.summary.planned_minutes || 0} menit.`;
+    }
+    return base;
+  }
+
+  if (toolName === 'replan_study_window') {
+    const p = result.preference || {};
+    const preview = result.preview || {};
+    const summary = preview.summary || {};
+    return `Study plan direplan ke window ${p.preferred_window || 'any'} untuk ${result.replan_date || preview.date || 'hari target'}. Hasil: ${summary.sessions || 0} sesi, ${summary.planned_minutes || 0} menit.`;
   }
 
   return 'Aksi write berhasil dijalankan.';
@@ -1014,11 +1694,21 @@ async function processAssistantRequest(user, body = {}) {
     }
 
     const result = await def.run({ user }, payload.args || {});
+    const toolCalls = payload.tool === 'execute_action_bundle'
+      ? (Array.isArray(payload.args?.actions)
+          ? payload.args.actions.map((action) => ({
+              name: action.tool,
+              mode: 'write',
+              args: action.args || {},
+            }))
+          : [])
+      : [{ name: payload.tool, mode: 'write', args: payload.args || {} }];
+
     return {
       ok: true,
       mode: 'write_executed',
       tool: payload.tool,
-      tool_calls: [{ name: payload.tool, mode: 'write', args: payload.args || {} }],
+      tool_calls: toolCalls,
       reply: writeExecutionReply(payload.tool, result),
       data: result,
     };
@@ -1034,14 +1724,7 @@ async function processAssistantRequest(user, body = {}) {
     throw createError('Unable to detect intent', 400);
   }
 
-  const intentWithUser = {
-    ...intent,
-    args: {
-      ...(intent.args || {}),
-      ...(intent.tool === 'create_task' ? { assigned_to: intent.args.assigned_to || user } : {}),
-      ...(intent.tool === 'create_assignment' ? { assigned_to: intent.args.assigned_to || user } : {}),
-    },
-  };
+  const intentWithUser = normalizeIntentForUser(intent, user);
 
   const def = TOOLS[intentWithUser.tool];
   if (!def) {
@@ -1049,6 +1732,16 @@ async function processAssistantRequest(user, body = {}) {
   }
 
   if (def.mode === 'write') {
+    const previewToolCalls = intentWithUser.tool === 'execute_action_bundle'
+      ? (Array.isArray(intentWithUser.args?.actions)
+          ? intentWithUser.args.actions.map((action) => ({
+              name: action.tool,
+              mode: 'write',
+              args: action.args || {},
+            }))
+          : [])
+      : [{ name: intentWithUser.tool, mode: 'write', args: intentWithUser.args }];
+
     const confirmationToken = buildConfirmationToken(
       user,
       intentWithUser.tool,
@@ -1061,7 +1754,7 @@ async function processAssistantRequest(user, body = {}) {
       ok: true,
       mode: 'confirmation_required',
       tool: intentWithUser.tool,
-      tool_calls: [{ name: intentWithUser.tool, mode: 'write', args: intentWithUser.args }],
+      tool_calls: previewToolCalls,
       reply: `Konfirmasi diperlukan untuk aksi write: ${intentWithUser.summary}. Kirim ulang dengan /confirm.`,
       confirmation_token: confirmationToken,
       preview: {
@@ -1072,6 +1765,7 @@ async function processAssistantRequest(user, body = {}) {
   }
 
   const result = await def.run({ user }, intentWithUser.args || {});
+  const explainability = buildExplainability(intentWithUser.tool, result, user);
   return {
     ok: true,
     mode: 'read',
@@ -1079,6 +1773,7 @@ async function processAssistantRequest(user, body = {}) {
     tool_calls: [{ name: intentWithUser.tool, mode: 'read', args: intentWithUser.args || {} }],
     reply: summarizeRead(intentWithUser.tool, result, user),
     data: result,
+    explainability,
   };
 }
 

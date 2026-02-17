@@ -37,6 +37,7 @@
     { "source": "/anniversary", "destination": "/anniversary.html" },
     { "source": "/daily-tasks", "destination": "/daily-tasks.html" },
     { "source": "/college-assignments", "destination": "/college-assignments.html" },
+    { "source": "/college-widget", "destination": "/college-widget.html" },
     { "source": "/goals", "destination": "/goals.html" },
     { "source": "/schedule", "destination": "/schedule.html" },
     { "source": "/chat", "destination": "/chat.html" },

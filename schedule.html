@@ -20,7 +20,181 @@
       gap: 10px;
     }
 
+    .study-plan-card {
+      margin-bottom: 16px;
+      padding: 16px !important;
+    }
+
+    .study-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .study-chip {
+      font-size: 11px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid hsla(var(--nebula-core), 0.35);
+      background: hsla(var(--nebula-core), 0.12);
+      color: hsl(var(--nebula-core));
+      white-space: nowrap;
+    }
+
+    .study-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .study-controls .input {
+      max-width: 190px;
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+
+    .study-summary {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-bottom: 10px;
+    }
+
+    .study-analytics {
+      font-size: 12px;
+      opacity: 0.78;
+      margin-bottom: 10px;
+      color: hsl(var(--text-300));
+    }
+
+    .study-plan-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .study-session {
+      background: hsla(0, 0%, 100%, 0.04);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .study-session.done {
+      opacity: 0.72;
+      border-color: hsla(142, 72%, 45%, 0.45);
+      background: linear-gradient(95deg, hsla(142, 72%, 45%, 0.1), hsla(0, 0%, 100%, 0.02));
+    }
+
+    .study-session.done .study-title {
+      text-decoration: line-through;
+    }
+
+    .study-session.critical {
+      border-color: hsla(4, 88%, 58%, 0.45);
+      background: linear-gradient(95deg, hsla(4, 88%, 58%, 0.12), hsla(0, 0%, 100%, 0.02));
+    }
+
+    .study-session.warning {
+      border-color: hsla(var(--star-gold), 0.4);
+    }
+
+    .study-time {
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: hsl(var(--nebula-core));
+      min-width: 94px;
+    }
+
+    .study-main {
+      min-width: 0;
+    }
+
+    .study-title {
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1.3;
+      margin-bottom: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .study-sub {
+      font-size: 11px;
+      opacity: 0.72;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .study-method {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border: 1px solid hsla(0, 0%, 100%, 0.16);
+      border-radius: 999px;
+      padding: 5px 8px;
+      white-space: nowrap;
+    }
+
+    .study-action-btn {
+      border: 1px solid hsla(0, 0%, 100%, 0.22);
+      background: hsla(0, 0%, 100%, 0.04);
+      color: hsl(var(--text-100));
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+    }
+
+    .study-action-btn.done {
+      border-color: hsla(142, 72%, 45%, 0.55);
+      color: hsl(142, 72%, 58%);
+      background: hsla(142, 72%, 45%, 0.12);
+    }
+
+    .study-empty {
+      font-size: 12px;
+      opacity: 0.74;
+      border: 1px dashed var(--glass-border);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+
     @media (max-width: 600px) {
+      .study-controls {
+        flex-direction: column;
+      }
+
+      .study-controls .input,
+      .study-controls .btn {
+        width: 100%;
+        max-width: none;
+      }
+
+      .study-session {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .study-method {
+        justify-self: start;
+      }
+
+      .study-time {
+        min-width: 0;
+      }
+
       .schedule-grid {
         grid-template-columns: repeat(3, 1fr);
         gap: 8px;
@@ -169,6 +343,30 @@
     </div>
   </nav>
   <div class="container">
+    <section class="card study-plan-card">
+      <div class="study-head">
+        <div class="section-title" style="margin:0">
+          <i class="fa-solid fa-brain"></i> Smart Study Scheduler
+        </div>
+        <span class="study-chip" id="study-load-chip">Loading...</span>
+      </div>
+      <div class="study-controls">
+        <select class="input" id="study-target-select">
+          <option value="90">Target 90 menit</option>
+          <option value="120">Target 120 menit</option>
+          <option value="150" selected>Target 150 menit</option>
+          <option value="180">Target 180 menit</option>
+          <option value="240">Target 240 menit</option>
+        </select>
+        <button class="btn secondary" id="study-refresh-btn" type="button">
+          <i class="fa-solid fa-rotate-right"></i> Regenerate
+        </button>
+      </div>
+      <div class="study-summary" id="study-plan-summary">Menganalisis deadline tugas dan slot kosong kelas...</div>
+      <div class="study-analytics" id="study-plan-analytics">Mempersiapkan analytics streak...</div>
+      <div class="study-plan-list" id="study-plan-list"></div>
+    </section>
+
     <div class="view-toggle-container">
       <button class="toggle-btn active" data-view="grid"><i class="fa-solid fa-table-cells"></i> Grid View</button>
       <button class="toggle-btn" data-view="orbit"><i class="fa-solid fa-circle-nodes"></i> Orbital View</button>

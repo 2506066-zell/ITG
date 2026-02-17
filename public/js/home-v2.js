@@ -8,6 +8,10 @@ const ASSISTANT_REFRESH_MS = 5 * 60 * 1000;
 const POLL_DEFAULT_MS = 60 * 1000;
 const POLL_SLOW_MS = 2 * 60 * 1000;
 const POLL_HIDDEN_MS = 5 * 60 * 1000;
+const STUDY_TARGET_KEY = 'study_plan_target_min_v1';
+const TASK_REMINDER_SNOOZE_KEY = 'cc_task_reminder_snooze_until_v1';
+const TASK_REMINDER_DISMISS_DAY_KEY = 'cc_task_reminder_dismiss_day_v1';
+const TASK_REMINDER_SNOOZE_MS = 60 * 60 * 1000;
 
 const state = {
   tasks: [],
@@ -15,12 +19,14 @@ const state = {
   weekly: null,
   assistant: null,
   proactive: null,
+  studyPlan: null,
   lastUpdated: null,
 };
 
 let dashboardLoadInFlight = null;
 let dashboardPollTimer = null;
 let lastAssistantFetchAt = 0;
+let currentReminderItem = null;
 
 function escapeHtml(value = '') {
   return String(value)
@@ -29,6 +35,233 @@ function escapeHtml(value = '') {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function normalizeExplainability(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return typeof raw === 'object' ? raw : null;
+}
+
+function explainabilityText(explainability) {
+  const ex = normalizeExplainability(explainability);
+  if (!ex) return '';
+  const chunks = [];
+  const whyItems = Array.isArray(ex.why) ? ex.why.filter(Boolean) : [];
+  if (whyItems.length) chunks.push(`Kenapa: ${whyItems[0]}`);
+  if (ex.impact) chunks.push(`Dampak: ${ex.impact}`);
+  if (ex.risk) chunks.push(`Risiko: ${ex.risk}`);
+  return chunks.join('\n');
+}
+
+function proactiveExplainability(item) {
+  const eventType = String(item?.event_type || '');
+  const payload = normalizeExplainability(item?.payload) || {};
+
+  if (eventType === 'urgent_radar') {
+    const minutesLeft = Number(payload.minutes_left);
+    return {
+      why: [Number.isFinite(minutesLeft) ? `Deadline tinggal ${minutesLeft} menit.` : 'Deadline item sangat dekat.'],
+      impact: 'Eksekusi sekarang mencegah keterlambatan langsung pada item kritis.',
+      risk: Number.isFinite(minutesLeft) && minutesLeft <= 0
+        ? 'Item sudah overdue.'
+        : 'Jika ditunda, risiko telat meningkat signifikan.',
+    };
+  }
+
+  if (eventType === 'mood_drop_alert' || eventType === 'mood_drop_self') {
+    const recent = Number(payload.recent_avg || 0);
+    const prev = Number(payload.prev_avg || 0);
+    return {
+      why: [prev > 0 ? `Rerata mood turun dari ${prev.toFixed(1)} ke ${recent.toFixed(1)}.` : `Rerata mood terbaru ${recent.toFixed(1)}.`],
+      impact: 'Intervensi ringan sekarang bantu menjaga performa tanpa memaksa energi.',
+      risk: 'Tanpa penyesuaian, risiko burnout dan miss deadline meningkat.',
+    };
+  }
+
+  if (eventType === 'checkin_suggestion') {
+    const gap = Number(payload.gap_hours || 0);
+    return {
+      why: [gap > 0 ? `Sudah sekitar ${Math.floor(gap)} jam tanpa check-in.` : 'Ritme check-in menurun.'],
+      impact: 'Sync singkat membantu distribusi beban couple lebih seimbang.',
+      risk: 'Miskomunikasi dapat menaikkan friksi dan menurunkan produktivitas.',
+    };
+  }
+
+  if (eventType === 'morning_brief') {
+    const tasks = Array.isArray(payload.tasks) ? payload.tasks.length : 0;
+    const assignments = Array.isArray(payload.assignments) ? payload.assignments.length : 0;
+    const classes = Array.isArray(payload.classes) ? payload.classes.length : 0;
+    return {
+      why: [`Brief pagi menghitung ${tasks} task, ${assignments} assignment, ${classes} kelas.`],
+      impact: 'Rencana lebih jelas dari pagi menurunkan context switching seharian.',
+      risk: 'Tanpa prioritas awal, backlog mudah menumpuk di malam hari.',
+    };
+  }
+
+  return null;
+}
+
+function mergeFeedTextWithExplain(baseText, explainability) {
+  const explain = explainabilityText(explainability);
+  if (!explain) return baseText;
+  return `${baseText}\n${explain}`;
+}
+
+function dedupeEvidenceChips(chips = []) {
+  const seen = new Set();
+  const out = [];
+  for (const chip of chips) {
+    if (!chip || !chip.label) continue;
+    const tone = chip.tone || 'info';
+    const key = `${chip.label}::${tone}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ label: String(chip.label), tone, command: chip.command || '' });
+  }
+  return out.slice(0, 5);
+}
+
+function normalizeChipCommand(raw = '') {
+  const cmd = String(raw || '').trim();
+  if (!cmd) return '';
+  if (/^\/confirm$/i.test(cmd)) return '/confirm';
+  return cmd;
+}
+
+function openChatWithCommand(command = '') {
+  const clean = normalizeChipCommand(command);
+  if (!clean) return;
+  window.location.href = `/chat?ai=${encodeURIComponent(clean)}`;
+}
+
+function encodeChipCommand(command = '') {
+  return encodeURIComponent(String(command || ''));
+}
+
+function decodeChipCommand(raw = '') {
+  try {
+    return decodeURIComponent(String(raw || ''));
+  } catch {
+    return '';
+  }
+}
+
+function summarizeDeadlineRisk(items = []) {
+  let overdue = 0;
+  let due24h = 0;
+  for (const item of items) {
+    if (!item || !item.deadline) continue;
+    const due = new Date(item.deadline).getTime();
+    if (!Number.isFinite(due)) continue;
+    const hours = (due - Date.now()) / 3600000;
+    if (hours <= 0) overdue += 1;
+    else if (hours <= 24) due24h += 1;
+  }
+  return { overdue, due24h };
+}
+
+function confidenceTone(level = '') {
+  const normalized = String(level || '').toLowerCase();
+  if (normalized === 'high') return 'success';
+  if (normalized === 'low') return 'warning';
+  return 'info';
+}
+
+function buildAssistantEvidenceChips(payload) {
+  const chips = [];
+  const tool = String(payload?.tool || '');
+  const data = payload?.data || {};
+  const explain = normalizeExplainability(payload?.explainability) || {};
+
+  if (tool === 'get_daily_brief') {
+    const taskCount = Array.isArray(data.tasks) ? data.tasks.length : 0;
+    const assignmentCount = Array.isArray(data.assignments) ? data.assignments.length : 0;
+    chips.push({ label: `Task ${taskCount}`, tone: 'info', command: 'task pending saya apa' });
+    chips.push({ label: `Assignment ${assignmentCount}`, tone: 'info', command: 'assignment pending saya apa' });
+  }
+
+  if (tool === 'get_tasks' || tool === 'get_assignments') {
+    const items = Array.isArray(data.items) ? data.items : [];
+    const risk = summarizeDeadlineRisk(items);
+    if (risk.overdue > 0) chips.push({ label: `${risk.overdue} Overdue`, tone: 'critical', command: 'task urgent saya apa' });
+    else if (risk.due24h > 0) chips.push({ label: `${risk.due24h} Due <24h`, tone: 'warning', command: 'task urgent saya apa' });
+    if (items.length > 0) chips.push({
+      label: `${items.length} Pending`,
+      tone: 'info',
+      command: tool === 'get_tasks' ? 'task pending saya apa' : 'assignment pending saya apa',
+    });
+  }
+
+  if (tool === 'get_unified_memory') {
+    const counters = data.counters || {};
+    const streak = data.streak || {};
+    const urgent = Number(counters.urgent_items || 0);
+    const streakDays = Number(streak.current_days || 0);
+    if (urgent > 0) chips.push({ label: `Urgent ${urgent}`, tone: 'critical', command: 'task urgent saya apa' });
+    if (streakDays > 0) chips.push({ label: `Streak ${streakDays}d`, tone: 'success', command: 'jadwal belajar besok pagi' });
+  }
+
+  if (tool === 'get_study_plan') {
+    const summary = data.summary || {};
+    const criticalSessions = Number(summary.critical_sessions || 0);
+    const sessions = Number(summary.sessions || 0);
+    if (sessions > 0) chips.push({ label: `${sessions} Sessions`, tone: 'info', command: 'jadwal belajar besok pagi' });
+    if (criticalSessions > 0) chips.push({ label: `${criticalSessions} Critical`, tone: 'warning', command: 'geser sesi belajar ke besok pagi' });
+  }
+
+  if (explain.confidence) {
+    chips.push({
+      label: `Confidence ${String(explain.confidence).toUpperCase()}`,
+      tone: confidenceTone(explain.confidence),
+      command: 'tampilkan memory hari ini',
+    });
+  }
+
+  return dedupeEvidenceChips(chips);
+}
+
+function buildProactiveEvidenceChips(item) {
+  const chips = [];
+  const eventType = String(item?.event_type || '');
+  const payload = normalizeExplainability(item?.payload) || {};
+
+  if (eventType === 'urgent_radar') {
+    const minutesLeft = Number(payload.minutes_left);
+    if (Number.isFinite(minutesLeft)) {
+      chips.push({
+        label: minutesLeft <= 0 ? 'Overdue' : `Due ${minutesLeft}m`,
+        tone: minutesLeft <= 0 ? 'critical' : 'warning',
+        command: payload.source === 'assignment' ? 'assignment pending saya apa' : 'task urgent saya apa',
+      });
+    }
+  }
+
+  if (eventType === 'mood_drop_alert' || eventType === 'mood_drop_self') {
+    const recent = Number(payload.recent_avg || 0);
+    if (recent > 0) chips.push({ label: `Mood ${recent.toFixed(1)}`, tone: 'warning', command: 'kasih ide check-in singkat malam ini' });
+  }
+
+  if (eventType === 'checkin_suggestion') {
+    const gap = Number(payload.gap_hours || 0);
+    if (gap > 0) chips.push({ label: `No Check-In ${Math.floor(gap)}h`, tone: 'warning', command: 'bantu buat pesan check-in pasangan sekarang' });
+  }
+
+  if (eventType === 'morning_brief') {
+    const taskCount = Array.isArray(payload.tasks) ? payload.tasks.length : 0;
+    const assignmentCount = Array.isArray(payload.assignments) ? payload.assignments.length : 0;
+    chips.push({ label: `Task ${taskCount}`, tone: 'info', command: 'task pending saya apa' });
+    chips.push({ label: `Assignment ${assignmentCount}`, tone: 'info', command: 'assignment pending saya apa' });
+  }
+
+  return dedupeEvidenceChips(chips);
 }
 
 function safeJsonParse(text, fallback = null) {
@@ -71,6 +304,7 @@ function applyDashboardSnapshot(snapshot) {
   state.weekly = snapshot.weekly && typeof snapshot.weekly === 'object' ? snapshot.weekly : null;
   state.proactive = snapshot.proactive && typeof snapshot.proactive === 'object' ? snapshot.proactive : null;
   state.assistant = snapshot.assistant && typeof snapshot.assistant === 'object' ? snapshot.assistant : null;
+  state.studyPlan = snapshot.studyPlan && typeof snapshot.studyPlan === 'object' ? snapshot.studyPlan : null;
   state.lastUpdated = snapshot.lastUpdated ? new Date(snapshot.lastUpdated) : new Date();
   if (Number.isFinite(Number(snapshot.assistantFetchedAt))) {
     lastAssistantFetchAt = Number(snapshot.assistantFetchedAt);
@@ -85,6 +319,7 @@ function snapshotFromState() {
     weekly: state.weekly,
     proactive: state.proactive,
     assistant: state.assistant,
+    studyPlan: state.studyPlan,
     lastUpdated: state.lastUpdated ? state.lastUpdated.toISOString() : new Date().toISOString(),
     assistantFetchedAt: lastAssistantFetchAt,
   };
@@ -105,6 +340,30 @@ function nextPollIntervalMs() {
 
 function nowLabel(date = new Date()) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function todayDateText(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function reminderSuppressedNow() {
+  try {
+    const snoozeUntil = Number(localStorage.getItem(TASK_REMINDER_SNOOZE_KEY) || 0);
+    if (Number.isFinite(snoozeUntil) && snoozeUntil > Date.now()) return true;
+    const dismissedDay = localStorage.getItem(TASK_REMINDER_DISMISS_DAY_KEY) || '';
+    return dismissedDay === todayDateText();
+  } catch {
+    return false;
+  }
+}
+
+function getStudyTargetMinutes() {
+  const raw = Number(localStorage.getItem(STUDY_TARGET_KEY) || 150);
+  if (!Number.isFinite(raw)) return 150;
+  return Math.max(90, Math.min(240, raw));
 }
 
 function dayStart(d = new Date()) {
@@ -154,6 +413,36 @@ function collectMissionItems() {
   return [...pendingTasks, ...pendingAssignments]
     .map((item) => ({ ...item, ...dueMeta(item.deadline) }))
     .sort((a, b) => a.dueMs - b.dueMs);
+}
+
+function reminderCandidate(items = []) {
+  return items.find((item) => item && (item.urgency === 'critical' || item.urgency === 'warning')) || null;
+}
+
+function reminderRouteForItem(item) {
+  if (!item) return '/daily-tasks';
+  return item.type === 'Assignment' ? '/college-assignments' : '/daily-tasks';
+}
+
+function formatReminderSub(item) {
+  if (!item) return 'Buka planner untuk cek prioritas terbaru.';
+  if (item.badge === 'Overdue') return `${item.type} ini sudah lewat deadline. Tangani sekarang.`;
+  if (item.badge === '<3h' || item.badge === '<12h') return `${item.type} ini due sangat dekat (${item.badge}).`;
+  if (item.badge === 'Today') return `${item.type} ini jatuh tempo hari ini.`;
+  return `${item.type} ini perlu progres hari ini.`;
+}
+
+function syncHomeScreenBadge(urgentCount) {
+  try {
+    const n = Number(urgentCount || 0);
+    if ('setAppBadge' in navigator) {
+      if (n > 0) {
+        navigator.setAppBadge(Math.min(n, 99)).catch(() => {});
+      } else if ('clearAppBadge' in navigator) {
+        navigator.clearAppBadge().catch(() => {});
+      }
+    }
+  } catch {}
 }
 
 function animateWidth(el, targetPct) {
@@ -222,6 +511,29 @@ function renderTodayMission() {
   list.innerHTML = html;
 }
 
+function renderTaskReminderBanner() {
+  const banner = document.getElementById('task-reminder-banner');
+  const titleEl = document.getElementById('task-reminder-title');
+  const subEl = document.getElementById('task-reminder-sub');
+  if (!banner || !titleEl || !subEl) return;
+
+  const items = collectMissionItems();
+  const candidate = reminderCandidate(items);
+  const urgentCount = items.filter((i) => i.urgency === 'critical' || i.urgency === 'warning').length;
+  syncHomeScreenBadge(urgentCount);
+
+  if (!candidate || reminderSuppressedNow()) {
+    banner.hidden = true;
+    currentReminderItem = null;
+    return;
+  }
+
+  currentReminderItem = candidate;
+  titleEl.textContent = `${candidate.type}: ${candidate.title || 'Untitled'}`;
+  subEl.textContent = formatReminderSub(candidate);
+  banner.hidden = false;
+}
+
 function renderCouplePulse() {
   const zMoodEl = document.getElementById('pulse-z-mood');
   const nMoodEl = document.getElementById('pulse-n-mood');
@@ -280,6 +592,36 @@ function renderUrgentRadar() {
   `).join('');
 }
 
+function renderStudyMission() {
+  const container = document.getElementById('study-mission-list');
+  if (!container) return;
+
+  const plan = state.studyPlan;
+  const sessions = plan && Array.isArray(plan.sessions) ? plan.sessions : [];
+
+  if (!sessions.length) {
+    container.innerHTML = '<div class="cc-empty">Belum ada jadwal belajar hari ini. Buka Schedule untuk generate Smart Study Plan.</div>';
+    return;
+  }
+
+  container.innerHTML = sessions.slice(0, 4).map((session) => {
+    const urgency = (session.urgency || 'good').toLowerCase();
+    const title = escapeHtml(session.title || 'Study Block');
+    const reason = escapeHtml(session.reason || 'Progress session');
+    const badge = `${escapeHtml(session.start || '--:--')}-${escapeHtml(session.end || '--:--')}`;
+    return `
+      <article class="cc-item ${urgency}">
+        <div class="cc-item-icon"><i class="fa-solid fa-book-open-reader"></i></div>
+        <div class="cc-item-main">
+          <p class="cc-item-title">${title}</p>
+          <p class="cc-item-sub">${reason}</p>
+        </div>
+        <span class="cc-item-badge">${badge}</span>
+      </article>
+    `;
+  }).join('');
+}
+
 function buildAssistantFeedItems() {
   const feed = [];
   const missionItems = collectMissionItems();
@@ -293,28 +635,54 @@ function buildAssistantFeedItems() {
     if (eventType === 'urgent_radar') tag = 'Urgent Radar';
     if (eventType === 'mood_drop_alert') tag = 'Mood Alert';
     if (eventType === 'checkin_suggestion') tag = 'Check-In';
-    feed.push({ tag, text: item.body || item.title || 'New proactive update.', at: item.created_at || null });
+    const base = item.body || item.title || 'New proactive update.';
+    feed.push({
+      tag,
+      text: mergeFeedTextWithExplain(base, proactiveExplainability(item)),
+      chips: buildProactiveEvidenceChips(item),
+      at: item.created_at || null,
+    });
   });
 
   if (state.assistant && state.assistant.reply) {
-    feed.push({ tag: 'AI Brief', text: state.assistant.reply, at: null });
+    feed.push({
+      tag: 'AI Brief',
+      text: mergeFeedTextWithExplain(state.assistant.reply, state.assistant.explainability),
+      chips: buildAssistantEvidenceChips(state.assistant),
+      at: null,
+    });
   }
 
   if (urgentCount > 0) {
-    feed.push({ tag: 'Focus', text: `Ada ${urgentCount} item kritis. Ambil satu item paling atas lalu sprint 25 menit sekarang.`, at: null });
+    feed.push({
+      tag: 'Focus',
+      text: `Ada ${urgentCount} item kritis. Ambil satu item paling atas lalu sprint 25 menit sekarang.`,
+      chips: [{ label: `Critical ${urgentCount}`, tone: 'critical', command: 'task urgent saya apa' }],
+      at: null,
+    });
   }
 
   const usersData = state.weekly && state.weekly.users ? state.weekly.users : {};
   USERS.forEach((u) => {
     const mood = Number((usersData[u] && usersData[u].avg_mood) || 0);
     if (mood > 0 && mood < 3) {
-      feed.push({ tag: 'Support', text: `${u} lagi drop. Switch ke task ringan dan kirim check-in singkat di chat.`, at: null });
+      feed.push({
+        tag: 'Support',
+        text: `${u} lagi drop. Switch ke task ringan dan kirim check-in singkat di chat.`,
+        chips: [{ label: `${u} Mood ${mood.toFixed(1)}`, tone: 'warning', command: 'buat pesan check-in support pasangan' }],
+        at: null,
+      });
     }
   });
 
   const upcoming = missionItems.filter((i) => i.badge === 'Today' || i.badge === '<12h').length;
   if (upcoming > 2) {
-    feed.push({ tag: 'Execution', text: 'Gunakan pola 1-1-1: 1 tugas besar, 1 tugas menengah, 1 quick win.', at: null });
+    feed.push({
+      tag: 'Execution',
+      text: 'Gunakan pola 1-1-1: 1 tugas besar, 1 tugas menengah, 1 quick win.',
+      chips: [{ label: `Due Soon ${upcoming}`, tone: 'warning', command: 'task urgent saya apa' }],
+      at: null,
+    });
   }
 
   const proactiveUrgent = Number(state.proactive && state.proactive.signals ? state.proactive.signals.urgent_count : 0);
@@ -322,12 +690,18 @@ function buildAssistantFeedItems() {
     feed.push({
       tag: 'Radar',
       text: `Proactive Engine mendeteksi ${proactiveUrgent} item due <2 jam. Reprioritize sekarang.`,
+      chips: [{ label: `Urgent ${proactiveUrgent}`, tone: 'critical', command: 'task urgent saya apa' }],
       at: null,
     });
   }
 
   if (feed.length === 0) {
-    feed.push({ tag: 'Calm Mode', text: 'Sistem stabil. Pakai momentum ini buat progress goals jangka panjang.', at: null });
+    feed.push({
+      tag: 'Calm Mode',
+      text: 'Sistem stabil. Pakai momentum ini buat progress goals jangka panjang.',
+      chips: [{ label: 'Low Risk', tone: 'success', command: 'ringkasan hari ini' }],
+      at: null,
+    });
   }
 
   return feed.slice(0, 5);
@@ -345,6 +719,19 @@ function renderAssistantFeed() {
         <span>${escapeHtml(item.at ? nowLabel(new Date(item.at)) : nowLabel())}</span>
       </div>
       <p class="cc-feed-text">${escapeHtml(item.text)}</p>
+      ${Array.isArray(item.chips) && item.chips.length ? `
+        <div class="cc-feed-chips">
+          ${item.chips.slice(0, 5).map((chip) => `
+            <button
+              type="button"
+              class="cc-evidence-chip ${escapeHtml(chip.tone || 'info')}"
+              data-chip-command="${escapeHtml(encodeChipCommand(chip.command || ''))}"
+              title="${escapeHtml(chip.command ? `Jalankan: ${chip.command}` : chip.label || '')}"
+              ${chip.command ? '' : 'disabled'}
+            >${escapeHtml(chip.label || '')}</button>
+          `).join('')}
+        </div>
+      ` : ''}
     </article>
   `).join('');
 }
@@ -356,9 +743,11 @@ function renderUpdatedTimestamp() {
 }
 
 function renderAll() {
+  renderTaskReminderBanner();
   renderTodayMission();
   renderCouplePulse();
   renderUrgentRadar();
+  renderStudyMission();
   renderAssistantFeed();
   renderUpdatedTimestamp();
 }
@@ -423,15 +812,17 @@ async function loadDashboardData({ silent = false, includeAssistant = true, forc
       get('/assignments'),
       get('/weekly'),
       get('/proactive?limit=12'),
+      get(`/study_plan?target_minutes=${getStudyTargetMinutes()}`),
       shouldFetchAssistant ? post('/assistant', { message: 'ringkasan hari ini' }) : Promise.resolve(state.assistant),
     ]);
 
-    const [tasksRes, assignmentsRes, weeklyRes, proactiveRes, assistantRes] = requests;
+    const [tasksRes, assignmentsRes, weeklyRes, proactiveRes, studyPlanRes, assistantRes] = requests;
 
     state.tasks = tasksRes.status === 'fulfilled' && Array.isArray(tasksRes.value) ? tasksRes.value : [];
     state.assignments = assignmentsRes.status === 'fulfilled' && Array.isArray(assignmentsRes.value) ? assignmentsRes.value : [];
     state.weekly = weeklyRes.status === 'fulfilled' ? weeklyRes.value : null;
     state.proactive = proactiveRes.status === 'fulfilled' ? proactiveRes.value : null;
+    state.studyPlan = studyPlanRes.status === 'fulfilled' ? studyPlanRes.value : null;
 
     if (assistantRes.status === 'fulfilled' && assistantRes.value) {
       state.assistant = assistantRes.value;
@@ -456,17 +847,54 @@ async function loadDashboardData({ silent = false, includeAssistant = true, forc
 
 function initActions() {
   const refreshBtn = document.getElementById('assistant-refresh');
-  if (!refreshBtn) return;
+  const feed = document.getElementById('assistant-feed-list');
+  const reminderOpen = document.getElementById('task-reminder-open');
+  const reminderSnooze = document.getElementById('task-reminder-snooze');
+  const reminderDismiss = document.getElementById('task-reminder-dismiss');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      try {
+        await loadDashboardData({ silent: false, includeAssistant: true, forceAssistant: true });
+        showToast('Command Center diperbarui.', 'success', 2000);
+      } finally {
+        refreshBtn.disabled = false;
+      }
+    });
+  }
 
-  refreshBtn.addEventListener('click', async () => {
-    refreshBtn.disabled = true;
-    try {
-      await loadDashboardData({ silent: false, includeAssistant: true, forceAssistant: true });
-      showToast('Command Center diperbarui.', 'success', 2000);
-    } finally {
-      refreshBtn.disabled = false;
-    }
-  });
+  if (feed) {
+    feed.addEventListener('click', (event) => {
+      const chip = event.target.closest('[data-chip-command]');
+      if (!chip) return;
+      const command = normalizeChipCommand(decodeChipCommand(chip.getAttribute('data-chip-command') || ''));
+      if (!command) return;
+      openChatWithCommand(command);
+    });
+  }
+
+  if (reminderOpen) {
+    reminderOpen.addEventListener('click', () => {
+      const route = reminderRouteForItem(currentReminderItem);
+      window.location.href = route;
+    });
+  }
+
+  if (reminderSnooze) {
+    reminderSnooze.addEventListener('click', () => {
+      localStorage.setItem(TASK_REMINDER_SNOOZE_KEY, String(Date.now() + TASK_REMINDER_SNOOZE_MS));
+      renderTaskReminderBanner();
+      showToast('Pengingat ditunda 1 jam.', 'success', 1800);
+    });
+  }
+
+  if (reminderDismiss) {
+    reminderDismiss.addEventListener('click', () => {
+      localStorage.setItem(TASK_REMINDER_DISMISS_DAY_KEY, todayDateText());
+      renderTaskReminderBanner();
+      showToast('Banner disembunyikan untuk hari ini.', 'success', 1800);
+    });
+  }
 }
 
 function stopDashboardPolling() {
