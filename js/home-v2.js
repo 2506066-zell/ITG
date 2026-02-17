@@ -2,6 +2,13 @@ import { initProtected, showToast } from './main.js';
 import { get, post } from './api.js';
 
 const USERS = ['Zaldy', 'Nesya'];
+const DASH_CACHE_KEY = 'cc_dashboard_snapshot_v1';
+const DASH_CACHE_TTL_MS = 10 * 60 * 1000;
+const ASSISTANT_REFRESH_MS = 5 * 60 * 1000;
+const POLL_DEFAULT_MS = 60 * 1000;
+const POLL_SLOW_MS = 2 * 60 * 1000;
+const POLL_HIDDEN_MS = 5 * 60 * 1000;
+
 const state = {
   tasks: [],
   assignments: [],
@@ -11,6 +18,10 @@ const state = {
   lastUpdated: null,
 };
 
+let dashboardLoadInFlight = null;
+let dashboardPollTimer = null;
+let lastAssistantFetchAt = 0;
+
 function escapeHtml(value = '') {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -18,6 +29,78 @@ function escapeHtml(value = '') {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function safeJsonParse(text, fallback = null) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return fallback;
+  }
+}
+
+function readCachedDashboardSnapshot() {
+  try {
+    const raw = localStorage.getItem(DASH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = safeJsonParse(raw, null);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!parsed.saved_at || Date.now() - Number(parsed.saved_at) > DASH_CACHE_TTL_MS) return null;
+    return parsed.snapshot || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedDashboardSnapshot(snapshot) {
+  try {
+    localStorage.setItem(
+      DASH_CACHE_KEY,
+      JSON.stringify({
+        saved_at: Date.now(),
+        snapshot,
+      })
+    );
+  } catch {}
+}
+
+function applyDashboardSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return false;
+  state.tasks = Array.isArray(snapshot.tasks) ? snapshot.tasks : [];
+  state.assignments = Array.isArray(snapshot.assignments) ? snapshot.assignments : [];
+  state.weekly = snapshot.weekly && typeof snapshot.weekly === 'object' ? snapshot.weekly : null;
+  state.proactive = snapshot.proactive && typeof snapshot.proactive === 'object' ? snapshot.proactive : null;
+  state.assistant = snapshot.assistant && typeof snapshot.assistant === 'object' ? snapshot.assistant : null;
+  state.lastUpdated = snapshot.lastUpdated ? new Date(snapshot.lastUpdated) : new Date();
+  if (Number.isFinite(Number(snapshot.assistantFetchedAt))) {
+    lastAssistantFetchAt = Number(snapshot.assistantFetchedAt);
+  }
+  return true;
+}
+
+function snapshotFromState() {
+  return {
+    tasks: state.tasks,
+    assignments: state.assignments,
+    weekly: state.weekly,
+    proactive: state.proactive,
+    assistant: state.assistant,
+    lastUpdated: state.lastUpdated ? state.lastUpdated.toISOString() : new Date().toISOString(),
+    assistantFetchedAt: lastAssistantFetchAt,
+  };
+}
+
+function isConstrainedConnection() {
+  const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (!c) return false;
+  const type = String(c.effectiveType || '').toLowerCase();
+  return Boolean(c.saveData) || type === 'slow-2g' || type === '2g' || type === '3g';
+}
+
+function nextPollIntervalMs() {
+  if (document.hidden) return POLL_HIDDEN_MS;
+  if (isConstrainedConnection()) return POLL_SLOW_MS;
+  return POLL_DEFAULT_MS;
 }
 
 function nowLabel(date = new Date()) {
@@ -76,6 +159,10 @@ function collectMissionItems() {
 function animateWidth(el, targetPct) {
   if (!el) return;
   const pct = Math.max(0, Math.min(100, targetPct));
+  if (document.body.classList.contains('no-anim')) {
+    el.style.width = `${pct}%`;
+    return;
+  }
   el.style.width = '0%';
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -279,6 +366,10 @@ function renderAll() {
 function applyRevealMotion() {
   const cards = [...document.querySelectorAll('.cc-reveal')];
   if (!cards.length) return;
+  if (document.body.classList.contains('no-anim')) {
+    revealCardsImmediately();
+    return;
+  }
   document.body.classList.add('cc-motion-ready');
   cards.forEach((el, idx) => {
     el.style.setProperty('--reveal-delay', `${idx * 90}ms`);
@@ -318,28 +409,48 @@ function renderHeaderMeta() {
   }
 }
 
-async function loadDashboardData({ silent = false } = {}) {
-  const requests = await Promise.allSettled([
-    get('/tasks'),
-    get('/assignments'),
-    get('/weekly'),
-    get('/proactive?limit=12'),
-    post('/assistant', { message: 'ringkasan hari ini' }),
-  ]);
+async function loadDashboardData({ silent = false, includeAssistant = true, forceAssistant = false } = {}) {
+  if (dashboardLoadInFlight) return dashboardLoadInFlight;
 
-  const [tasksRes, assignmentsRes, weeklyRes, proactiveRes, assistantRes] = requests;
+  const now = Date.now();
+  const shouldFetchAssistant =
+    includeAssistant &&
+    (forceAssistant || !state.assistant || now - lastAssistantFetchAt >= ASSISTANT_REFRESH_MS);
 
-  state.tasks = tasksRes.status === 'fulfilled' && Array.isArray(tasksRes.value) ? tasksRes.value : [];
-  state.assignments = assignmentsRes.status === 'fulfilled' && Array.isArray(assignmentsRes.value) ? assignmentsRes.value : [];
-  state.weekly = weeklyRes.status === 'fulfilled' ? weeklyRes.value : null;
-  state.proactive = proactiveRes.status === 'fulfilled' ? proactiveRes.value : null;
-  state.assistant = assistantRes.status === 'fulfilled' ? assistantRes.value : null;
-  state.lastUpdated = new Date();
+  dashboardLoadInFlight = (async () => {
+    const requests = await Promise.allSettled([
+      get('/tasks'),
+      get('/assignments'),
+      get('/weekly'),
+      get('/proactive?limit=12'),
+      shouldFetchAssistant ? post('/assistant', { message: 'ringkasan hari ini' }) : Promise.resolve(state.assistant),
+    ]);
 
-  renderAll();
+    const [tasksRes, assignmentsRes, weeklyRes, proactiveRes, assistantRes] = requests;
 
-  if (!silent && requests.some((r) => r.status === 'rejected')) {
-    showToast('Sebagian data belum sinkron. Menampilkan data yang tersedia.', 'error', 3000);
+    state.tasks = tasksRes.status === 'fulfilled' && Array.isArray(tasksRes.value) ? tasksRes.value : [];
+    state.assignments = assignmentsRes.status === 'fulfilled' && Array.isArray(assignmentsRes.value) ? assignmentsRes.value : [];
+    state.weekly = weeklyRes.status === 'fulfilled' ? weeklyRes.value : null;
+    state.proactive = proactiveRes.status === 'fulfilled' ? proactiveRes.value : null;
+
+    if (assistantRes.status === 'fulfilled' && assistantRes.value) {
+      state.assistant = assistantRes.value;
+      if (shouldFetchAssistant) lastAssistantFetchAt = now;
+    }
+
+    state.lastUpdated = new Date();
+    renderAll();
+    writeCachedDashboardSnapshot(snapshotFromState());
+
+    if (!silent && requests.some((r) => r.status === 'rejected')) {
+      showToast('Sebagian data belum sinkron. Menampilkan data yang tersedia.', 'error', 3000);
+    }
+  })();
+
+  try {
+    await dashboardLoadInFlight;
+  } finally {
+    dashboardLoadInFlight = null;
   }
 }
 
@@ -350,12 +461,41 @@ function initActions() {
   refreshBtn.addEventListener('click', async () => {
     refreshBtn.disabled = true;
     try {
-      await loadDashboardData({ silent: false });
+      await loadDashboardData({ silent: false, includeAssistant: true, forceAssistant: true });
       showToast('Command Center diperbarui.', 'success', 2000);
     } finally {
       refreshBtn.disabled = false;
     }
   });
+}
+
+function stopDashboardPolling() {
+  if (dashboardPollTimer) {
+    clearTimeout(dashboardPollTimer);
+    dashboardPollTimer = null;
+  }
+}
+
+function scheduleDashboardPolling() {
+  stopDashboardPolling();
+  dashboardPollTimer = setTimeout(async () => {
+    try {
+      if (!document.hidden) {
+        await loadDashboardData({ silent: true, includeAssistant: false });
+      }
+    } catch {
+      revealCardsImmediately();
+    } finally {
+      scheduleDashboardPolling();
+    }
+  }, nextPollIntervalMs());
+}
+
+function handleVisibilitySync() {
+  if (!document.hidden) {
+    loadDashboardData({ silent: true, includeAssistant: false }).catch(() => {});
+  }
+  scheduleDashboardPolling();
 }
 
 async function init() {
@@ -369,18 +509,20 @@ async function init() {
   applyRevealMotion();
   initActions();
 
+  const cached = readCachedDashboardSnapshot();
+  if (applyDashboardSnapshot(cached)) {
+    renderAll();
+  }
+
   try {
-    await loadDashboardData({ silent: false });
+    await loadDashboardData({ silent: false, includeAssistant: true, forceAssistant: true });
   } catch (err) {
     console.error('Dashboard init load failed:', err);
     revealCardsImmediately();
   }
 
-  setInterval(() => {
-    loadDashboardData({ silent: true }).catch(() => {
-      revealCardsImmediately();
-    });
-  }, 60 * 1000);
+  scheduleDashboardPolling();
+  document.addEventListener('visibilitychange', handleVisibilitySync, { passive: true });
 }
 
 if (document.readyState === 'loading') {

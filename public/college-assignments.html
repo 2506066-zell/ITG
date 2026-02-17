@@ -28,6 +28,8 @@
     .assignment-item {
       margin-bottom: 8px;
       padding: 10px 14px !important;
+      position: relative;
+      overflow: hidden;
     }
 
     .badge {
@@ -45,9 +47,57 @@
       border-color: rgba(74, 222, 128, 0.2);
     }
 
-    .urgent {
-      border-left: 3px solid hsl(var(--nova-pink)) !important;
-      background: linear-gradient(90deg, hsla(var(--nova-pink), 0.05), transparent) !important;
+    .assignment-item.urgent {
+      border-left: 3px solid hsl(4, 88%, 58%) !important;
+      background: linear-gradient(96deg, hsla(4, 88%, 58%, 0.12), transparent 68%) !important;
+      box-shadow: inset 0 0 0 1px hsla(4, 88%, 58%, 0.18);
+    }
+
+    .assignment-item.urgent::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: radial-gradient(120% 140% at 0% 50%, hsla(4, 88%, 58%, 0.2), transparent 65%);
+      opacity: 0.32;
+      animation: assignment-urgent-pulse 2.8s ease-in-out infinite;
+    }
+
+    .assignment-item.urgent .countdown-timer {
+      background: hsla(4, 88%, 58%, 0.16);
+      color: hsl(4, 93%, 72%);
+      border-color: hsla(4, 88%, 58%, 0.4);
+      font-weight: 700;
+    }
+
+    .assignment-item.urgent>* {
+      position: relative;
+      z-index: 1;
+    }
+
+    @keyframes assignment-urgent-pulse {
+      0%,
+      100% {
+        opacity: 0.2;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    body.no-anim .assignment-item.urgent::after,
+    html.perf-lite .assignment-item.urgent::after {
+      animation: none !important;
+      opacity: 0.22;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .assignment-item.urgent::after {
+        animation: none !important;
+        opacity: 0.18;
+      }
     }
 
     .overdue {

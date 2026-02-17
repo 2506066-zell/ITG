@@ -28,7 +28,10 @@ const DYNAMIC_CONTAINER_SELECTOR = [
 ].join(',');
 
 function motionAllowed() {
-  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const noAnim = document.body && document.body.classList.contains('no-anim');
+  const perfLite = document.documentElement.classList.contains('perf-lite');
+  return !prefersReduced && !noAnim && !perfLite;
 }
 
 function markReveal(el, index = 0) {
@@ -123,6 +126,14 @@ function init() {
   setupDynamicReveal(observer);
   animateProgressBars();
   bindStatePulse();
+
+  const forceVisible = () => {
+    if (motionAllowed()) return;
+    document.querySelectorAll('[data-v2-reveal]').forEach((el) => el.classList.add('is-visible'));
+  };
+  forceVisible();
+  document.addEventListener('performance-mode-changed', forceVisible);
+  window.addEventListener('resize', forceVisible, { passive: true });
 }
 
 if (document.readyState === 'loading') {

@@ -20,10 +20,11 @@
     const cores = Number(navigator.hardwareConcurrency || 0);
     const saveData = Boolean(navigator.connection && navigator.connection.saveData);
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const mobileViewport = window.matchMedia('(max-width: 768px)').matches;
     const smallViewport = window.matchMedia('(max-width: 430px)').matches;
 
     const weakDevice = (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4);
-    return reducedMotion || saveData || (smallViewport && weakDevice);
+    return reducedMotion || saveData || mobileViewport || (smallViewport && weakDevice);
   }
 
   function decide(pref) {

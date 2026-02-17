@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { pool, readBody, verifyToken, logActivity, withErrorHandling, sendJson } from './_lib.js';
+import { sendNotificationToUser } from './notifications.js';
 
 const ASSISTANT_ISSUER = 'cute-futura-assistant';
 const ASSISTANT_AUDIENCE = 'cute-futura-assistant';
@@ -90,6 +91,48 @@ function parseCreateTaskPayload(message = '') {
   };
 }
 
+function parseCreateAssignmentPayload(message = '') {
+  const original = message.trim();
+  const assignedMatch = original.match(/(?:assign(?:ed)?\s*to|untuk|for)\s*(zaldy|nesya)\b/i);
+  const deadline = parseDateFromText(original);
+
+  let title = original
+    .replace(/^(?:buat|tambah|add|create)\s+(?:assignment|tugas kuliah)\s*/i, '')
+    .trim();
+  const deadlineMarker = title.search(/\b(deadline|due)\b/i);
+  if (deadlineMarker >= 0) {
+    title = title.slice(0, deadlineMarker).trim();
+  }
+  title = title
+    .replace(/(?:assign(?:ed)?\s*to|untuk|for)\s*(zaldy|nesya)\b/ig, '')
+    .replace(/\b(today|hari ini|tomorrow|besok|lusa|day after tomorrow)\b/ig, '')
+    .replace(/\b\d{4}-\d{2}-\d{2}\b/g, '')
+    .replace(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}\b/g, '')
+    .replace(/\b\d{1,2}:\d{2}\b/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  if (!title) {
+    title = original;
+  }
+
+  return {
+    title,
+    assigned_to: assignedMatch ? assignedMatch[1][0].toUpperCase() + assignedMatch[1].slice(1).toLowerCase() : null,
+    deadline: deadline ? deadline.toISOString() : null,
+  };
+}
+
+function parseTaskDeadlineUpdatePayload(message = '') {
+  const original = message.trim();
+  const taskIdMatch = original.match(/(?:task|tugas)(?:\s*id)?\s*#?(\d+)/i);
+  const deadline = parseDateFromText(original);
+  return {
+    id: taskIdMatch ? Number(taskIdMatch[1]) : null,
+    deadline: deadline ? deadline.toISOString() : null,
+  };
+}
+
 function parseScheduleArgs(message = '') {
   const map = {
     monday: 1, senin: 1,
@@ -128,6 +171,26 @@ function detectIntent(message = '') {
     };
   }
 
+  const createAssignmentMatch = lower.match(/^(buat|tambah|add|create)\s+(assignment|tugas kuliah)\b/);
+  if (createAssignmentMatch) {
+    return {
+      tool: 'create_assignment',
+      mode: 'write',
+      args: parseCreateAssignmentPayload(msg),
+      summary: 'Buat assignment baru',
+    };
+  }
+
+  if (/(ubah|update|ganti|reschedule|geser)/i.test(lower) && /(deadline|due)/i.test(lower) && /(task|tugas)/i.test(lower)) {
+    const args = parseTaskDeadlineUpdatePayload(msg);
+    return {
+      tool: 'update_task_deadline',
+      mode: 'write',
+      args,
+      summary: args.id ? `Ubah deadline task #${args.id}` : 'Ubah deadline task',
+    };
+  }
+
   const completeTaskMatch = lower.match(/(?:selesaikan|complete|done|tandai)\s+(?:task|tugas)(?:\s*id)?\s*#?(\d+)/i);
   if (completeTaskMatch) {
     return {
@@ -135,6 +198,16 @@ function detectIntent(message = '') {
       mode: 'write',
       args: { id: Number(completeTaskMatch[1]) },
       summary: `Tandai task #${completeTaskMatch[1]} selesai`,
+    };
+  }
+
+  const completeAssignmentMatch = lower.match(/(?:selesaikan|complete|done|tandai)\s+(?:assignment|tugas kuliah)(?:\s*id)?\s*#?(\d+)/i);
+  if (completeAssignmentMatch) {
+    return {
+      tool: 'complete_assignment',
+      mode: 'write',
+      args: { id: Number(completeAssignmentMatch[1]) },
+      summary: `Tandai assignment #${completeAssignmentMatch[1]} selesai`,
     };
   }
 
@@ -488,6 +561,49 @@ async function toolCreateTask(ctx, args = {}) {
   }
 }
 
+async function toolCreateAssignment(ctx, args = {}) {
+  const title = (args.title || '').toString().trim();
+  if (!title) {
+    const err = new Error('Title assignment tidak boleh kosong');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const assignedTo = ALLOWED_USERS.has(args.assigned_to) ? args.assigned_to : ctx.user;
+  const description = args.description ? String(args.description).trim() : null;
+  const deadline = args.deadline ? new Date(args.deadline) : null;
+  if (deadline && Number.isNaN(deadline.getTime())) {
+    const err = new Error('Format deadline assignment tidak valid');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inserted = await client.query(
+      `INSERT INTO assignments (title, description, deadline, assigned_to)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [title, description, deadline, assignedTo]
+    );
+    const row = inserted.rows[0];
+    await logActivity(client, 'assignment', row.id, 'CREATE', ctx.user, {
+      title: row.title,
+      description: row.description,
+      assigned_to: row.assigned_to,
+      deadline: row.deadline,
+    });
+    await client.query('COMMIT');
+    return { item: row };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 function computeTaskScore(task) {
   let score = 10;
   const prio = task.priority || 'medium';
@@ -503,6 +619,65 @@ function computeTaskScore(task) {
 
   if (task.goal_id) score += 5;
   return score;
+}
+
+async function toolUpdateTaskDeadline(ctx, args = {}) {
+  const idNum = Number(args.id);
+  if (!idNum) {
+    const err = new Error('Sertakan id task yang valid. Contoh: "ubah deadline task 12 besok 20:00"');
+    err.statusCode = 400;
+    throw err;
+  }
+  const deadline = args.deadline ? new Date(args.deadline) : null;
+  if (!deadline || Number.isNaN(deadline.getTime())) {
+    const err = new Error('Sertakan deadline yang valid. Contoh: "ubah deadline task 12 besok 20:00"');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const current = await client.query('SELECT * FROM tasks WHERE id = $1 FOR UPDATE', [idNum]);
+    if (current.rowCount === 0 || current.rows[0].is_deleted) {
+      const err = new Error('Task tidak ditemukan');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const task = current.rows[0];
+    const isOwner = task.created_by === ctx.user || !task.created_by;
+    const isAssigned = task.assigned_to === ctx.user;
+    if (!isOwner && !isAssigned) {
+      const err = new Error('Permission denied');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const prevDeadline = task.deadline || null;
+    const updated = await client.query(
+      `UPDATE tasks
+       SET deadline = $1,
+           updated_by = $2,
+           version = COALESCE(version, 0) + 1
+       WHERE id = $3
+       RETURNING *`,
+      [deadline, ctx.user, idNum]
+    );
+
+    const row = updated.rows[0];
+    await logActivity(client, 'task', idNum, 'UPDATE', ctx.user, {
+      deadline_before: prevDeadline,
+      deadline_after: row.deadline,
+    });
+    await client.query('COMMIT');
+    return { item: row, previous_deadline: prevDeadline };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function toolCompleteTask(ctx, args = {}) {
@@ -567,6 +742,73 @@ async function toolCompleteTask(ctx, args = {}) {
   }
 }
 
+async function toolCompleteAssignment(ctx, args = {}) {
+  const idNum = Number(args.id);
+  if (!idNum) {
+    const err = new Error('ID assignment tidak valid');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const current = await client.query('SELECT * FROM assignments WHERE id = $1 FOR UPDATE', [idNum]);
+    if (current.rowCount === 0) {
+      const err = new Error('Assignment tidak ditemukan');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const row = current.rows[0];
+    if (row.assigned_to && row.assigned_to !== ctx.user) {
+      const err = new Error('Permission denied');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    if (row.completed) {
+      await client.query('COMMIT');
+      return { item: row, already_completed: true };
+    }
+
+    const updated = await client.query(
+      `UPDATE assignments
+       SET completed = TRUE,
+           completed_at = NOW(),
+           completed_by = $1
+       WHERE id = $2
+       RETURNING *`,
+      [ctx.user, idNum]
+    );
+
+    const item = updated.rows[0];
+    await logActivity(client, 'assignment', idNum, 'UPDATE', ctx.user, {
+      completed: true,
+      completed_by: ctx.user,
+    });
+    await client.query('COMMIT');
+
+    // Keep partner alert behavior consistent with assignments API
+    const partner = ctx.user === 'Zaldy' ? 'Nesya' : (ctx.user === 'Nesya' ? 'Zaldy' : null);
+    if (partner) {
+      const msg = `${ctx.user} telah menyelesaikan tugas kuliah "${row.title}". Semangat ya! 🎓`;
+      sendNotificationToUser(partner, {
+        title: 'Assignment Done ✅',
+        body: msg,
+        url: '/college-assignments'
+      }).catch(console.error);
+    }
+
+    return { item, already_completed: false };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 const TOOLS = {
   help: {
     mode: 'read',
@@ -578,7 +820,10 @@ const TOOLS = {
         'Lihat assignment: "assignment pending"',
         'Lihat report: "report mingguan" atau "report bulanan"',
         'Buat task: "buat task belajar basis data deadline besok 19:00 priority high"',
+        'Ubah deadline task: "ubah deadline task 12 besok 20:00"',
         'Selesaikan task: "selesaikan task 12"',
+        'Buat assignment: "buat assignment makalah AI deadline 2026-03-01 20:00"',
+        'Selesaikan assignment: "selesaikan assignment 5"',
       ],
     }),
   },
@@ -589,7 +834,10 @@ const TOOLS = {
   get_report: { mode: 'read', run: toolGetReport },
   get_daily_brief: { mode: 'read', run: toolGetDailyBrief },
   create_task: { mode: 'write', run: toolCreateTask },
+  create_assignment: { mode: 'write', run: toolCreateAssignment },
+  update_task_deadline: { mode: 'write', run: toolUpdateTaskDeadline },
   complete_task: { mode: 'write', run: toolCompleteTask },
+  complete_assignment: { mode: 'write', run: toolCompleteAssignment },
 };
 
 function buildConfirmationToken(user, tool, args, summary, originalMessage) {
@@ -650,11 +898,28 @@ function writeExecutionReply(toolName, result) {
     return `Task berhasil dibuat: #${item.id} ${item.title} (priority ${item.priority}, deadline ${formatDeadline(item.deadline)})`;
   }
 
+  if (toolName === 'create_assignment') {
+    const item = result.item;
+    return `Assignment berhasil dibuat: #${item.id} ${item.title} (deadline ${formatDeadline(item.deadline)})`;
+  }
+
+  if (toolName === 'update_task_deadline') {
+    const item = result.item;
+    return `Deadline task #${item.id} diubah ke ${formatDeadline(item.deadline)}.`;
+  }
+
   if (toolName === 'complete_task') {
     if (result.already_completed) {
       return `Task #${result.item.id} sudah dalam status completed.`;
     }
     return `Task #${result.item.id} ditandai selesai. Score: ${result.item.score_awarded}`;
+  }
+
+  if (toolName === 'complete_assignment') {
+    if (result.already_completed) {
+      return `Assignment #${result.item.id} sudah completed.`;
+    }
+    return `Assignment #${result.item.id} ditandai selesai.`;
   }
 
   return 'Aksi write berhasil dijalankan.';
@@ -774,6 +1039,7 @@ async function processAssistantRequest(user, body = {}) {
     args: {
       ...(intent.args || {}),
       ...(intent.tool === 'create_task' ? { assigned_to: intent.args.assigned_to || user } : {}),
+      ...(intent.tool === 'create_assignment' ? { assigned_to: intent.args.assigned_to || user } : {}),
     },
   };
 
@@ -825,7 +1091,7 @@ export default withErrorHandling(async function handler(req, res) {
     const tools = Object.entries(TOOLS).map(([name, def]) => ({ name, mode: def.mode }));
     sendJson(res, 200, {
       ok: true,
-      assistant: 'phase-1.5',
+      assistant: 'phase-2.0-nla',
       confirmation_required_for_write: true,
       stream_endpoint: '/api/assistant/stream',
       tools,

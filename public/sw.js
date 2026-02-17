@@ -49,9 +49,17 @@ const ASSETS = [
 // Install: Cache Assets
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(c => c.addAll(ASSETS))
-      .then(() => self.skipWaiting())
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      await Promise.allSettled(
+        ASSETS.map(async (asset) => {
+          try {
+            await cache.add(asset);
+          } catch {}
+        })
+      );
+      await self.skipWaiting();
+    })()
   );
 });
 

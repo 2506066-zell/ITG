@@ -43,6 +43,17 @@ export default withErrorHandling(async function handler(req, res) {
             fields.push(`completed_by=$${i++}`);
             vals.push(user);
             changes.completed_by = user;
+
+            // Notify partner when assignment is completed from quick-toggle flow
+            const partner = user === 'Zaldy' ? 'Nesya' : (user === 'Nesya' ? 'Zaldy' : null);
+            if (partner) {
+              const msg = `${user} telah menyelesaikan tugas kuliah "${row.title}". Semangat ya! 🎓`;
+              sendNotificationToUser(partner, {
+                title: 'Assignment Done ✅',
+                body: msg,
+                url: '/college-assignments'
+              }).catch(console.error);
+            }
           } else if (completed === false && row.completed) {
             fields.push(`completed_at=NULL`);
             fields.push(`completed_by=NULL`);

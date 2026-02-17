@@ -51,10 +51,22 @@ export function showToast(text, type = 'info', timeout = 2500) {
     setTimeout(() => item.remove(), 220);
   }, timeout);
 }
+
+function runWhenIdle(task) {
+  if (typeof window === 'undefined') return;
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(task, { timeout: 1500 });
+    return;
+  }
+  setTimeout(task, 250);
+}
+
 export function initProtected() {
   requireAuth();
   registerSW()
-    .then(() => ensurePushSubscription())
+    .then(() => runWhenIdle(() => {
+      ensurePushSubscription().catch(() => {});
+    }))
     .catch(() => {});
   loadTheme();
   setReducedMotion();
@@ -73,6 +85,37 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
+function readPushSyncState() {
+  try {
+    const raw = localStorage.getItem('push_subscription_sync_v1');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function isPushSyncFresh(subscription) {
+  const sync = readPushSyncState();
+  if (!sync || !subscription || !subscription.endpoint) return false;
+  const syncedAt = Number(sync.syncedAt || 0);
+  const maxAge = 24 * 60 * 60 * 1000;
+  return sync.endpoint === subscription.endpoint && Date.now() - syncedAt < maxAge;
+}
+
+function markPushSynced(subscription) {
+  if (!subscription || !subscription.endpoint) return;
+  try {
+    localStorage.setItem(
+      'push_subscription_sync_v1',
+      JSON.stringify({
+        endpoint: subscription.endpoint,
+        syncedAt: Date.now(),
+      })
+    );
+  } catch {}
+}
+
 async function ensurePushSubscription() {
   if (typeof window === 'undefined') return;
   if (window.__pushSubscriptionInitDone) return;
@@ -86,17 +129,10 @@ async function ensurePushSubscription() {
   if (!token) return;
 
   try {
-    const keyRes = await fetch('/api/notifications', {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!keyRes.ok) return;
-    const keyPayload = await keyRes.json();
-    const publicKey = keyPayload && keyPayload.publicKey;
-    if (!publicKey) return;
-
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
+
+    if (sub && isPushSyncFresh(sub)) return;
 
     const promptKey = 'push_permission_prompted_once';
     if (!sub && Notification.permission === 'default' && !localStorage.getItem(promptKey)) {
@@ -107,13 +143,22 @@ async function ensurePushSubscription() {
     if (!sub && Notification.permission !== 'granted') return;
 
     if (!sub) {
+      const keyRes = await fetch('/api/notifications', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!keyRes.ok) return;
+      const keyPayload = await keyRes.json();
+      const publicKey = keyPayload && keyPayload.publicKey;
+      if (!publicKey) return;
+
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       });
     }
 
-    await fetch('/api/notifications', {
+    const saveRes = await fetch('/api/notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -121,22 +166,26 @@ async function ensurePushSubscription() {
       },
       body: JSON.stringify(sub),
     });
+    if (saveRes.ok) {
+      markPushSynced(sub);
+    }
   } catch (err) {
     console.warn('Push subscription skipped:', err);
   }
 }
 
 function setReducedMotion() {
-  const perfLite = document.documentElement.classList.contains('perf-lite');
-  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const noAnim = perfLite || prefersReduced;
-  document.body.classList.toggle('no-anim', noAnim);
-  window.addEventListener('resize', () => {
-    const perfLiteNow = document.documentElement.classList.contains('perf-lite');
-    const prefersReducedNow = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const noAnimNow = perfLiteNow || prefersReducedNow;
-    document.body.classList.toggle('no-anim', noAnimNow);
-  });
+  function applyNoAnimState() {
+    const perfLite = document.documentElement.classList.contains('perf-lite');
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const mobileViewport = window.matchMedia('(max-width: 768px)').matches;
+    const noAnim = perfLite || prefersReduced || mobileViewport;
+    document.body.classList.toggle('no-anim', noAnim);
+  }
+
+  applyNoAnimState();
+  window.addEventListener('resize', applyNoAnimState, { passive: true });
+  document.addEventListener('performance-mode-changed', applyNoAnimState);
 }
 
 function initParallax() {
