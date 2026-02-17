@@ -4,8 +4,31 @@ import { get, post, put, del } from './api.js';
 let timerInterval;
 let moodOverlay, moodSheet, moodForm, moodGrid, moodValueEl, moodNoteEl;
 let addOverlay, addForm;
+let lastArchivedAssignmentId = null;
 const LMS_URL_KEY = 'college_lms_url';
 const DEFAULT_LMS_URL = 'https://elearning.itg.ac.id/student_area/tugas/index';
+
+function normalizeLmsUrl(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return DEFAULT_LMS_URL;
+  const withProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value) ? value : `https://${value}`;
+  const parsed = new URL(withProtocol);
+  if (!/^https?:$/.test(parsed.protocol)) throw new Error('invalid protocol');
+  return parsed.toString();
+}
+
+function openLmsUrl(url) {
+  let opened = null;
+  try {
+    opened = window.open(url, '_blank', 'noopener,noreferrer');
+  } catch {}
+  if (opened && typeof opened.focus === 'function') {
+    opened.focus();
+    return;
+  }
+  // Fallback for mobile/PWA when popup is blocked.
+  window.location.assign(url);
+}
 
 function formatCountdown(ms) {
   if (ms <= 0) return 'Overdue';
@@ -69,6 +92,7 @@ async function load() {
 
   const activeList = document.querySelector('#assignments-active');
   const completedList = document.querySelector('#assignments-completed');
+  const archiveTitle = document.getElementById('assignments-archive-title');
   const el1d = document.getElementById('stat-1d');
   const el3d = document.getElementById('stat-3d');
   const el5d = document.getElementById('stat-5d');
@@ -111,6 +135,7 @@ async function load() {
   const createItem = (a, isCompleted) => {
     const el = document.createElement('div');
     el.className = 'list-item assignment-item';
+    el.dataset.assignmentId = String(a.id);
 
     el.innerHTML = `
       <div style="flex:1">
@@ -136,6 +161,26 @@ async function load() {
 
   active.forEach(item => activeList.appendChild(createItem(item, false)));
   completed.forEach(item => completedList.appendChild(createItem(item, true)));
+
+  if (!active.length) {
+    activeList.innerHTML = '<div class="empty center muted">Tidak ada tugas aktif.</div>';
+  }
+  if (!completed.length) {
+    completedList.innerHTML = '<div class="empty center muted">Arsip masih kosong. Tugas yang selesai akan muncul di sini.</div>';
+  }
+  if (archiveTitle) {
+    archiveTitle.innerHTML = `<i class="fa-solid fa-box-archive"></i> Arsip Selesai (${completed.length})`;
+  }
+
+  if (lastArchivedAssignmentId) {
+    const target = completedList.querySelector(`[data-assignment-id="${lastArchivedAssignmentId}"]`);
+    if (target) {
+      target.classList.add('archive-highlight');
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => target.classList.remove('archive-highlight'), 2400);
+    }
+    lastArchivedAssignmentId = null;
+  }
 
   if (timerInterval) clearInterval(timerInterval);
   updateTimers();
@@ -181,8 +226,10 @@ async function actions(e) {
   if (act === 'toggle') {
     await post('/assignments', { action: 'toggle', id, completed: btn.checked });
     if (btn.checked) {
+      lastArchivedAssignmentId = String(id);
       const title = btn.closest('.list-item')?.querySelector('strong')?.textContent || '';
       openMoodPrompt(`Selesai tugas kuliah: ${title}`);
+      showToast('Tugas dipindahkan ke arsip selesai', 'success');
     }
   }
   load();
@@ -213,9 +260,14 @@ function init() {
 
 function getLmsUrl() {
   const stored = (localStorage.getItem(LMS_URL_KEY) || '').trim();
-  if (stored) return stored;
-  localStorage.setItem(LMS_URL_KEY, DEFAULT_LMS_URL);
-  return DEFAULT_LMS_URL;
+  try {
+    const normalized = normalizeLmsUrl(stored || DEFAULT_LMS_URL);
+    localStorage.setItem(LMS_URL_KEY, normalized);
+    return normalized;
+  } catch {
+    localStorage.setItem(LMS_URL_KEY, DEFAULT_LMS_URL);
+    return DEFAULT_LMS_URL;
+  }
 }
 
 function setupLmsQuickAccess() {
@@ -228,9 +280,8 @@ function setupLmsQuickAccess() {
 
   openBtn.addEventListener('click', () => {
     try {
-      const parsed = new URL(url);
-      if (!/^https?:$/.test(parsed.protocol)) throw new Error('invalid protocol');
-      window.open(parsed.toString(), '_blank', 'noopener,noreferrer');
+      const target = normalizeLmsUrl(url);
+      openLmsUrl(target);
     } catch {
       showToast('URL LMS tidak valid. Ubah di Settings.', 'error');
     }

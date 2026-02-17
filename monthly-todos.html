@@ -262,7 +262,7 @@
       bottom: 0;
       background: rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(4px);
-      z-index: 100;
+      z-index: 3200;
       opacity: 0;
       pointer-events: none;
       transition: opacity .3s
@@ -281,7 +281,7 @@
       background: #15192b;
       border-top-left-radius: 20px;
       border-top-right-radius: 20px;
-      padding: 24px;
+      padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px));
       transform: translateY(100%);
       transition: transform .3s cubic-bezier(.1, .7, .1, 1);
       max-height: 85vh;

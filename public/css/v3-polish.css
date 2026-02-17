@@ -262,7 +262,7 @@ html.perf-lite #solar-system-layer {
   .v2-page .bottom-sheet {
     border-top-left-radius: 18px !important;
     border-top-right-radius: 18px !important;
-    padding: 18px 14px !important;
+    padding: 18px 14px calc(18px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .v2-page .fab,

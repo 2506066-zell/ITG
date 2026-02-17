@@ -6,12 +6,14 @@ let pendingConfirmationToken = '';
 let assistantBusy = false;
 let lastAssistantPayload = null;
 let assistantAlwaysOn = false;
+let lastDraftTemplatePattern = '';
+let lastDraftPlaceholderIndex = -1;
 
 const ASSISTANT_ALWAYS_ON_KEY = 'assistant_always_on_v1';
 
 const BASE_COMMAND_SUGGESTIONS = [
-  { label: 'Buat Daily Task', command: 'buat task belajar basis data deadline besok 19:00 priority high' },
-  { label: 'Buat Tugas Kuliah', command: 'buat assignment laporan jaringan deadline besok 21:00' },
+  { label: 'Template Daily Task', command: 'buat task [judul tugas] deadline [besok 19:00] priority [high/medium/low]' },
+  { label: 'Template Tugas Kuliah', command: 'buat assignment [judul tugas kuliah] deskripsi [opsional] deadline [besok 21:00]' },
   { label: 'Risk Deadline 48h', command: 'risk deadline 48 jam ke depan' },
   { label: 'Memory Graph', command: 'tampilkan memory graph hari ini' },
   { label: 'Ringkasan Hari Ini', command: 'ringkasan hari ini' },
@@ -95,16 +97,20 @@ function escapeHtml(text = '') {
     .replaceAll("'", '&#39;');
 }
 
-function appendLocalSystemMessage(author, message) {
+function appendLocalSystemMessage(author, message, options = {}) {
   const wrap = document.querySelector('#chat-messages');
   if (!wrap) return null;
+  const type = options.type === 'system' ? 'system' : 'assistant';
 
   const el = document.createElement('div');
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  el.className = 'chat-msg system';
+  el.className = type === 'system' ? 'chat-msg system' : 'chat-msg assistant';
+  const metaAuthorHtml = type === 'assistant'
+    ? `<span class="assistant-author"><i class="fa-solid fa-robot"></i>${escapeHtml(author)}</span>`
+    : `<span>${escapeHtml(author)}</span>`;
   el.innerHTML = `
     <div class="msg-meta">
-      <span>${escapeHtml(author)}</span>
+      ${metaAuthorHtml}
       <span>${escapeHtml(now)}</span>
     </div>
     <div class="bubble-content assistant-bubble"></div>
@@ -199,6 +205,83 @@ function normalizeAssistantCommand(raw = '') {
   const prompt = normalizeAssistantInput(raw);
   if (!prompt) return '';
   return `/ai ${prompt}`;
+}
+
+function buildDraftInputFromCommand(command = '') {
+  const normalized = normalizeAssistantInput(command || '');
+  if (!normalized) return '';
+  if (/^\/confirm$/i.test(normalized)) return normalized;
+  if (/^@assistant\b/i.test(normalized)) {
+    const prompt = normalized.replace(/^@assistant\b/i, '').trim();
+    return assistantAlwaysOn ? prompt : (prompt ? `/ai ${prompt}` : '/ai');
+  }
+  if (/^\/ai\b/i.test(normalized)) {
+    const prompt = normalized.replace(/^\/ai\b/i, '').trim();
+    return assistantAlwaysOn ? prompt : normalized;
+  }
+  return assistantAlwaysOn ? normalized : `/ai ${normalized}`;
+}
+
+function extractBracketPlaceholders(value = '') {
+  const ranges = [];
+  const regex = /\[[^\]]+\]/g;
+  let match = regex.exec(value);
+  while (match) {
+    ranges.push({
+      start: match.index + 1,
+      end: match.index + match[0].length - 1,
+    });
+    match = regex.exec(value);
+  }
+  return ranges;
+}
+
+function normalizeTemplatePattern(value = '') {
+  return String(value || '')
+    .replace(/\[[^\]]+\]/g, '[]')
+    .trim()
+    .toLowerCase();
+}
+
+function stageAssistantDraft(command = '') {
+  const input = document.querySelector('#chat-input');
+  if (!input) return;
+  const draft = buildDraftInputFromCommand(command);
+  if (!draft) return;
+  const current = String(input.value || '');
+  const currentPattern = normalizeTemplatePattern(current);
+  const draftPattern = normalizeTemplatePattern(draft);
+  const canReuseCurrent = (
+    currentPattern &&
+    draftPattern &&
+    currentPattern === draftPattern &&
+    extractBracketPlaceholders(current).length > 0
+  );
+
+  const valueToUse = canReuseCurrent ? current : draft;
+  input.value = valueToUse;
+  input.focus();
+
+  const placeholders = extractBracketPlaceholders(valueToUse);
+  if (placeholders.length > 0) {
+    if (lastDraftTemplatePattern !== draftPattern) {
+      lastDraftPlaceholderIndex = -1;
+    }
+    const nextIndex = (lastDraftPlaceholderIndex + 1) % placeholders.length;
+    lastDraftTemplatePattern = draftPattern;
+    lastDraftPlaceholderIndex = nextIndex;
+    const target = placeholders[nextIndex];
+    try {
+      input.setSelectionRange(target.start, target.end);
+      return;
+    } catch {}
+  }
+  lastDraftTemplatePattern = '';
+  lastDraftPlaceholderIndex = -1;
+  const pos = input.value.length;
+  try {
+    input.setSelectionRange(pos, pos);
+  } catch {}
 }
 
 function summarizeDeadlineRisk(items = []) {
@@ -323,10 +406,9 @@ function renderAssistantEvidenceChips(contentEl, payload) {
     node.textContent = chip.label;
     if (command) {
       node.dataset.command = command;
-      node.title = `Jalankan: ${command}`;
-      node.addEventListener('click', async () => {
-        if (assistantBusy) return;
-        await runAssistant(command);
+      node.title = `Isi draft: ${command}`;
+      node.addEventListener('click', () => {
+        stageAssistantDraft(command);
       });
     } else {
       node.disabled = true;
@@ -522,18 +604,10 @@ function buildCommandSuggestions(payload) {
   return merged.slice(0, 9);
 }
 
-async function executeSuggestedCommand(command = '') {
+function executeSuggestedCommand(command = '') {
   const normalized = String(command || '').trim();
   if (!normalized) return;
-  const input = document.querySelector('#chat-input');
-  if (!input) return;
-
-  const isAssistantCommand = /^\/(?:ai|confirm)\b/i.test(normalized) || /^@assistant\b/i.test(normalized);
-  const asTyped = isAssistantCommand ? normalized : `/ai ${normalized}`;
-  input.value = asTyped;
-  input.focus();
-  await runAssistant(asTyped);
-  input.value = '';
+  stageAssistantDraft(normalized);
 }
 
 function renderCommandSuggestions(payload) {
@@ -551,9 +625,8 @@ function renderCommandSuggestions(payload) {
     if (item.tone === 'urgent') chip.classList.add('is-urgent');
     chip.textContent = item.label || item.command;
     chip.title = item.command;
-    chip.addEventListener('click', async () => {
-      if (assistantBusy) return;
-      await executeSuggestedCommand(item.command);
+    chip.addEventListener('click', () => {
+      executeSuggestedCommand(item.command);
     });
     wrap.appendChild(chip);
   }

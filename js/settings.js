@@ -84,13 +84,27 @@ function init() {
 }
 
 function normalizeLmsUrl(raw) {
-  const value = (raw || '').trim();
-  if (!value) return '';
-  const parsed = new URL(value);
+  const value = String(raw || '').trim();
+  if (!value) return DEFAULT_LMS_URL;
+  const withProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value) ? value : `https://${value}`;
+  const parsed = new URL(withProtocol);
   if (!/^https?:$/.test(parsed.protocol)) {
     throw new Error('invalid protocol');
   }
   return parsed.toString();
+}
+
+function openLmsUrl(url) {
+  let opened = null;
+  try {
+    opened = window.open(url, '_blank', 'noopener,noreferrer');
+  } catch {}
+  if (opened && typeof opened.focus === 'function') {
+    opened.focus();
+    return;
+  }
+  // Fallback for mobile/PWA when popup is blocked.
+  window.location.assign(url);
 }
 
 function initLmsSettings() {
@@ -116,7 +130,7 @@ function initLmsSettings() {
   openBtn.addEventListener('click', () => {
     try {
       const url = normalizeLmsUrl(input.value || DEFAULT_LMS_URL);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      openLmsUrl(url);
     } catch {
       showToast('URL LMS tidak valid', 'error');
     }
