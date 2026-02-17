@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-  <title>NZ • Report</title>
+  <title>NZ • Raport</title>
   <style>
     .report-card {
       background: var(--glass-bg);
@@ -72,6 +72,86 @@
       background: var(--primary);
       color: #fff;
     }
+
+    /* AI Insights Styles */
+    .insights-card {
+      background: linear-gradient(135deg, hsla(var(--nebula-core), 0.15), hsla(var(--nova-pink), 0.1));
+      border: 1px solid hsla(var(--nebula-core), 0.3);
+      border-radius: 20px;
+      padding: 20px;
+      margin-top: 24px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px -10px hsla(var(--nebula-core), 0.4);
+    }
+
+    .insights-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, hsla(var(--nebula-core), 0.1) 0%, transparent 70%);
+      animation: pulse-slow 8s infinite alternate;
+      z-index: 0;
+    }
+
+    @keyframes pulse-slow {
+      0% {
+        transform: scale(1) translate(0, 0);
+      }
+
+      100% {
+        transform: scale(1.1) translate(5%, 5%);
+      }
+    }
+
+    .insights-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .insights-header i {
+      color: hsl(var(--nebula-core));
+      font-size: 1.2rem;
+    }
+
+    .insights-title {
+      font-family: var(--font-head);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-size: 0.9rem;
+    }
+
+    .insight-text {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: var(--text-100);
+      position: relative;
+      z-index: 1;
+    }
+
+    .insight-tip {
+      margin-top: 16px;
+      padding: 12px;
+      background: hsla(0, 0%, 0%, 0.2);
+      border-radius: 12px;
+      font-size: 0.85rem;
+      display: flex;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .insight-tip i {
+      color: hsl(var(--star-gold));
+    }
   </style>
 </head>
 
@@ -86,7 +166,7 @@
   <div class="container">
     <!-- Header -->
     <header class="report-header">
-      <h1>Cosmic Raport</h1>
+      <h1>Performance Raport</h1>
       <a href="/" class="btn small secondary"><i class="fa-solid fa-xmark"></i></a>
     </header>
 
@@ -165,6 +245,19 @@
         <div style="margin-top:20px; border-top: 1px solid var(--glass-border); padding-top: 16px;">
           <div class="stat-label" style="margin-bottom: 8px;">Core Influencers</div>
           <div id="mood-tags" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        </div>
+      </div>
+
+      <!-- AI Cosmic Insights -->
+      <div class="insights-card" id="ai-insights" style="display:none">
+        <div class="insights-header">
+          <i class="fa-solid fa-brain-circuit"></i>
+          <span class="insights-title">Cosmic Insights</span>
+        </div>
+        <div class="insight-text" id="insight-main">Analisis cosmic sedang diproses...</div>
+        <div class="insight-tip" id="insight-tip-container">
+          <i class="fa-solid fa-lightbulb"></i>
+          <span id="insight-tip-text">Tunggu sebentar untuk saran personifikasi...</span>
         </div>
       </div>
     </div>

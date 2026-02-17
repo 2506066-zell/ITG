@@ -20,25 +20,23 @@
   /* Soft Rose */
 
   /* 💎 COSMIC GLASS SYSTEM */
-  --glass-bg: hsla(0, 0%, 100%, 0.035);
-  --glass-border: hsla(0, 0%, 100%, 0.07);
-  --glass-blur: 24px;
-  --glass-glow: 0 8px 32px 0 hsla(230, 40%, 2%, 0.8);
+  --glass-bg: hsla(230, 40%, 10%, 0.4);
+  --glass-border: hsla(0, 0%, 100%, 0.05);
+  --glass-blur: 32px;
+  --glass-glow: 0 12px 40px -4px hsla(230, 40%, 0%, 0.5);
 
-  /* 🖋️ TYPOGRAPHY (Zen Readability) */
+  /* 🖋️ TYPOGRAPHY (Modern Elegance) */
   --font-main: 'Sora', 'Inter', sans-serif;
-  --font-head: 'Orbitron', 'Space Grotesk', sans-serif;
+  --font-head: 'Sora', 'Space Grotesk', sans-serif;
   --text-100: 210 20% 95%;
-  /* Soft Off-White (No glare) */
-  --text-300: 210 15% 85%;
-  /* Soft Muted */
-  --text-500: 210 12% 65%;
-  /* Clear Grey-Blue */
+  /* Soft Off-White */
+  --text-300: 210 15% 80%;
+  --text-500: 210 12% 60%;
 
-  /* 📏 GEOMETRY */
-  --radius-xl: 24px;
-  --radius-lg: 16px;
-  --radius-md: 12px;
+  /* 📏 GEOMETRY (Smoother Bento) */
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
   --radius-sm: 8px;
 
   /* Legacy Mapping (Compatibility) */
@@ -64,6 +62,7 @@
   background: radial-gradient(circle at 50% 50%, #060818 0%, #02040a 100%);
   /* Deeper, more atmospheric base */
   pointer-events: none;
+  will-change: transform;
 }
 
 /* Layered Nebulae (Gas Clouds) */
@@ -72,10 +71,11 @@
   width: 100vw;
   height: 100vw;
   border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.35;
+  filter: blur(160px);
+  opacity: 0.12;
   mix-blend-mode: screen;
-  animation: nebula-drift 40s infinite ease-in-out alternate;
+  animation: nebula-drift 60s infinite ease-in-out alternate;
+  will-change: transform, opacity;
 }
 
 .nebula-orange {
@@ -1459,6 +1459,68 @@ textarea {
 
 .briefing-item.assignment i {
   color: hsl(var(--nebula-core));
+}
+
+/* 🏮 SMART NUDGE & STATUS COLORS */
+.ambient-nudge {
+  position: relative;
+  border-left: 3px solid hsl(var(--nova-pink)) !important;
+  background: linear-gradient(to right, hsla(var(--nova-pink), 0.1), transparent) !important;
+  box-shadow: inset 10px 0 20px -10px hsla(var(--nova-pink), 0.2);
+}
+
+.status-urgent {
+  color: hsl(var(--nova-pink)) !important;
+}
+
+.status-urgent i {
+  color: hsl(var(--nova-pink)) !important;
+  text-shadow: 0 0 10px hsla(var(--nova-pink), 0.4);
+}
+
+.status-urgent .time-badge {
+  background: hsla(var(--nova-pink), 0.2) !important;
+  color: hsl(var(--nova-pink)) !important;
+  border: 1px solid hsla(var(--nova-pink), 0.3);
+}
+
+.status-warning {
+  color: hsl(var(--star-gold)) !important;
+}
+
+.status-warning i {
+  color: hsl(var(--star-gold)) !important;
+  text-shadow: 0 0 10px hsla(var(--star-gold), 0.3);
+}
+
+.status-warning .time-badge {
+  background: hsla(var(--star-gold), 0.2) !important;
+  color: hsl(var(--star-gold)) !important;
+  border: 1px solid hsla(var(--star-gold), 0.3);
+}
+
+.status-relaxed {
+  color: hsl(var(--nebula-core)) !important;
+}
+
+.status-relaxed i {
+  color: hsl(var(--nebula-core)) !important;
+}
+
+.status-relaxed .time-badge {
+  background: hsla(var(--nebula-core), 0.1) !important;
+  color: hsl(var(--nebula-core)) !important;
+}
+
+.briefing-item .time-badge {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: hsla(0, 0%, 100%, 0.05);
+  margin-left: auto;
+  opacity: 0.8;
+  font-family: var(--font-main);
+  font-weight: 500;
 }
 
 /* 📊 REPORTS PAGE */

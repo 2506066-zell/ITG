@@ -202,15 +202,28 @@ function createTaskEl(task) {
   prioDot.className = `priority-dot p-${task.priority || 'medium'}`;
   meta.appendChild(prioDot);
 
-  // Deadline
+  // Deadline & Urgency Logic
   if (task.deadline) {
     const d = new Date(task.deadline);
-    // Format: "Today, 10:00" or "Nov 23"
+    const diff = d.getTime() - Date.now();
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
+
+    let urgencyClass = '';
+    if (diff > 0 && !task.completed) {
+      if (diff < 10800000) urgencyClass = 'status-urgent';
+      else if (diff < 43200000) urgencyClass = 'status-warning';
+      else if (diff < 86400000) urgencyClass = 'status-relaxed';
+    }
+    if (urgencyClass) el.classList.add(urgencyClass);
+
     const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const dateStr = isToday ? 'Today' : d.toLocaleDateString([], { day: 'numeric', month: 'short' });
-    meta.appendChild(document.createTextNode(`${dateStr}, ${timeStr}`));
+
+    const deadlineSpan = document.createElement('span');
+    deadlineSpan.className = 'deadline-text';
+    deadlineSpan.innerHTML = `<i class="fa-regular fa-clock" style="margin-right:2px"></i> ${dateStr}, ${timeStr}`;
+    meta.appendChild(deadlineSpan);
   }
 
   // Assigned & Completed Info

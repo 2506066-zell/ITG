@@ -84,8 +84,44 @@ function render(data) {
   updateCard('cons', data.consistency);
   updateRing('cons-ring', data.consistency.current);
 
-  // Mood
-  updateMood(data.mood);
+  // AI Insights
+  generateInsights(data);
+}
+
+function generateInsights(data) {
+  const insightEl = document.getElementById('ai-insights');
+  const mainEl = document.getElementById('insight-main');
+  const tipEl = document.getElementById('insight-tip-text');
+  if (!insightEl) return;
+
+  const prod = data.productivity.current;
+  const mood = data.mood.current;
+  const user = localStorage.getItem('user') || 'Cosmic Traveler';
+
+  let mainText = "";
+  let tipText = "";
+
+  // 🧠 Logic Heuristics
+  if (prod > 80 && mood > 4) {
+    mainText = `${user}, ritme cosmic Anda sangat harmonis. Produktivitas tinggi tetap diimbangi dengan kebahagiaan. Pertahankan momentum ini!`;
+    tipText = "Momentum sangat mahal. Jangan buat perubahan drastis pada rutinitas Anda saat ini.";
+  } else if (prod < 50) {
+    mainText = `Sepertinya ada hambatan dalam orbit produktivitas Anda. Seringkali ini karena misi yang terlalu berat dalam satu waktu.`;
+    tipText = "Coba pindahkan misi tersulit ke jam 10 Pagi besok. Analisis kami menunjukkan itu adalah jendela fokus terbaik Anda.";
+  } else if (mood < 3) {
+    mainText = `Fokus Anda luar biasa, namun stabilitas emosional sedikit meredup. Ingat, misi tersulit adalah menjaga koneksi hati.`;
+    tipText = "Gunakan fitur Chat atau Memories untuk sejenak rehat dan sinkronisasi dengan partner malam ini.";
+  } else if (data.consistency.current < 40) {
+    mainText = `Ritme Anda sedikit fluktuatif. Konsistensi kecil setiap hari jauh lebih kuat daripada lonjakan besar yang melelahkan.`;
+    tipText = "Gunakan fitur 'Snooze' jika misi terlalu mendesak, tapi usahakan minimal selesaikan 1 tugas kecil hari ini.";
+  } else {
+    mainText = `${user}, aplikasi mendeteksi pola yang stabil. Anda bergerak maju dengan kecepatan yang aman dan terkendali.`;
+    tipText = "Coba tantang diri Anda dengan satu 'Mission Impossible' (Goal jangka panjang) minggu ini.";
+  }
+
+  mainEl.textContent = mainText;
+  tipEl.textContent = tipText;
+  insightEl.style.display = 'block';
 }
 
 function updateCard(id, stats) {

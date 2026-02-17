@@ -16,6 +16,14 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
+
+  <!-- 📱 MOBILE & PWA POLISH -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NZ">
+  <meta name="theme-color" content="#060818">
+  <meta name="format-detection" content="telephone=no">
+
   <title>NZ • Dashboard</title>
 </head>
 
@@ -74,7 +82,7 @@
 
       <!-- 2: ANALYTICS (WEEKLY CONTRIBUTION) -->
       <div class="card stats-card div-stats">
-        <div class="section-title"><i class="fa-solid fa-chart-simple"></i> WEEKLY</div>
+        <div class="section-title">WEEKLY STATS</div>
         <div id="weekly-stats" class="stats-container">
           <div class="skeleton skeleton-line"></div>
         </div>
@@ -82,7 +90,7 @@
 
       <!-- 4: ANALYTICS (MOOD STABILITY) -->
       <div class="card stats-card div-stats">
-        <div class="section-title"><i class="fa-solid fa-wave-pulse"></i> MOOD</div>
+        <div class="section-title">MOOD STABILITY</div>
         <div id="weekly-mood" class="stats-container">
           <div class="skeleton skeleton-line"></div>
         </div>
@@ -91,7 +99,7 @@
 
     <!-- 🛠️ INTERFACE MODULES -->
     <section class="modules-grid">
-      <h2 class="grid-label">SYSTEM MODULES</h2>
+      <h2 class="grid-label">CORE MODULES</h2>
       <div class="grid home-grid">
         <a href="/memories" class="card module-card">
           <div class="module-icon"><i class="fa-solid fa-sparkles"></i></div>
@@ -319,29 +327,81 @@
             return diff > 0 && diff < 86400000; // < 24 hours
           });
 
+          // 🧠 Detect Peak Urgency (< 12 hours)
+          const highUrgencyItem = [...urgentAssignments, ...pendingTasks].find(item => {
+            if (!item.deadline) return false;
+            const diff = new Date(item.deadline).getTime() - Date.now();
+            return diff > 0 && diff < 43200000; // < 12 hours
+          });
+
           itemsEl.innerHTML = '';
           let summary = "";
 
           if (pendingTasks.length === 0 && urgentAssignments.length === 0) {
             summary = "Semua misi selesai! Waktunya bersantai dan menikmati waktu bersama. 🥂";
+            summaryEl.textContent = summary;
             container.style.display = 'block';
             return;
           }
 
-          summary = `Ada ${pendingTasks.length + urgentAssignments.length} hal penting yang perlu perhatianmu hari ini.`;
-          summaryEl.textContent = summary;
+          if (highUrgencyItem) {
+            const partner = user.toLowerCase().includes('zaldy') ? 'Nesya' : 'Zaldy';
+            summary = `Ada <strong>${highUrgencyItem.title}</strong> yang mendesak. Lebih baik dicicil 15 menit sekarang agar malam Anda bisa santai bersama ${partner}. 💡`;
+          } else {
+            summary = `Anda memiliki ${pendingTasks.length + urgentAssignments.length} agenda penting hari ini.`;
+          }
+          summaryEl.innerHTML = summary;
 
-          // Add top priority items
-          const priorities = [
-            ...urgentAssignments.map(a => ({ type: 'assignment', text: `Deadline: ${a.title}`, urgent: true })),
-            ...pendingTasks.slice(0, 2).map(t => ({ type: 'task', text: t.title, urgent: false }))
+          // 🏎️ Intelligent Sorting & Priority Mapping
+          const allPriorities = [
+            ...urgentAssignments.map(a => {
+              const diff = new Date(a.deadline).getTime() - Date.now();
+              return {
+                type: 'assignment',
+                title: a.title,
+                deadline: new Date(a.deadline),
+                diff: diff,
+                urgent: diff < 43200000
+              };
+            }),
+            ...pendingTasks.map(t => {
+              const diff = t.deadline ? new Date(t.deadline).getTime() - Date.now() : Infinity;
+              return {
+                type: 'task',
+                title: t.title,
+                deadline: t.deadline ? new Date(t.deadline) : null,
+                diff: diff,
+                urgent: t.priority === 'high' || diff < 43200000
+              };
+            })
           ];
 
-          priorities.forEach(p => {
+          // Auto-Sort: Most urgent at the top
+          allPriorities.sort((a, b) => a.diff - b.diff);
+
+          allPriorities.slice(0, 4).forEach(p => {
             const item = document.createElement('div');
-            item.className = `briefing-item ${p.type} ${p.urgent ? 'urgent' : ''}`;
+            let statusClass = 'status-relaxed';
+            let timeText = '';
+
+            if (p.diff < 10800000) { // < 3h
+              statusClass = 'status-urgent';
+              timeText = 'MENDESAK';
+            } else if (p.diff < 43200000) { // < 12h
+              statusClass = 'status-warning';
+              timeText = 'SEGERA';
+            } else if (p.diff < 86400000) { // < 24h
+              statusClass = 'status-relaxed';
+              timeText = 'HARI INI';
+            }
+
+            item.className = `briefing-item ${p.type} ${statusClass} ${p.urgent ? 'ambient-nudge' : ''}`;
             const icon = p.type === 'assignment' ? 'fa-graduation-cap' : 'fa-list-check';
-            item.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${p.text}</span>`;
+            item.innerHTML = `
+              <i class="fa-solid ${icon}"></i> 
+              <span>${p.title}</span>
+              ${timeText ? `<span class="time-badge">${timeText}</span>` : ''}
+            `;
             itemsEl.appendChild(item);
           });
 

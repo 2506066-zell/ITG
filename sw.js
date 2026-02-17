@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cf-v12';
+const CACHE_NAME = 'cf-v13';
 const ASSETS = [
   '/',
   '/login',
@@ -12,6 +12,7 @@ const ASSETS = [
   'schedule.html',
   'chat.html',
   'settings.html',
+  'report.html',
   'manifest.json',
   'css/style.css',
   'css/themes.css',
@@ -26,6 +27,7 @@ const ASSETS = [
   'js/schedule.js',
   'js/chat.js',
   'js/settings.js',
+  'js/report.js',
   'icons/192.png',
   'icons/512.png',
   'icons/icon.svg'
