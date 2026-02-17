@@ -1,0 +1,79 @@
+/* Schedule Page Specific CSS */
+body {
+    background: var(--surface-void);
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.day-card {
+    background: var(--glass-bg);
+    border-radius: var(--radius-lg);
+    padding: 15px;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(var(--glass-blur));
+}
+
+.day-header {
+    font-weight: 700;
+    color: hsl(var(--brand-cyan));
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.class-item {
+    background: hsla(255, 255, 255, 0.05);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-bottom: 10px;
+    position: relative;
+    transition: transform 0.2s;
+}
+
+.class-item:hover {
+    transform: translateX(4px);
+    background: hsla(255, 255, 255, 0.08);
+}
+
+.class-time {
+    font-family: monospace;
+    font-weight: 600;
+    color: hsl(var(--brand-violet));
+    margin-bottom: 4px;
+}
+
+.class-room {
+    font-size: 0.85rem;
+    color: hsl(var(--text-secondary));
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.class-lecturer {
+    font-size: 0.85rem;
+    color: hsl(var(--text-secondary));
+    font-style: italic;
+    margin-top: 4px;
+}
+
+.today-badge {
+    font-size: 0.7rem;
+    background: hsl(var(--brand-violet));
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+}

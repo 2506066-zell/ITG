@@ -1,112 +1,89 @@
 /* 
-  COSMIC FLOW - DESIGN TOKENS
-  v2.0 Mobile-First Redesign
+  SOFT GLASS - DESIGN TOKENS
+  v3.0 Visual Refactor
+  "Soft Futuristic Glassmorphism"
 */
 
 :root {
-    /* 🎨 COLOR SYSTEM (Neuroscience-Based) */
+    /* 🎨 COLOR SYSTEM (Soft Glass) */
 
-    /* SURFACES - Deep Void (Not Black) to reduce eye strain */
-    --surface-void: 230 25% 5%;
-    /* #0A0D11 - Main Background */
-    --surface-glass: 230 25% 10%;
-    /* #131620 - Cards/Panels */
-    --surface-raised: 230 25% 16%;
-    /* #1F2230 - Modals/Dropdowns */
+    /* SURFACES - Cool Gray / Bluish Tone */
+    /* Gradient handled in style.css, these vary the opacity/lightness */
+    --surface-void: 220 25% 15%;
+    /* Base Deep Blue-Gray */
+    --surface-glass: 220 30% 20%;
+    /* Card Base */
+    --surface-highlight: 220 40% 30%;
+    /* Lighter interact state */
 
-    /* ACCENTS - Used sparingly for focus */
-    --brand-cyan: 190 100% 50%;
-    /* #00F2FF - Primary Action / Success */
-    --brand-violet: 270 80% 65%;
-    /* #A85FFF - Creativity / Secondary */
-    --brand-rose: 330 90% 60%;
-    /* #F73D85 - Urgent / Love / Error */
+    /* ACCENTS - Soft & Minimal */
+    --brand-primary: 210 100% 70%;
+    /* Soft Blue Glow */
+    --brand-secondary: 260 90% 75%;
+    /* Soft Violet */
+    --accent-glow: 190 100% 80%;
+    /* Cyan Highlight */
 
-    /* TEXT - WCAG AAA Compliant */
-    --text-primary: 230 10% 95%;
-    /* #F0F1F5 - Main Content */
-    --text-secondary: 230 15% 70%;
-    /* #A6AAC2 - Metadata */
-    --text-tertiary: 230 20% 50%;
-    /* #666C8A - Disabled/Placeholder */
+    /* TEXT - High Readability on Dark/Glass */
+    --text-primary: 220 10% 98%;
+    /* Off-White */
+    --text-secondary: 220 20% 80%;
+    /* Soft Gray */
+    --text-muted: 220 20% 60%;
+    /* Disabled/Low priority */
 
-    /* BORDERS & SEPARATORS */
-    --line-dim: 230 20% 50%;
-    /* Use with opacity 0.2 */
-    --line-light: 230 20% 70%;
-    /* Use with opacity 0.3 */
+    /* 💎 GLASSMORPHISM TOKENS (Refined) */
+    --glass-bg: rgba(255, 255, 255, 0.08);
+    /* White-tinted glass */
+    --glass-border: rgba(255, 255, 255, 0.12);
+    /* Subtle white border */
+    --glass-blur: 30px;
+    /* Heavy blur for depth */
+    --glass-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    /* Soft, diffuse shadow */
+    --glass-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+    /* Top highlight */
 
-    /* 💎 GLASSMORPHISM TOKENS */
-    --glass-bg: hsla(var(--surface-glass), 0.6);
-    --glass-border: hsla(var(--text-primary), 0.08);
-    /* Minimal border */
-    --glass-blur: 20px;
-    --glass-shadow: 0 8px 32px 0 hsla(230, 40%, 2%, 0.5);
-    /* Deep shadow */
-
-    /* 🖋️ TYPOGRAPHY */
-    --font-display: 'Space Grotesk', system-ui, sans-serif;
-    /* Headings */
+    /* 🖋️ TYPOGRAPHY - Modern Sans */
+    --font-heading: 'Sora', 'Space Grotesk', sans-serif;
+    /* Friendly but futuristic */
     --font-body: 'Inter', system-ui, sans-serif;
-    /* Reading */
-    --font-mono: 'Space Mono', monospace;
-    /* Data/Code */
+    /* Clean reading */
 
-    /* TYPE SCALE (Mobile Base) */
-    --text-xs: 0.75rem;
-    /* 12px */
-    --text-sm: 0.875rem;
-    /* 14px */
-    --text-base: 1rem;
-    /* 16px */
-    --text-lg: 1.125rem;
-    /* 18px */
-    --text-xl: 1.25rem;
-    /* 20px */
-    --text-2xl: 1.5rem;
-    /* 24px */
-    --text-3xl: 2rem;
-    /* 32px */
+    /* 📐 SHAPE & SPACING */
+    --radius-sm: 12px;
+    --radius-md: 20px;
+    --radius-lg: 28px;
+    /* Large Soft Cards */
+    --radius-pill: 9999px;
+    /* Capsule Shapes */
 
-    /* 📐 SPACING & LAYOUT */
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --radius-full: 9999px;
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
 
-    /* Touch Targets */
-    --touch-target: 44px;
-    /* Minimum interactable size */
+    /* LAYOUT */
+    --header-height: 70px;
+    --bottom-nav-height: 80px;
 
-    /* Z-INDEX LAYERS */
-    --z-back: -1;
-    --z-normal: 1;
-    --z-nav: 100;
-    --z-modal: 200;
-    --z-toast: 300;
+    /* ANIMATION */
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 🌗 DARK MODE (Default) - Refined */
+/* 🌗 DARK MODE (Default - Inherits Root) */
 @media (prefers-color-scheme: dark) {
     :root {
-        /* Adjustments for deeper contrast if needed */
+        /* Already set as default */
     }
 }
 
-/* ☀️ LIGHT MODE - Optional/Future Proof */
+/* ☀️ LIGHT MODE (Optional future support) */
 :root[data-theme="light"] {
-    --surface-void: 230 20% 98%;
-    /* #F9FAFB */
-    --surface-glass: 230 20% 100%;
-    /* #FFFFFF */
-    --surface-raised: 230 20% 95%;
-    /* #F2F4F7 */
-
-    --text-primary: 230 25% 10%;
-    /* #131620 */
-    --text-secondary: 230 20% 40%;
-    /* #525875 */
-
-    --glass-border: hsla(230, 25%, 10%, 0.08);
-    --glass-shadow: 0 4px 20px 0 hsla(230, 20%, 80%, 0.4);
+    --surface-void: 220 30% 95%;
+    --text-primary: 220 30% 15%;
+    --glass-bg: rgba(255, 255, 255, 0.6);
+    --glass-shadow: 0 10px 30px rgba(100, 116, 139, 0.15);
 }

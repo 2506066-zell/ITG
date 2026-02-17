@@ -1,241 +1,205 @@
 /* 
-  COSMIC FLOW - CORE COMPONENTS 
-  Mobile-First Design System
+  COMPONENTS - SOFT GLASS
 */
 
-/* -------------------------------------------------------------------------- */
-/* 1. CARDS (Glass Panels)                                                    */
-/* -------------------------------------------------------------------------- */
+/* 🃏 CARDS */
 .card {
-    position: relative;
     background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-lg);
-    /* 16px */
-    padding: 1.25rem;
-    /* 20px - Mobile Optimized */
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
     box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    color: hsl(var(--text-primary));
+    position: relative;
     overflow: hidden;
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-        border-color 0.2s ease;
+    transition: transform 0.3s var(--ease-soft), box-shadow 0.3s var(--ease-soft);
 }
 
-/* Inner Shine Gradient */
 .card::before {
-    content: "";
+    content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    height: 100%;
-    background: linear-gradient(180deg,
-            hsla(0, 0%, 100%, 0.03) 0%,
-            transparent 40%);
+    bottom: 0;
+    box-shadow: var(--glass-highlight);
+    border-radius: inherit;
     pointer-events: none;
-    z-index: 0;
 }
 
-/* Interactivity */
-.card-interactive {
+.card:hover {
+    transform: translateY(-4px) scale(1.01);
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+}
+
+/* 💊 CAPSULE/PILL CARDS (For Mobile Grid) */
+.card-pill {
+    border-radius: calc(var(--radius-lg) + 8px);
+    /* Super rounded */
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+}
+
+.card-pill-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: hsl(var(--brand-primary));
+    box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+/* 🖊️ INPUTS */
+.input {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    color: hsl(var(--text-primary));
+    font-family: var(--font-body);
+    width: 100%;
+    transition: all 0.2s;
+    backdrop-filter: blur(10px);
+}
+
+.input:focus {
+    outline: none;
+    background: rgba(0, 0, 0, 0.3);
+    border-color: hsl(var(--brand-primary));
+    box-shadow: 0 0 0 3px hsla(var(--brand-primary), 0.2);
+}
+
+/* Floating Input Bar (Mobile Bottom) */
+.floating-input-bar {
+    position: fixed;
+    bottom: var(--space-lg);
+    left: var(--space-lg);
+    right: var(--space-lg);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-pill);
+    padding: 8px 8px 8px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: var(--glass-shadow);
+    z-index: 500;
+    margin-bottom: var(--bottom-nav-height);
+    /* Space for nav */
+}
+
+.floating-input-field {
+    background: transparent;
+    border: none;
+    color: hsl(var(--text-primary));
+    flex: 1;
+    font-size: 1rem;
+}
+
+.floating-input-field::placeholder {
+    color: hsl(var(--text-muted));
+}
+
+.floating-input-field:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.floating-action-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: hsl(var(--brand-primary));
+    border: none;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
+    transition: transform 0.2s;
 }
 
-.card-interactive:active {
-    transform: scale(0.98);
-    background: hsla(var(--surface-glass), 0.8);
+.floating-action-btn:active {
+    transform: scale(0.9);
 }
 
-/* Desktop Hover */
-@media (hover: hover) {
-    .card:hover {
-        border-color: hsla(var(--brand-cyan), 0.3);
-        box-shadow: 0 12px 40px -10px hsla(230, 40%, 2%, 0.8);
-        transform: translateY(-2px);
-    }
-}
-
-/* Desktop Spacing */
-@media (min-width: 769px) {
-    .card {
-        padding: 2rem;
-        border-radius: var(--radius-xl);
-    }
-}
-
-
-/* -------------------------------------------------------------------------- */
-/* 2. BUTTONS (Touch Targets)                                                 */
-/* -------------------------------------------------------------------------- */
+/* 🔘 BUTTONS */
 .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-
-    /* Size */
-    min-height: var(--touch-target);
-    /* 48px */
-    padding: 0 24px;
-    border-radius: var(--radius-md);
-
-    /* Typo */
-    font-family: var(--font-body);
+    padding: 12px 24px;
+    border-radius: var(--radius-pill);
     font-weight: 600;
-    font-size: var(--text-base);
-    letter-spacing: 0.02em;
-    text-transform: capitalize;
-    /* Cleaner look than uppercase */
-    text-decoration: none;
-
-    /* Reset */
-    border: 1px solid transparent;
     cursor: pointer;
-    user-select: none;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
+    border: none;
+    transition: all 0.2s var(--ease-soft);
+    text-decoration: none;
+    font-family: var(--font-heading);
 }
 
-/* VARIANTS */
-
-/* Primary: Cyan Glow */
-.btn-primary,
-.btn:not(.secondary):not(.danger):not(.ghost) {
-    background: linear-gradient(135deg, hsla(var(--brand-cyan), 0.15), hsla(var(--brand-violet), 0.15));
-    border-color: hsla(var(--brand-cyan), 0.4);
-    color: hsl(var(--text-primary));
-    box-shadow: 0 4px 12px hsla(var(--brand-cyan), 0.15);
-    backdrop-filter: blur(4px);
+.btn.primary {
+    background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(var(--brand-secondary)));
+    color: #fff;
+    box-shadow: 0 4px 15px hsla(var(--brand-primary), 0.4);
 }
 
-.btn-primary:active {
-    background: linear-gradient(135deg, hsla(var(--brand-cyan), 0.25), hsla(var(--brand-violet), 0.25));
-    box-shadow: 0 0 20px hsla(var(--brand-cyan), 0.25);
+.btn.primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px hsla(var(--brand-primary), 0.5);
 }
 
-/* Secondary: Glass */
-.btn.secondary {
-    background: transparent;
-    border-color: var(--line-light);
-    color: hsl(var(--text-primary));
-}
-
-.btn.secondary:active {
-    background: hsla(var(--text-primary), 0.05);
-    border-color: hsl(var(--text-primary));
-}
-
-/* Danger: Rose */
-.btn.danger {
-    background: hsla(var(--brand-rose), 0.15);
-    border-color: hsla(var(--brand-rose), 0.4);
-    color: hsl(var(--brand-rose));
-}
-
-.btn.danger:active {
-    background: hsla(var(--brand-rose), 0.25);
-    box-shadow: 0 0 15px hsla(var(--brand-rose), 0.3);
-}
-
-/* Small Variant (e.g. for desktop headers) */
-.btn.small {
-    min-height: 36px;
-    padding: 0 16px;
-    font-size: var(--text-sm);
-}
-
-/* Touch Press Effect */
-.btn:active {
-    transform: scale(0.96);
-}
-
-
-/* -------------------------------------------------------------------------- */
-/* 3. INPUTS (Tech Panels)                                                    */
-/* -------------------------------------------------------------------------- */
-.input,
-select,
-textarea,
-.textarea {
-    width: 100%;
-    min-height: var(--touch-target);
-    /* 48px */
-    padding: 10px 16px;
-
-    background: hsla(var(--surface-raised), 0.5);
+.btn.glass {
+    background: rgba(255, 255, 255, 0.1);
     border: 1px solid var(--glass-border);
-    border-radius: var(--radius-md);
-
     color: hsl(var(--text-primary));
-    font-family: var(--font-body);
-    font-size: var(--text-base);
-
-    transition: all 0.2s ease;
-    backdrop-filter: blur(8px);
-    -webkit-appearance: none;
-    appearance: none;
-    /* iOS Reset */
 }
 
-/* Focus State */
-.input:focus,
-select:focus,
-textarea:focus,
-.textarea:focus {
-    outline: none;
-    border-color: hsl(var(--brand-cyan));
-    background: hsla(var(--surface-raised), 0.8);
-    box-shadow: 0 0 0 2px hsla(var(--brand-cyan), 0.2);
+.btn.glass:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
-/* Placeholder */
-::placeholder {
-    color: hsl(var(--text-tertiary));
-    opacity: 1;
-}
-
-/* -------------------------------------------------------------------------- */
-/* 4. UTILS                                                                   */
-/* -------------------------------------------------------------------------- */
+/* 🏷️ SECTION TITLE */
 .section-title {
-    font-family: var(--font-display);
-    font-size: var(--text-lg);
-    font-weight: 600;
+    font-size: 0.9rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: hsl(var(--text-primary));
-
+    letter-spacing: 2px;
+    color: hsl(var(--text-secondary));
+    margin-bottom: var(--space-md);
+    font-weight: 700;
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 1rem;
+    gap: 10px;
 }
 
-.section-title i {
-    color: hsl(var(--brand-cyan));
-    filter: drop-shadow(0 0 8px hsla(var(--brand-cyan), 0.4));
+.section-title::after {
+    content: '';
+    height: 1px;
+    flex: 1;
+    background: linear-gradient(90deg, var(--glass-border), transparent);
 }
 
-.muted,
-.text-muted {
-    font-size: var(--text-sm);
-    color: hsl(var(--text-secondary));
-    line-height: 1.5;
-}
-
-/* Mobile Grid Adjustment */
-.grid {
+/* 📱 GRID SYSTEM */
+.grid-2 {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
 }
 
-@media (min-width: 600px) {
-    .grid {
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 24px;
-    }
+.grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-md);
 }
