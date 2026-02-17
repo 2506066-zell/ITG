@@ -20,161 +20,116 @@
 </head>
 
 <body class="dashboard-page">
-  
 
-  <nav class="navbar">
-    <div class="brand">
-      <div class="brand-logo"><i class="fa-solid fa-heart"></i></div>
-      <div class="brand-text">NZ <span>SYSTEM</span></div>
+
+
+
+  <main class="mobile-layout-container">
+
+    <!-- 1. HEADER CONTEXT (Compact & Calm) -->
+    <header class="header-context">
+      <div class="brand short">
+        <i class="fa-solid fa-heart" style="color: var(--brand-rose)"></i> NZ
+      </div>
+      <h1 class="header-title-lg">Good Morning</h1>
+      <div class="muted-text">Ready to grow together today?</div>
+    </header>
+
+    <!-- 2. HIGHLIGHT SECTION (Visual Anchor) -->
+    <section class="highlight-section">
+      <div class="card card-highlight">
+        <div class="section-title"><i class="fa-solid fa-rocket-launch"></i> MISSION STATUS</div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+          <div>
+            <div class="mission-status"><span class="pulse"></span> ACTIVE</div>
+            <div class="muted-text" style="margin-top:4px">Day <span id="t-days">00</span> of Forever</div>
+          </div>
+          <div style="text-align:right">
+            <div class="stat-value" style="font-size:1.5rem">84%</div>
+            <div class="muted-text">Week Sync</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. TOOLS GRID (2-Column Mobile First) -->
+    <section class="tools-section">
+      <div class="section-title"><i class="fa-solid fa-grid-2"></i> SYSTEM MODULES</div>
+
+      <div class="tools-grid">
+        <!-- Row 1: Core Daily -->
+        <a href="/daily-tasks" class="tool-card">
+          <i class="fa-solid fa-list-check tool-icon"></i>
+          <span class="tool-label">Daily Tasks</span>
+        </a>
+
+        <a href="/chat" class="tool-card">
+          <i class="fa-solid fa-message-heart tool-icon" style="color:hsl(var(--brand-rose))"></i>
+          <span class="tool-label">Chat</span>
+        </a>
+
+        <!-- Row 2: Progress -->
+        <a href="/goals" class="tool-card">
+          <i class="fa-solid fa-bullseye tool-icon"></i>
+          <span class="tool-label">Goals</span>
+        </a>
+
+        <a href="/monthly-todos" class="tool-card">
+          <i class="fa-solid fa-calendar-check tool-icon"></i>
+          <span class="tool-label">Habits</span>
+        </a>
+
+        <!-- Row 3: Management -->
+        <a href="/schedule" class="tool-card">
+          <i class="fa-regular fa-calendar-days tool-icon"></i>
+          <span class="tool-label">Schedule</span>
+        </a>
+
+        <a href="/memories" class="tool-card">
+          <i class="fa-solid fa-sparkles tool-icon" style="color:hsl(var(--brand-violet))"></i>
+          <span class="tool-label">Memories</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- 4. FLOATING INTERACTION ZONE (Fixed Bottom) -->
+    <div class="floating-zone">
+      <div class="input-pill-wrapper">
+        <input type="text" class="input-pill" placeholder="Quick capture ideas..." readonly
+          onclick="window.location.href='/daily-tasks#new'">
+        <button class="action-fab">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+      </div>
     </div>
-    <div class="nav-actions">
-      <a class="btn small secondary" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
-    </div>
-  </nav>
 
-  <main class="container">
-    <h1 style="font-family: var(--font-head); font-size: clamp(2.8rem, 8vw, 5.6rem); text-align:center; letter-spacing: 0.06em; margin: 10px 0 0; color: var(--text);">I LOVE U</h1>
-
-    <!-- 🚀 HERO DASHBOARD: GROW TOGETHER -->
-    <section class="hero-section">
-      <div class="card hero-card">
-        <header class="hero-header">
-          <div class="section-title"><i class="fa-solid fa-rocket-launch"></i> MISSION: GROW TOGETHER</div>
-          <div class="mission-status"><span class="pulse"></span> ACTIVE</div>
-        </header>
-
-        <div id="countdown" class="countdown">
-          <div class="time-box">
-            <span id="t-days">00</span>
-            <label>DAYS</label>
-          </div>
-          <div class="time-box separator">:</div>
-          <div class="time-box">
-            <span id="t-hours">00</span>
-            <label>HOURS</label>
-          </div>
-          <div class="time-box separator">:</div>
-          <div class="time-box">
-            <span id="t-minutes">00</span>
-            <label>MINUTES</label>
-          </div>
-          <div class="time-box separator">:</div>
-          <div class="time-box">
-            <span id="t-seconds">00</span>
-            <label>SECONDS</label>
-          </div>
-        </div>
-
-        <footer class="hero-footer">
-          <div class="muted">INITIATED: 23 NOV 2025</div>
-          <div class="hero-divider"></div>
-          <div class="muted">OBJECTIVE: UNCONDITIONAL SUPPORT</div>
-        </footer>
-      </div>
-    </section>
-
-    <!-- 📊 ANALYTICS HUB -->
-    <section class="analytics-grid">
-      <div class="card stats-card">
-        <div class="section-title"><i class="fa-solid fa-chart-simple"></i> WEEKLY CONTRIBUTION</div>
-        <div id="weekly-stats" class="stats-container">
-          <div class="skeleton skeleton-line"></div>
-          <div class="skeleton skeleton-line" style="width:80%"></div>
-        </div>
-      </div>
-
-      <div class="card stats-card">
-        <div class="section-title"><i class="fa-solid fa-wave-pulse"></i> MOOD STABILITY</div>
-        <div id="weekly-mood" class="stats-container">
-          <div class="skeleton skeleton-line"></div>
-          <div class="skeleton skeleton-line" style="width:70%"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 🛠️ INTERFACE MODULES -->
-    <section class="modules-grid">
-      <h2 class="grid-label">SYSTEM MODULES</h2>
-      <div class="grid home-grid">
-        <a href="/memories" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-sparkles"></i></div>
-          <div class="module-info">
-            <div class="module-name">MEMORIES</div>
-            <div class="muted">Archive moments</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/daily-tasks" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-list-check"></i></div>
-          <div class="module-info">
-            <div class="module-name">TASKS</div>
-            <div class="muted">Checklist</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/monthly-todos" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-calendar-check"></i></div>
-          <div class="module-info">
-            <div class="module-name">HABITS</div>
-            <div class="muted">Streaks</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/college-assignments" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-graduation-cap"></i></div>
-          <div class="module-info">
-            <div class="module-name">COLLEGE</div>
-            <div class="muted">Deadlines</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/schedule" class="card module-card">
-          <div class="module-icon"><i class="fa-regular fa-calendar-days"></i></div>
-          <div class="module-info">
-            <div class="module-name">SCHEDULE</div>
-            <div class="muted">Timetable</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/anniversary" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-calendar-heart"></i></div>
-          <div class="module-info">
-            <div class="module-name">ANNIVERSARY</div>
-            <div class="muted">Special date</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/chat" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-message-heart"></i></div>
-          <div class="module-info">
-            <div class="module-name">CHAT</div>
-            <div class="muted">Messages</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-
-        <a href="/goals" class="card module-card">
-          <div class="module-icon"><i class="fa-solid fa-bullseye"></i></div>
-          <div class="module-info">
-            <div class="module-name">GOALS</div>
-            <div class="muted">Targets</div>
-          </div>
-          <div class="module-arrow"><i class="fa-solid fa-chevron-right"></i></div>
-        </a>
-      </div>
-    </section>
-
-    <footer class="footer">
-      <div class="footer-line"></div>
-      <div class="footer-text">NZ PROTOCOL &copy; 2026</div>
-    </footer>
+    <div style="height: 100px"></div> <!-- Spacer for scroll -->
   </main>
+
+  <!-- MOBILE BOTTOM NAVIGATION -->
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item active">
+      <i class="fa-solid fa-house"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/menu" class="nav-item"
+      onclick="event.preventDefault(); document.querySelector('.modules-grid').scrollIntoView({behavior: 'smooth'})">
+      <i class="fa-solid fa-grid-2"></i>
+      <span>Menu</span>
+    </a>
+  </nav>
 
   <script type="module">
     import { initProtected } from './js/main.js';
@@ -262,7 +217,7 @@
       }
     });
 
-    
+
   </script>
 </body>
 

@@ -1,0 +1,101 @@
+/* 
+  CALM FUTURISTIC - DESIGN TOKENS
+  Refactored Visual System: Phase 8 (Glassmorphism)
+*/
+
+:root {
+  /* 🎨 COLOR SYSTEM */
+
+  /* Backgrounds (Low Saturation, Stable) */
+  --color-bg-primary: #0f172a;
+  /* Slate 900 */
+  --color-bg-secondary: #1e293b;
+  /* Slate 800 */
+
+  /* 🧊 GLASS SURFACE SYSTEM (Mandatory) */
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  /* Subtle border */
+  --glass-blur: 12px;
+
+  /* Surface Aliases */
+  --color-surface-glass: var(--glass-bg);
+  --color-surface-border: var(--glass-border);
+  --color-surface-active: rgba(255, 255, 255, 0.1);
+
+  /* Text (High Legibility) */
+  --color-text-primary: rgba(255, 255, 255, 0.95);
+  --color-text-secondary: rgba(255, 255, 255, 0.7);
+  --color-text-muted: rgba(255, 255, 255, 0.45);
+
+  /* Accent (Single Dominant Blue) */
+  --color-accent: #60a5fa;
+  /* Blue 400 */
+  --color-accent-hover: #3b82f6;
+  /* Blue 500 */
+  --color-accent-soft: rgba(96, 165, 250, 0.15);
+  --color-accent-glow: rgba(96, 165, 250, 0.3);
+
+  /* State Colors */
+  --color-success: #34d399;
+  /* Emerald 400 */
+  --color-warning: #fbbf24;
+  /* Amber 400 */
+  --color-error: #f87171;
+  /* Red 400 */
+
+  /* 🖋️ TYPOGRAPHY SYSTEM */
+  --font-primary: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Size Scale (Mobile First) */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  /* Body Default */
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
+
+  /* Line Height */
+  --leading-tight: 1.3;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.8;
+
+  /* Weight */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* 📏 SPACING & LAYOUT */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  --header-height: 60px;
+  --bottom-nav-height: 64px;
+  --touch-target: 48px;
+
+  /* 📐 SHAPES */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  /* Mandatory */
+  --radius-xl: 28px;
+  /* Mandatory */
+  --radius-full: 9999px;
+
+  /* SHADOW SYSTEM */
+  --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --press-scale: 0.98;
+
+  /* ANIMATION */
+  --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 📱 MOBILE ERGONOMICS */
+  --safe-area-bottom: env(safe-area-inset-bottom, 20px);
+}

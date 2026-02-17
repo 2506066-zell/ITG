@@ -6,83 +6,103 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/bottom-nav.css">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • College Assignments</title>
-  <style>
-    .bottom-sheet-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:100;opacity:0;pointer-events:none;transition:opacity .3s}
-    .bottom-sheet-overlay.active{opacity:1;pointer-events:auto}
-    .bottom-sheet{position:absolute;bottom:0;left:0;right:0;background:#15192b;border-top-left-radius:20px;border-top-right-radius:20px;padding:24px;transform:translateY(100%);transition:transform .3s cubic-bezier(.1,.7,.1,1);max-height:85vh;overflow-y:auto;border-top:1px solid rgba(255,255,255,.1)}
-    .bottom-sheet.active{transform:translateY(0)}
-    .sheet-handle{width:40px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 20px}
-    .prio-selector{display:flex;gap:8px}
-    .prio-btn{flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--muted);font-size:12px;text-align:center;cursor:pointer}
-    .prio-btn.active{background:rgba(255,255,255,.1);color:var(--text);border-color:var(--primary)}
-  </style>
-</head>
 
-<body>
-  <nav class="navbar">
-    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
-    <div class="nav-actions">
-      <a class="btn" href="/"><i class="fa-solid fa-house"></i> Home</a>
-      <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
-    </div>
-  </nav>
-  <div class="container">
-    <a class="btn back-home" href="/"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
-    <div class="grid">
-      <div class="card">
-        <div class="section-title">Add Assignment</div>
-        <form id="create-assignment" class="list">
-          <input class="input" name="title" placeholder="Title" required>
-          <textarea class="input" name="description" placeholder="Description (optional)"></textarea>
-          <div style="display:flex;gap:10px">
-              <input class="input" type="datetime-local" name="deadline" required style="flex:1">
-              <select class="input" name="assigned_to" style="flex:1">
-                  <option value="" selected>Assign to...</option>
-                  <option value="Nesya">Nesya</option>
-                  <option value="Zaldy">Zaldy</option>
-              </select>
-          </div>
-          <button class="btn" type="submit"><i class="fa-solid fa-plus"></i> Add</button>
-        </form>
+  <main class="mobile-layout-container" style="padding-bottom: calc(var(--bottom-nav-height) + 20px);">
+
+    <!-- HEADER CONTEXT -->
+    <header class="header-context">
+      <div class="brand short">
+        <i class="fa-solid fa-heart" style="color: var(--brand-rose)"></i> NZ
       </div>
+      <h2 class="header-title-lg">Assignments</h2>
+      <div class="muted-text">College Work Tracker</div>
+    </header>
+
+    <!-- STATS SECTION -->
+    <section class="stats-section" style="margin-bottom: var(--space-lg);">
       <div class="card">
-        <div class="section-title">Laporan Penyelesaian</div>
+        <div class="section-title"><i class="fa-solid fa-chart-line"></i> Performance Report</div>
         <div class="list">
-          <div class="stat-row" style="display:flex;justify-content:space-between">
-            <span class="muted">24 jam terakhir</span>
+          <div class="stat-row" style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span class="muted-text">24 jam terakhir</span>
             <strong id="stat-1d">—</strong>
           </div>
-          <div class="stat-row" style="display:flex;justify-content:space-between">
-            <span class="muted">3 hari terakhir</span>
+          <div class="stat-row" style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span class="muted-text">3 hari terakhir</span>
             <strong id="stat-3d">—</strong>
           </div>
           <div class="stat-row" style="display:flex;justify-content:space-between">
-            <span class="muted">5 hari terakhir</span>
+            <span class="muted-text">5 hari terakhir</span>
             <strong id="stat-5d">—</strong>
           </div>
         </div>
       </div>
-      <div class="card">
-        <div class="section-title">Assignments</div>
-        <div class="tabs">
-          <div class="tab-header">
-            <h3>Belum Selesai</h3>
-          </div>
-          <div id="assignments-active" class="list"></div>
+    </section>
 
-          <div class="tab-header" style="margin-top:20px;">
-            <h3>Selesai</h3>
-          </div>
-          <div id="assignments-completed" class="list"></div>
-        </div>
+    <!-- ASSIGNMENTS SECTION -->
+    <section class="assignments-section">
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div class="section-title" style="padding: var(--space-md) var(--space-md) 0;"><i class="fa-solid fa-books"></i>
+          Current Tasks</div>
+
+        <div id="assignments-active" class="list" style="padding: var(--space-md);"></div>
+
+        <div class="section-title"
+          style="padding: var(--space-md) var(--space-md) 0; border-top: 1px solid var(--glass-border);"><i
+            class="fa-solid fa-check-circle"></i> Completed</div>
+        <div id="assignments-completed" class="list" style="padding: var(--space-md);"></div>
       </div>
+    </section>
+
+    <!-- ADD ASSIGNMENT FORM (Bottom Sheet Style) -->
+    <div class="floating-zone">
+      <button class="action-fab" id="open-sheet" style="width: 56px; height: 56px; border-radius: 20px;">
+        <i class="fa-solid fa-plus"></i>
+      </button>
     </div>
-    <div class="footer">NZ</div>
+
+  </main>
+
+  <!-- BOTTOM SHEET FOR ADDING -->
+  <div class="bottom-sheet-overlay" id="sheet-overlay">
+    <div class="bottom-sheet" id="assignment-sheet">
+      <div class="sheet-handle"></div>
+      <h3 style="margin:0 0 20px;font-size:18px">Add Assignment</h3>
+      <form id="create-assignment">
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input class="input" name="title" placeholder="What is the task?" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description (Optional)</label>
+          <textarea class="input" name="description" placeholder="Notes, instructions, etc."></textarea>
+        </div>
+        <div class="form-row" style="display:flex; gap:16px; margin-bottom:20px;">
+          <div style="flex:1">
+            <label class="form-label">Deadline</label>
+            <input class="input" type="datetime-local" name="deadline" required>
+          </div>
+          <div style="flex:1">
+            <label class="form-label">Assign To</label>
+            <select class="input" name="assigned_to" style="appearance:none">
+              <option value="Nesya">Nesya</option>
+              <option value="Zaldy">Zaldy</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-block" type="submit">Add Assignment</button>
+      </form>
+    </div>
   </div>
+
+  <!-- MOOD PROMPT (Standardized) -->
   <div class="bottom-sheet-overlay" id="mood-overlay">
     <div class="bottom-sheet" id="mood-sheet">
       <div class="sheet-handle"></div>
@@ -90,27 +110,59 @@
       <form id="mood-form">
         <div class="form-group">
           <label class="form-label">Bagaimana perasaan Anda?</label>
-          <div class="prio-selector" id="mood-grid" style="gap:8px">
-            <button type="button" class="prio-btn" data-val="1">😫</button>
-            <button type="button" class="prio-btn" data-val="2">😕</button>
-            <button type="button" class="prio-btn" data-val="3">😐</button>
-            <button type="button" class="prio-btn" data-val="4">🙂</button>
-            <button type="button" class="prio-btn" data-val="5">🤩</button>
+          <div class="prio-selector" id="mood-grid"
+            style="display:flex; gap:8px; background:var(--color-surface-subtle); padding:4px; border-radius:var(--radius-md);">
+            <button type="button" class="prio-btn" data-val="1"
+              style="flex:1; padding:8px; border-radius:6px; background:transparent; border:1px solid transparent; font-size:24px;">😫</button>
+            <button type="button" class="prio-btn" data-val="2"
+              style="flex:1; padding:8px; border-radius:6px; background:transparent; border:1px solid transparent; font-size:24px;">😕</button>
+            <button type="button" class="prio-btn" data-val="3"
+              style="flex:1; padding:8px; border-radius:6px; background:transparent; border:1px solid transparent; font-size:24px;">😐</button>
+            <button type="button" class="prio-btn" data-val="4"
+              style="flex:1; padding:8px; border-radius:6px; background:transparent; border:1px solid transparent; font-size:24px;">🙂</button>
+            <button type="button" class="prio-btn" data-val="5"
+              style="flex:1; padding:8px; border-radius:6px; background:transparent; border:1px solid transparent; font-size:24px;">🤩</button>
           </div>
           <input type="hidden" name="mood" id="mood-value" required>
         </div>
         <div class="form-group">
           <label class="form-label">Catatan (opsional)</label>
-          <textarea name="note" id="mood-note" class="input" placeholder="Contoh: Selesai tugas, rasanya lega"></textarea>
+          <textarea name="note" id="mood-note" class="input"
+            placeholder="Contoh: Selesai tugas, rasanya lega"></textarea>
         </div>
-        <div class="sheet-actions" style="display:flex;gap:12px;margin-top:12px">
+        <div class="sheet-actions" style="display:flex; gap:12px; margin-top:12px">
           <button type="button" class="btn secondary" id="mood-cancel" style="flex:1">Lewati</button>
           <button type="submit" class="btn" style="flex:1">Simpan</button>
         </div>
       </form>
     </div>
   </div>
+
+  <!-- MOBILE BOTTOM NAVIGATION -->
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <i class="fa-solid fa-house"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/college-assignments" class="nav-item active">
+      <i class="fa-solid fa-books"></i>
+      <span>Studies</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/menu" class="nav-item" onclick="event.preventDefault(); window.location.href='/#modules'">
+      <i class="fa-solid fa-grid-2"></i>
+      <span>Menu</span>
+    </a>
+  </nav>
+
   <script type="module" src="js/assignments.js"></script>
-</body>
+  </body>
 
 </html>

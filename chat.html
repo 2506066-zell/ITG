@@ -1,35 +1,75 @@
-﻿﻿﻿<!doctype html>
+﻿﻿<!doctype html>
 <html lang="en" data-theme="dark">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/bottom-nav.css">
   <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/chat.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • Chat</title>
 </head>
+
 <body>
-  <nav class="navbar">
-    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
-    <div class="nav-actions">
-      <a class="btn" href="/"><i class="fa-solid fa-house"></i> Home</a>
-      <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
-    </div>
-  </nav>
-  <div class="container">
-    <a class="btn back-home" href="/"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
-    <div class="card chat">
-      <div id="chat-messages" class="chat-messages"></div>
-      <form id="chat-form" class="chat-input">
-        <input id="chat-input" class="input" placeholder="Type message">
-        <button class="btn" type="submit"><i class="fa-solid fa-paper-plane"></i> Send</button>
-        <button class="btn danger" type="button" id="chat-clear"><i class="fa-solid fa-trash"></i></button>
+  <main class="mobile-layout-container"
+    style="display:flex; flex-direction:column; height:100vh; padding-bottom: calc(var(--bottom-nav-height) + 20px);">
+
+    <!-- HEADER CONTEXT -->
+    <header class="header-context" style="flex:0 0 auto; margin-bottom:10px; padding-top:10px">
+      <div class="brand short">
+        <i class="fa-solid fa-heart" style="color: var(--brand-rose)"></i> NZ
+      </div>
+      <h2 class="header-title-lg" style="font-size:1.5rem">Heart Link</h2>
+    </header>
+
+    <!-- CHAT AREA -->
+    <div class="card chat"
+      style="flex:1; display:flex; flex-direction:column; padding:0; overflow:hidden; margin-bottom:0; border-radius: 20px 20px 0 0;">
+      <div id="chat-messages" class="chat-messages" style="flex:1; overflow-y:auto; padding:15px;"></div>
+
+      <!-- FLOATING INPUT ZONE (Integrated) -->
+      <form id="chat-form" class="chat-input"
+        style="padding:15px; background:rgba(20,20,30,0.95); border-top:1px solid rgba(255,255,255,0.1)">
+        <div class="input-pill-wrapper" style="width:100%">
+          <input id="chat-input" class="input-pill" placeholder="Send love..." autocomplete="off">
+          <button class="action-fab" type="submit" style="width:36px; height:36px; font-size:1rem; margin-right:4px">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </div>
       </form>
     </div>
-    <div class="footer">NZ</div>
-  </div>
+  </main>
+  <!-- MOBILE BOTTOM NAVIGATION -->
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <i class="fa-solid fa-house"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item active">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/menu" class="nav-item" onclick="event.preventDefault(); window.location.href='/#modules'">
+      <i class="fa-solid fa-grid-2"></i>
+      <span>Menu</span>
+    </a>
+  </nav>
+
   <script type="module" src="js/chat.js"></script>
 </body>
+
 </html>

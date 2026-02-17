@@ -1,4 +1,4 @@
-﻿<!doctype html>
+﻿﻿<!doctype html>
 <html lang="en" data-theme="dark">
 
 <head>
@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/bottom-nav.css">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
@@ -53,6 +56,30 @@
     </div>
     <div class="footer">NZ</div>
   </div>
+  <!-- MOBILE BOTTOM NAVIGATION -->
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <i class="fa-solid fa-house"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/menu" class="nav-item active" onclick="event.preventDefault(); window.location.href='/#modules'">
+      <i class="fa-solid fa-grid-2"></i>
+      <span>Menu</span>
+    </a>
+  </nav>
+
   <script type="module" src="js/anniversary.js"></script>
 </body>
 

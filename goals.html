@@ -6,223 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/bottom-nav.css">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • Goals</title>
-  <style>
-    /* Page Specific Critical CSS - Goals HUD */
-    body {
-      overflow: hidden;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .page-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      position: relative;
-      overflow: hidden;
-    }
-
-    /* Header */
-    .page-header {
-      padding: 24px 20px 16px;
-      background: var(--glass-bg);
-      backdrop-filter: blur(var(--glass-blur));
-      border-bottom: 1px solid var(--glass-border);
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .header-title {
-      font-family: var(--font-head);
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: hsl(var(--text-100));
-      letter-spacing: 0.1em;
-    }
-
-    /* Content */
-    .content-scroll {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px;
-      padding-bottom: 100px;
-    }
-
-    /* Tabs */
-    .tabs {
-      display: flex;
-      background: var(--glass-bg);
-      padding: 4px;
-      border: 1px solid var(--glass-border);
-      border-radius: 12px;
-      margin-bottom: 25px;
-    }
-
-    .tab-btn {
-      flex: 1;
-      padding: 10px;
-      text-align: center;
-      border-radius: 8px;
-      font-family: var(--font-head);
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: hsl(var(--text-500));
-      cursor: pointer;
-      transition: all 0.3s ease;
-      letter-spacing: 0.05em;
-    }
-
-    .tab-btn.active {
-      background: hsla(var(--nebula-core), 0.15);
-      color: hsl(var(--nebula-core));
-      box-shadow: 0 4px 15px hsla(var(--nebula-core), 0.1);
-    }
-
-    .tab-content {
-      display: none;
-    }
-
-    .tab-content.active {
-      display: block;
-      animation: slide-in-top 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    /* Goal Item */
-    .goal-card {
-      background: var(--glass-bg);
-      border-radius: var(--radius-md);
-      padding: 20px;
-      margin-bottom: 15px;
-      border: 1px solid var(--glass-border);
-      position: relative;
-      transition: all 0.3s ease;
-    }
-
-    .goal-card:hover {
-      border-color: hsla(var(--nebula-core), 0.3);
-      transform: translateX(5px);
-    }
-
-    .goal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 12px;
-    }
-
-    .goal-title {
-      font-weight: 700;
-      font-size: 1.1rem;
-      color: hsl(var(--text-100));
-    }
-
-    .goal-cat {
-      font-family: var(--font-head);
-      font-size: 0.65rem;
-      padding: 3px 10px;
-      border-radius: 10px;
-      background: hsla(var(--nebula-core), 0.1);
-      color: hsl(var(--nebula-core));
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      border: 1px solid hsla(var(--nebula-core), 0.2);
-    }
-
-    .progress-track {
-      background: hsla(0, 0%, 100%, 0.05);
-      height: 8px;
-      border-radius: 10px;
-      overflow: hidden;
-      margin: 15px 0 10px;
-    }
-
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, hsl(var(--nebula-core)), hsl(var(--nebula-pulse)));
-      width: 0%;
-      transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 0 10px hsla(var(--nebula-core), 0.4);
-    }
-
-    .goal-meta {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.8rem;
-      color: hsl(var(--text-500));
-      font-weight: 500;
-    }
-
-    /* Mood Selector */
-    .mood-grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-
-    .mood-btn {
-      aspect-ratio: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.5rem;
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      border-radius: 12px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-
-    .mood-btn:hover {
-      background: hsla(0, 0%, 100%, 0.05);
-      border-color: hsla(var(--nebula-pulse), 0.4);
-    }
-
-    .mood-btn.selected {
-      background: hsla(var(--nebula-pulse), 0.15);
-      border-color: hsl(var(--nebula-pulse));
-      transform: scale(1.1);
-      box-shadow: 0 0 15px hsla(var(--nebula-pulse), 0.2);
-    }
-
-    /* FAB */
-    .fab {
-      position: absolute;
-      bottom: 30px;
-      right: 30px;
-      width: 60px;
-      height: 60px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, hsl(var(--nebula-core)), hsl(var(--nebula-pulse)));
-      color: hsl(var(--text-100));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      box-shadow: 0 10px 25px hsla(var(--nebula-core), 0.4);
-      cursor: pointer;
-      z-index: 10;
-      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    .fab:hover {
-      transform: scale(1.1) rotate(90deg);
-    }
-
-    /* Sheet Overrides */
-    .sheet {
-      background: hsl(var(--space-900)) !important;
-      border-top: 1px solid hsla(var(--nebula-core), 0.3);
-    }
-  </style>
+  <link rel="stylesheet" href="css/goals.css">
 </head>
 
 <body>
@@ -301,14 +91,14 @@
           <div class="form-group">
             <label class="form-label">Factors</label>
             <div class="tags-selector" id="eval-tags" style="display:flex;flex-wrap:wrap;gap:8px">
-                <div class="tag-chip" data-val="Lelah">😫 Lelah</div>
-                <div class="tag-chip" data-val="Sakit">🤒 Sakit</div>
-                <div class="tag-chip" data-val="Stres">🤯 Stres</div>
-                <div class="tag-chip" data-val="Biasa">😐 Biasa</div>
-                <div class="tag-chip" data-val="Fokus">🧠 Fokus</div>
-                <div class="tag-chip" data-val="Semangat">🔥 Semangat</div>
-                <div class="tag-chip" data-val="Senang">🥰 Senang</div>
-                <div class="tag-chip" data-val="Produktif">✅ Produktif</div>
+              <div class="tag-chip" data-val="Lelah">😫 Lelah</div>
+              <div class="tag-chip" data-val="Sakit">🤒 Sakit</div>
+              <div class="tag-chip" data-val="Stres">🤯 Stres</div>
+              <div class="tag-chip" data-val="Biasa">😐 Biasa</div>
+              <div class="tag-chip" data-val="Fokus">🧠 Fokus</div>
+              <div class="tag-chip" data-val="Semangat">🔥 Semangat</div>
+              <div class="tag-chip" data-val="Senang">🥰 Senang</div>
+              <div class="tag-chip" data-val="Produktif">✅ Produktif</div>
             </div>
           </div>
           <div class="form-group">
@@ -323,6 +113,30 @@
     </div>
 
   </div>
+
+  <!-- MOBILE BOTTOM NAVIGATION -->
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <i class="fa-solid fa-house"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item active">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/menu" class="nav-item" onclick="event.preventDefault(); window.location.href='/#modules'">
+      <i class="fa-solid fa-grid-2"></i>
+      <span>Menu</span>
+    </a>
+  </nav>
 
   <script type="module" src="js/goals.js"></script>
 </body>

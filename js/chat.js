@@ -22,10 +22,17 @@ async function loadMessages() {
       el.className = `chat-msg ${isMe ? 'me' : ''}`;
 
       const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      el.innerHTML = `
-        <div style="font-size:10px;opacity:0.6;margin-bottom:2px">${m.user_id} • ${time}</div>
-        ${m.message}
-      `;
+
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'msg-meta';
+      metaDiv.innerHTML = `<span>${m.user_id}</span> <span>${time}</span>`;
+
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'msg-content';
+      contentDiv.textContent = m.message;
+
+      el.appendChild(metaDiv);
+      el.appendChild(contentDiv);
       wrap.appendChild(el);
     });
 

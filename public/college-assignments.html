@@ -6,19 +6,83 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/bottom-nav.css">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <title>NZ • College Assignments</title>
   <style>
-    .bottom-sheet-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:100;opacity:0;pointer-events:none;transition:opacity .3s}
-    .bottom-sheet-overlay.active{opacity:1;pointer-events:auto}
-    .bottom-sheet{position:absolute;bottom:0;left:0;right:0;background:#15192b;border-top-left-radius:20px;border-top-right-radius:20px;padding:24px;transform:translateY(100%);transition:transform .3s cubic-bezier(.1,.7,.1,1);max-height:85vh;overflow-y:auto;border-top:1px solid rgba(255,255,255,.1)}
-    .bottom-sheet.active{transform:translateY(0)}
-    .sheet-handle{width:40px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 20px}
-    .prio-selector{display:flex;gap:8px}
-    .prio-btn{flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--muted);font-size:12px;text-align:center;cursor:pointer}
-    .prio-btn.active{background:rgba(255,255,255,.1);color:var(--text);border-color:var(--primary)}
+    .bottom-sheet-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .3s
+    }
+
+    .bottom-sheet-overlay.active {
+      opacity: 1;
+      pointer-events: auto
+    }
+
+    .bottom-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #15192b;
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      padding: 24px;
+      transform: translateY(100%);
+      transition: transform .3s cubic-bezier(.1, .7, .1, 1);
+      max-height: 85vh;
+      overflow-y: auto;
+      border-top: 1px solid rgba(255, 255, 255, .1)
+    }
+
+    .bottom-sheet.active {
+      transform: translateY(0)
+    }
+
+    .sheet-handle {
+      width: 40px;
+      height: 4px;
+      background: rgba(255, 255, 255, .2);
+      border-radius: 2px;
+      margin: 0 auto 20px
+    }
+
+    .prio-selector {
+      display: flex;
+      gap: 8px
+    }
+
+    .prio-btn {
+      flex: 1;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, .1);
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      cursor: pointer
+    }
+
+    .prio-btn.active {
+      background: rgba(255, 255, 255, .1);
+      color: var(--text);
+      border-color: var(--primary)
+    }
   </style>
 </head>
 
@@ -39,12 +103,12 @@
           <input class="input" name="title" placeholder="Title" required>
           <textarea class="input" name="description" placeholder="Description (optional)"></textarea>
           <div style="display:flex;gap:10px">
-              <input class="input" type="datetime-local" name="deadline" required style="flex:1">
-              <select class="input" name="assigned_to" style="flex:1">
-                  <option value="" selected>Assign to...</option>
-                  <option value="Nesya">Nesya</option>
-                  <option value="Zaldy">Zaldy</option>
-              </select>
+            <input class="input" type="datetime-local" name="deadline" required style="flex:1">
+            <select class="input" name="assigned_to" style="flex:1">
+              <option value="" selected>Assign to...</option>
+              <option value="Nesya">Nesya</option>
+              <option value="Zaldy">Zaldy</option>
+            </select>
           </div>
           <button class="btn" type="submit"><i class="fa-solid fa-plus"></i> Add</button>
         </form>
@@ -101,7 +165,8 @@
         </div>
         <div class="form-group">
           <label class="form-label">Catatan (opsional)</label>
-          <textarea name="note" id="mood-note" class="input" placeholder="Contoh: Selesai tugas, rasanya lega"></textarea>
+          <textarea name="note" id="mood-note" class="input"
+            placeholder="Contoh: Selesai tugas, rasanya lega"></textarea>
         </div>
         <div class="sheet-actions" style="display:flex;gap:12px;margin-top:12px">
           <button type="button" class="btn secondary" id="mood-cancel" style="flex:1">Lewati</button>
@@ -110,6 +175,30 @@
       </form>
     </div>
   </div>
+  <!-- MOBILE BOTTOM NAVIGATION -->
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item">
+      <i class="fa-solid fa-house"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/menu" class="nav-item active" onclick="event.preventDefault(); window.location.href='/#modules'">
+      <i class="fa-solid fa-grid-2"></i>
+      <span>Menu</span>
+    </a>
+  </nav>
+
   <script type="module" src="js/assignments.js"></script>
 </body>
 

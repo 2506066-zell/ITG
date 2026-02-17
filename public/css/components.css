@@ -1,0 +1,237 @@
+/* 
+  CALM FUTURISTIC - CORE COMPONENTS 
+  Refactored: Phase 8 (Glassmorphism)
+*/
+
+/* -------------------------------------------------------------------------- */
+/* 1. CARDS (Glass System)                                                    */
+/* -------------------------------------------------------------------------- */
+.card {
+    position: relative;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+    transition: transform 0.3s var(--ease-smooth),
+        box-shadow 0.3s var(--ease-smooth),
+        background-color 0.3s ease;
+}
+
+/* Interaction */
+.card-interactive {
+    cursor: pointer;
+}
+
+.card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.card-interactive:active {
+    transform: scale(var(--press-scale));
+    background: var(--color-surface-active);
+}
+
+/* Subtle Shine */
+.card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 2. BUTTONS (Readable Targets)                                              */
+/* -------------------------------------------------------------------------- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+
+    /* Size */
+    min-height: var(--touch-target);
+    padding: 0 var(--space-lg);
+    border-radius: var(--radius-md);
+
+    /* Typography */
+    font-family: var(--font-primary);
+    font-weight: var(--weight-medium);
+    font-size: var(--text-sm);
+    letter-spacing: 0.01em;
+    text-transform: none;
+    text-decoration: none;
+
+    /* Reset */
+    border: 1px solid transparent;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s var(--ease-smooth);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Variants */
+
+/* Primary: Accent Blue */
+.btn-primary,
+.btn:not(.secondary):not(.danger):not(.ghost) {
+    background: var(--color-accent);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(96, 165, 250, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn:active {
+    transform: scale(var(--press-scale));
+}
+
+/* Secondary: Ghost/Glass */
+.btn.secondary {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--glass-border);
+    color: var(--color-text-primary);
+    backdrop-filter: blur(4px);
+}
+
+.btn.secondary:active {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Danger: Soft Red */
+.btn.danger {
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--color-error);
+    border-color: rgba(248, 113, 113, 0.2);
+}
+
+.btn.danger:active {
+    background: rgba(248, 113, 113, 0.2);
+}
+
+/* Small Variant */
+.btn.small {
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: var(--text-xs);
+    border-radius: var(--radius-sm);
+}
+
+/* -------------------------------------------------------------------------- */
+/* 3. INPUTS (Glass Panels)                                                    */
+/* -------------------------------------------------------------------------- */
+.input,
+select,
+textarea,
+.textarea {
+    width: 100%;
+    min-height: var(--touch-target);
+    padding: 12px 16px;
+    /* Increased padding for comfort */
+
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+
+    color: var(--color-text-primary);
+    font-family: var(--font-primary);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+
+    transition: all 0.2s ease;
+    -webkit-appearance: none;
+    appearance: none;
+    backdrop-filter: blur(4px);
+}
+
+/* Focus State */
+.input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    background: rgba(15, 23, 42, 0.8);
+    box-shadow: 0 0 0 2px var(--color-accent-soft);
+}
+
+::placeholder {
+    color: var(--color-text-muted);
+}
+
+/* -------------------------------------------------------------------------- */
+/* 5. LOADING SKELETON (Glass Shimmer)                                        */
+/* -------------------------------------------------------------------------- */
+.skeleton {
+    background: var(--glass-bg);
+    border-radius: var(--radius-md);
+    position: relative;
+    overflow: hidden;
+}
+
+.skeleton::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            var(--color-surface-active) 50%,
+            transparent 100%);
+    transform: translateX(-100%);
+    animation: shimmer 2s infinite;
+}
+
+.skeleton-text {
+    height: 14px;
+    width: 60%;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.skeleton-text.title {
+    height: 20px;
+    width: 80%;
+    margin-bottom: 12px;
+}
+
+@keyframes shimmer {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/* 6. UTILS                                                                   */
+/* -------------------------------------------------------------------------- */
+.muted,
+.text-muted {
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--leading-normal);
+}
+
+/* Mobile Grid Adjustment */
+.grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+}
+
+@media (min-width: 600px) {
+    .grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: var(--space-lg);
+    }
+}
