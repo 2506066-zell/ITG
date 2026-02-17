@@ -6,9 +6,10 @@ Stateless, fast, and compatible with Vercel Python runtime.
 from __future__ import annotations
 
 import json
+import os
 from http.server import BaseHTTPRequestHandler
 
-from chatbot.processor import process_message
+from chatbot.processor import process_message_payload
 
 
 MAX_BODY_BYTES = 8 * 1024
@@ -68,6 +69,13 @@ class handler(BaseHTTPRequestHandler):  # pylint: disable=invalid-name
             _send_json(self, 404, {"error": "Not Found"})
             return
 
+        required_secret = str(os.getenv("CHATBOT_SHARED_SECRET", "")).strip()
+        if required_secret:
+            incoming_secret = str(self.headers.get("X-Chatbot-Secret", "")).strip()
+            if incoming_secret != required_secret:
+                _send_json(self, 401, {"error": "Unauthorized"})
+                return
+
         payload = _read_json_body(self)
         if payload.get("_error") == "payload_too_large":
             _send_json(self, 413, {"error": "Payload too large"})
@@ -78,6 +86,18 @@ class handler(BaseHTTPRequestHandler):  # pylint: disable=invalid-name
             _send_json(self, 400, {"error": "message is required"})
             return
 
-        reply = process_message(message)
-        _send_json(self, 200, {"reply": reply})
+        context = payload.get("context") if isinstance(payload.get("context"), dict) else None
+        result = process_message_payload(message, context)
+        reply = str(result.get("reply", "")).strip()
+        suggestions = result.get("suggestions")
+        intent = str(result.get("intent", "")).strip()
+        adaptive = result.get("adaptive")
 
+        payload_out = {"reply": reply}
+        if isinstance(suggestions, list):
+            payload_out["suggestions"] = suggestions[:4]
+        if intent:
+            payload_out["intent"] = intent
+        if isinstance(adaptive, dict):
+            payload_out["adaptive"] = adaptive
+        _send_json(self, 200, payload_out)

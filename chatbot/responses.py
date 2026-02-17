@@ -1,4 +1,4 @@
-"""Response templates for each chatbot intent."""
+﻿"""Response templates for each chatbot intent."""
 
 from __future__ import annotations
 
@@ -7,87 +7,61 @@ from typing import Mapping
 
 
 RESPONSE_TEMPLATES = {
-
     "greeting": [
         "Hai, gue di sini buat bantu kalian tetap on track. Mulai dari target harian dulu, ya?",
-        "Halo! Gimana ritme hari ini? Mau cek target atau atur prioritas dulu?",
-        "Hi. Kita jaga fokus bareng-bareng. Satu target utama dulu, baru yang lain nyusul.",
-        "Halo, partner produktif. Hari ini kita bikin progres kecil tapi nyata.",
-        "Hai! Kalau bingung mulai dari mana, kita tentuin 1 tugas paling penting dulu.",
-        "Ayo mulai rapi: satu tujuan jelas, satu langkah sekarang.",
-        "Selamat datang. Kita bikin hari ini lebih produktif dari kemarin.",
-        "Gue siap bantu kalian sinkron. Mau mulai dari target atau progres?",
+        "Halo. Mau cek target harian, rekomendasi tugas, atau evaluasi singkat?",
+        "Hi. Kita jaga fokus bareng: satu target utama dulu, lalu eksekusi.",
+        "Halo, partner produktif. Hari ini kita cari progres kecil tapi nyata.",
     ],
-
     "check_daily_target": [
-        "Target hari ini simpel: 1 tugas prioritas selesai, 1 sesi fokus tanpa distraksi, lalu check-in malam.",
-        "Ritme aman hari ini: kerjakan deadline terdekat, lanjut 30–45 menit belajar fokus, update progres berdua.",
-        "Fokus hari ini: satu hasil nyata dulu. Pilih tugas paling berdampak, tuntaskan, baru lanjut.",
-        "Target bareng: progress > perfeksionis. Kerja konsisten, lalu kirim update singkat ke pasangan.",
-        "Hari ini kita kejar yang penting dulu: 1 tugas selesai, 1 sesi review, dan check-in sebelum istirahat.",
-        "Prioritas hari ini: selesaikan yang mendesak, lanjut yang berdampak, tutup dengan refleksi singkat.",
-        "Formula aman: pilih 1 target utama, pecah jadi langkah kecil, eksekusi sekarang.",
-        "Target pasangan: progres nyata, bukan sekadar rencana.",
+        "Target hari ini: 1 tugas prioritas selesai, 1 sesi fokus 30-45 menit, lalu check-in malam.",
+        "Ritme aman hari ini: deadline terdekat dulu, lanjut sesi belajar fokus, kemudian update berdua.",
+        "Fokus harian: progress > perfeksionis. Pilih tugas paling berdampak dan tuntaskan.",
+        "Target couple: satu hasil nyata sebelum malam, lalu evaluasi 3 menit.",
     ],
-
     "reminder_ack": [
-        "Oke, pengingat sudah dicatat. Lanjut satu langkah kecil sekarang biar momentum kebentuk.",
-        "Siap, reminder aktif. Kerjain dulu yang paling penting, nanti kita cek lagi.",
-        "Noted. Pengingat jalan—fokus 25 menit dulu, habis itu update ya.",
-        "Sudah gue tandai. Jalan pelan tapi pasti, yang penting konsisten.",
-        "Sip, diingatkan. Mulai dari bagian paling gampang biar cepat bergerak.",
-        "Reminder siap. Jangan tunggu mood, mulai sekarang.",
-        "Pengingat aktif. Eksekusi dulu, evaluasi belakangan.",
-        "Udah dicatat. Satu langkah sekarang lebih berharga dari rencana panjang.",
+        "Oke, reminder sudah dicatat. Mulai satu langkah kecil sekarang biar momentum kebentuk.",
+        "Siap, pengingat aktif. Fokus 25 menit dulu, habis itu update progres.",
+        "Noted. Eksekusi dulu, evaluasi belakangan.",
+        "Sip, reminder jalan. Mau lanjut ke rekomendasi tugas berikutnya?",
     ],
-
     "checkin_progress": [
-        "Update cepat: apa yang sudah selesai, lagi dikerjain apa, dan ada hambatan di mana?",
-        "Coba ringkas progres: selesai berapa persen, next step apa, butuh bantuan apa?",
-        "Biar sinkron: kirim status singkat tugas + level fokus kamu sekarang.",
-        "Check-in singkat aja: 1 kemenangan kecil hari ini dan 1 langkah berikutnya.",
-        "Gue butuh snapshot progres: done, doing, dan blocker.",
-        "Progres report: apa yang maju hari ini dan apa yang menahan?",
-        "Update jujur: kerja nyata atau masih persiapan?",
-        "Sinkronisasi cepat: status tugas, estimasi selesai, dan kebutuhan dukungan.",
+        "Update cepat: apa yang sudah selesai, lagi dikerjain apa, dan blocker-nya apa?",
+        "Ringkas progres: selesai berapa persen, next step apa, butuh bantuan apa?",
+        "Biar sinkron, kirim status singkat tugas + level fokus kamu sekarang.",
+        "Check-in singkat: 1 kemenangan hari ini dan 1 langkah berikutnya.",
     ],
-
+    "evaluation": [
+        "Evaluasi cepat 3 poin: 1) Menang hari ini apa? 2) Hambatan utama apa? 3) Aksi terpenting besok apa?",
+        "Review harian: progres vs target, tugas yang ketunda, lalu 1 perbaikan kecil buat besok.",
+        "Template evaluasi couple: apa yang berjalan baik, apa yang bikin beban naik, dan komitmen aksi besok.",
+        "Refleksi singkat: hasil nyata hari ini, faktor penghambat, dan jam mulai fokus besok.",
+    ],
+    "affirmation": [
+        "Sip, langsung eksekusi 25 menit sekarang. Habis itu kirim update 1 kalimat.",
+        "Mantap. Pilih 1 tugas inti dan tuntaskan dulu sebelum buka task lain.",
+        "Oke, gas terukur: fokus 30 menit, break 5 menit, lalu check-in progres.",
+        "Deal. Mau lanjut ke target, rekomendasi tugas, atau evaluasi?",
+    ],
     "recommend_task": [
-        "Prioritas sekarang: selesaikan yang bisa tuntas hari ini, lalu lanjut yang paling berdampak ke nilai.",
-        "Langkah aman: kerjain deadline terdekat 30–45 menit, review singkat, lalu update pasangan.",
-        "Mulai dari yang paling jelas hasilnya. Tuntaskan satu bagian, baru naik level.",
-        "Pecah tugas besar jadi 2–3 bagian. Ambil bagian pertama sekarang.",
-        "Kalau ragu, pilih tugas yang bikin lega kalau selesai.",
-        "Urutan praktis: deadline terdekat → tugas berdampak → review singkat.",
-        "Strategi cepat: satu tugas utama, satu tugas pendukung, selesai.",
-        "Kerjakan yang paling mengurangi beban pikiran dulu.",
+        "Prioritas sekarang: kerjakan deadline terdekat 30-45 menit, lalu lanjut tugas paling berdampak.",
+        "Urutan praktis: deadline terdekat -> tugas bernilai tinggi -> review 10 menit.",
+        "Kalau ragu, pilih tugas yang paling mengurangi beban pikiran jika selesai sekarang.",
+        "Strategi cepat: satu tugas utama, satu tugas pendukung, lalu check-in ke pasangan.",
     ],
-
     "toxic_motivation": [
-        "Stop mikir kebanyakan. Pilih satu tugas, kerjain 30 menit, beres.",
-        "Nggak perlu mood bagus buat mulai. Mulai dulu, mood nyusul.",
-        "Alasan bisa nunggu. Progress nggak.",
+        "Stop overthinking. Pilih satu tugas, kerjain 30 menit, beres.",
+        "No excuse mode: jangan tunggu mood. Mulai sekarang.",
         "Fokus 25 menit tanpa distraksi. Buktiin ke diri sendiri dulu.",
-        "Kecil tapi jadi. Jalan sekarang, bukan nanti.",
-        "Disiplin itu pilihan. Pilih yang benar hari ini.",
         "Kerja sunyi, hasil yang berisik.",
-        "Kalau gampang ditunda, berarti itu yang harus dikerjain sekarang.",
-        "Satu langkah nyata > seribu rencana.",
-        "Konsisten itu membosankan—dan itu yang bikin berhasil.",
     ],
-
     "fallback": [
-        "Biar tepat, kamu bisa bilang: 'cek target harian', 'rekomendasi tugas', atau 'check-in progres'.",
-        "Aku belum nangkep maksudnya. Mau cek target, set reminder, atau update progres?",
-        "Coba perintah yang lebih spesifik ya—misalnya minta target hari ini atau rekomendasi tugas.",
-        "Kita fokus ke progres. Sebutkan kebutuhanmu: target, reminder, atau check-in.",
-        "Kalau bingung, mulai dari 'cek target harian pasangan'.",
-        "Perintah belum jelas. Pilih: target, progres, atau rekomendasi.",
-        "Gue siap bantu produktivitas. Arahkan permintaanmu dengan jelas.",
-        "Butuh bantuan apa sekarang—target, reminder, atau evaluasi?",
+        "Butuh bantuan apa sekarang: target, reminder, evaluasi, atau rekomendasi tugas?",
+        "Perintah belum kebaca jelas. Coba: 'cek target harian' atau 'rekomendasi tugas kuliah'.",
+        "Gue siap bantu produktivitas. Arahkan ke target, progres, reminder, atau evaluasi.",
+        "Coba perintah spesifik: 'evaluasi hari ini' atau 'oke lanjut rekomendasi tugas'.",
     ],
 }
-
 
 
 def _stable_index(seed: str, size: int) -> int:
@@ -105,4 +79,3 @@ def pick_response(intent: str, message: str, context: Mapping[str, str] | None =
         return text.format(**context)
     except Exception:
         return text
-

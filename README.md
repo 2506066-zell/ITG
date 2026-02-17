@@ -74,8 +74,8 @@ Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless
 ## Chatbot Python Stateless (Mobile Couple Productivity)
 - Endpoint utama: `POST /api/chat`
   - Mode chatbot stateless aktif saat request tanpa `Authorization` Bearer token.
-  - Input: `{ "message": "text user" }`
-  - Output: `{ "reply": "jawaban bot" }`
+  - Input: `{ "message": "text user", "context": { "tone_mode": "supportive|strict|balanced", "focus_minutes": 25, "focus_window": "any|morning|afternoon|evening", "recent_intents": [] } }`
+  - Output: `{ "reply": "jawaban bot", "intent": "nama_intent", "adaptive": { ... }, "suggestions": [{ "label": "...", "command": "...", "tone": "info" }] }`
 - Endpoint Python langsung: `POST /api/chatbot` (rewritten ke `api/chat.py`)
 - Legacy mode tetap aman:
   - `GET /api/chat`, `DELETE /api/chat`, dan `POST /api/chat` dengan token tetap memakai chat storage lama.

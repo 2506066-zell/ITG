@@ -12,6 +12,7 @@ let lastDraftPlaceholderIndex = -1;
 
 const ASSISTANT_ALWAYS_ON_KEY = 'assistant_always_on_v1';
 const CHATBOT_STATELESS_MODE_KEY = 'chatbot_stateless_mode_v1';
+const CHATBOT_ADAPTIVE_PROFILE_KEY = 'chatbot_adaptive_profile_v1';
 
 const BASE_COMMAND_SUGGESTIONS = [
   { label: 'Template Daily Task', command: 'buat task [judul tugas] deadline [besok 19:00] priority [high/medium/low]' },
@@ -87,6 +88,99 @@ function writeChatbotStatelessPreference(value) {
   try {
     localStorage.setItem(CHATBOT_STATELESS_MODE_KEY, value ? '1' : '0');
   } catch {}
+}
+
+function clampNumber(value, fallback = 25, min = 10, max = 180) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function sanitizeAdaptiveProfile(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const tone = String(source.tone_mode || source.style || '').trim().toLowerCase();
+  const tone_mode = ['supportive', 'strict', 'balanced'].includes(tone) ? tone : 'supportive';
+
+  const windowRaw = String(source.focus_window || '').trim().toLowerCase();
+  const focus_window = ['any', 'morning', 'afternoon', 'evening'].includes(windowRaw) ? windowRaw : 'any';
+
+  const recent_intents = Array.isArray(source.recent_intents)
+    ? source.recent_intents
+        .map((item) => String(item || '').trim().toLowerCase())
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+
+  return {
+    tone_mode,
+    focus_minutes: clampNumber(source.focus_minutes, 25, 10, 180),
+    focus_window,
+    recent_intents,
+  };
+}
+
+function readBotAdaptiveProfile() {
+  try {
+    const raw = localStorage.getItem(CHATBOT_ADAPTIVE_PROFILE_KEY);
+    if (!raw) return sanitizeAdaptiveProfile(null);
+    return sanitizeAdaptiveProfile(JSON.parse(raw));
+  } catch {
+    return sanitizeAdaptiveProfile(null);
+  }
+}
+
+function writeBotAdaptiveProfile(profile) {
+  try {
+    localStorage.setItem(CHATBOT_ADAPTIVE_PROFILE_KEY, JSON.stringify(sanitizeAdaptiveProfile(profile)));
+  } catch {}
+}
+
+function deriveAdaptiveProfileFromMessage(message = '', baseProfile = null) {
+  const profile = sanitizeAdaptiveProfile(baseProfile || readBotAdaptiveProfile());
+  const text = String(message || '').toLowerCase();
+
+  if (/\b(toxic|tegas|gaspol|push keras|no excuse)\b/.test(text)) {
+    profile.tone_mode = 'strict';
+  } else if (/\b(lembut|santai|pelan)\b/.test(text)) {
+    profile.tone_mode = 'supportive';
+  } else if (/\b(balance|seimbang|balanced)\b/.test(text)) {
+    profile.tone_mode = 'balanced';
+  }
+
+  const minutesMatch = text.match(/(\d{2,3})\s*(?:menit|min|minutes?)\b/i);
+  if (minutesMatch) {
+    profile.focus_minutes = clampNumber(minutesMatch[1], profile.focus_minutes, 10, 180);
+  }
+
+  if (/\b(pagi|morning)\b/.test(text)) profile.focus_window = 'morning';
+  else if (/\b(siang|afternoon)\b/.test(text)) profile.focus_window = 'afternoon';
+  else if (/\b(malam|night|evening)\b/.test(text)) profile.focus_window = 'evening';
+
+  return profile;
+}
+
+function updateAdaptiveProfileFromBotResult(result, currentProfile = null) {
+  const profile = sanitizeAdaptiveProfile(currentProfile || readBotAdaptiveProfile());
+  const adaptive = result && typeof result.adaptive === 'object' ? result.adaptive : null;
+
+  if (adaptive) {
+    const style = String(adaptive.style || '').trim().toLowerCase();
+    if (['supportive', 'strict', 'balanced'].includes(style)) {
+      profile.tone_mode = style;
+    }
+    if (adaptive.focus_minutes !== undefined) {
+      profile.focus_minutes = clampNumber(adaptive.focus_minutes, profile.focus_minutes, 10, 180);
+    }
+  }
+
+  const intent = String(result?.intent || '').trim().toLowerCase();
+  if (intent) {
+    const next = [intent, ...profile.recent_intents.filter((item) => item !== intent)];
+    profile.recent_intents = next.slice(0, 6);
+  }
+
+  writeBotAdaptiveProfile(profile);
+  return profile;
 }
 
 function syncAssistantModeUI() {
@@ -331,6 +425,45 @@ function stageAssistantDraft(command = '') {
   } catch {}
 }
 
+function stageChatDraft(command = '') {
+  const input = document.querySelector('#chat-input');
+  if (!input) return;
+  const clean = normalizeAssistantInput(command || '');
+  if (!clean) return;
+  input.value = clean;
+  input.focus();
+  const pos = input.value.length;
+  try {
+    input.setSelectionRange(pos, pos);
+  } catch {}
+}
+
+function normalizeBotQuickSuggestions(input) {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const item of input) {
+    let label = '';
+    let command = '';
+    let tone = 'info';
+    if (typeof item === 'string') {
+      label = item.trim();
+      command = item.trim();
+    } else if (item && typeof item === 'object') {
+      label = String(item.label || item.text || item.command || '').trim();
+      command = String(item.command || item.message || item.prompt || '').trim();
+      tone = String(item.tone || 'info').trim() || 'info';
+    }
+    if (!label || !command) continue;
+    const key = `${label.toLowerCase()}::${command.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ label, command, tone });
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
 function summarizeDeadlineRisk(items = []) {
   let overdue = 0;
   let due24h = 0;
@@ -460,6 +593,30 @@ function renderAssistantEvidenceChips(contentEl, payload) {
     } else {
       node.disabled = true;
     }
+    row.appendChild(node);
+  });
+  contentEl.appendChild(row);
+}
+
+function renderBotQuickChips(contentEl, suggestions = []) {
+  if (!contentEl) return;
+  const prev = contentEl.querySelector('.assistant-evidence-row.bot-quick-row');
+  if (prev) prev.remove();
+
+  const chips = normalizeBotQuickSuggestions(suggestions);
+  if (!chips.length) return;
+
+  const row = document.createElement('div');
+  row.className = 'assistant-evidence-row bot-quick-row';
+  chips.forEach((chip) => {
+    const node = document.createElement('button');
+    node.className = `assistant-evidence-chip tone-${chip.tone || 'info'}`;
+    node.type = 'button';
+    node.textContent = chip.label;
+    node.title = `Isi draft: ${chip.command}`;
+    node.addEventListener('click', () => {
+      stageChatDraft(chip.command);
+    });
     row.appendChild(node);
   });
   contentEl.appendChild(row);
@@ -751,22 +908,33 @@ async function runStatelessBot(message = '') {
   if (!text) return;
 
   const currentUser = localStorage.getItem('user') || 'You';
+  let profile = deriveAdaptiveProfileFromMessage(text, readBotAdaptiveProfile());
+  writeBotAdaptiveProfile(profile);
   appendLocalChatMessage(currentUser, text, { me: true });
 
   let contentEl = appendLocalSystemMessage('Companion Bot', '...');
   if (contentEl) contentEl.classList.add('v3-assistant-typing');
 
   try {
-    const result = await post('/chat', { message: text, mode: 'bot', stateless: true });
+    const result = await post('/chat', {
+      message: text,
+      mode: 'bot',
+      stateless: true,
+      context: profile,
+    });
     const reply = String(result?.reply || '').trim() || 'Aku belum punya jawaban yang tepat untuk itu.';
+    const suggestions = normalizeBotQuickSuggestions(result?.suggestions);
+    profile = updateAdaptiveProfileFromBotResult(result, profile);
     if (contentEl) {
       contentEl.classList.remove('v3-assistant-typing');
       contentEl.textContent = reply;
       contentEl.classList.add('v3-assistant-arrived');
+      renderBotQuickChips(contentEl, suggestions);
       setTimeout(() => contentEl.classList.remove('v3-assistant-arrived'), 520);
       return;
     }
-    appendLocalSystemMessage('Companion Bot', reply);
+    const fallbackContent = appendLocalSystemMessage('Companion Bot', reply);
+    renderBotQuickChips(fallbackContent, suggestions);
   } catch (err) {
     const textErr = `Bot error: ${err?.message || 'unknown error'}`;
     if (contentEl) {
@@ -890,6 +1058,7 @@ function init() {
   document.querySelector('#chat-form').addEventListener('submit', send);
   document.querySelector('#chat-clear').addEventListener('click', clearAll);
   assistantAlwaysOn = readAssistantAlwaysOnPreference();
+  writeBotAdaptiveProfile(readBotAdaptiveProfile());
   chatbotStatelessMode = readChatbotStatelessPreference();
   if (assistantAlwaysOn && chatbotStatelessMode) {
     chatbotStatelessMode = false;

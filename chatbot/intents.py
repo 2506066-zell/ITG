@@ -21,8 +21,16 @@ INTENT_RULES: tuple[IntentRule, ...] = (
     # Order matters: specific intents should be evaluated first.
     IntentRule("toxic_motivation", _compile(r"\b(toxic|mode tegas|gaspol|push keras|no excuse|no excuses)\b")),
     IntentRule(
+        "evaluation",
+        _compile(r"\b(evaluasi|review|refleksi|retrospektif|daily review|weekly review)\b"),
+    ),
+    IntentRule(
         "recommend_task",
         _compile(r"\b(rekomendasi|rekomendasi tugas|saran tugas|prioritas|task apa dulu|tugas apa dulu)\b"),
+    ),
+    IntentRule(
+        "affirmation",
+        _compile(r"\b(oke|ok|siap|gas|lanjut|deal|sip|mantap|yuk)\b"),
     ),
     IntentRule(
         "check_daily_target",
@@ -60,4 +68,3 @@ def detect_intent(message: str, rules: Iterable[IntentRule] = INTENT_RULES) -> s
         if rule.pattern.search(text):
             return rule.name
     return "fallback"
-
