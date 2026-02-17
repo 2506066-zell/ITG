@@ -10,7 +10,7 @@ function formatCountdown(ms) {
   const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
   const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-  
+
   if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
   if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
   return `${minutes}m ${seconds}s`;
@@ -34,13 +34,13 @@ function sendNotification(title, timeLeft) {
 function updateTimers() {
   const items = document.querySelectorAll('.countdown-timer');
   const now = Date.now();
-  
+
   items.forEach(el => {
     const deadline = new Date(el.dataset.deadline).getTime();
     const diff = deadline - now;
-    
+
     el.textContent = formatCountdown(diff);
-    
+
     const parent = el.closest('.list-item');
     // Urgent logic: < 12 hours (12 * 60 * 60 * 1000 = 43200000)
     if (diff > 0 && diff < 43200000) {
@@ -49,8 +49,8 @@ function updateTimers() {
         // Trigger notification only once per session logic could be added here
         // For now simple check to avoid spamming
         if (!el.dataset.notified) {
-           sendNotification(el.dataset.title, formatCountdown(diff));
-           el.dataset.notified = 'true';
+          sendNotification(el.dataset.title, formatCountdown(diff));
+          el.dataset.notified = 'true';
         }
       }
     } else if (diff <= 0) {
@@ -72,7 +72,7 @@ async function load() {
   const el1d = document.getElementById('stat-1d');
   const el3d = document.getElementById('stat-3d');
   const el5d = document.getElementById('stat-5d');
-  
+
   // Skeleton
   activeList.innerHTML = `<div class="list-item"><div class="skeleton skeleton-line" style="width:70%"></div></div>`;
   completedList.innerHTML = '';
@@ -120,7 +120,7 @@ async function load() {
   const createItem = (a, isCompleted) => {
     const el = document.createElement('div');
     el.className = 'list-item assignment-item';
-    
+
     const left = document.createElement('div');
     left.style.flex = '1';
 
@@ -166,7 +166,7 @@ async function load() {
     if (isCompleted) {
       const doneTime = a.completed_at ? new Date(a.completed_at).toLocaleString() : '-';
       timeInfo.innerHTML = `<span><i class="fa-solid fa-check"></i> Selesai: ${doneTime}</span>`;
-      
+
       if (a.completed_by) {
         const by = document.createElement('span');
         by.className = 'badge success';
@@ -176,7 +176,7 @@ async function load() {
     } else {
       const dl = new Date(a.deadline).toLocaleString();
       timeInfo.innerHTML = `<span><i class="fa-solid fa-clock"></i> Deadline: ${dl}</span>`;
-      
+
       const timer = document.createElement('span');
       timer.className = 'countdown-timer badge';
       timer.dataset.deadline = a.deadline;
@@ -189,11 +189,11 @@ async function load() {
 
     // User Attribution (Assigned To)
     if (a.assigned_to) {
-        const userMeta = document.createElement('div');
-        userMeta.style.fontSize = '10px';
-        userMeta.style.opacity = '0.7';
-        userMeta.innerHTML = `<i class="fa-solid fa-user-tag"></i> ${a.assigned_to}`;
-        info.appendChild(userMeta);
+      const userMeta = document.createElement('div');
+      userMeta.style.fontSize = '10px';
+      userMeta.style.opacity = '0.7';
+      userMeta.innerHTML = `<i class="fa-solid fa-user-tag"></i> ${a.assigned_to}`;
+      info.appendChild(userMeta);
     }
 
     const actions = document.createElement('div');
@@ -212,40 +212,40 @@ async function load() {
 
   const users = ['Nesya', 'Zaldy'];
   const grouped = { Nesya: [], Zaldy: [], Other: [] };
-  
+
   active.forEach(task => {
-      const assignee = task.assigned_to || 'Other';
-      if (users.includes(assignee)) {
-          grouped[assignee].push(task);
-      } else {
-          grouped.Other.push(task);
-      }
+    const assignee = task.assigned_to || 'Other';
+    if (users.includes(assignee)) {
+      grouped[assignee].push(task);
+    } else {
+      grouped.Other.push(task);
+    }
   });
 
   const createSection = (title, list) => {
-      if (list.length === 0) return document.createDocumentFragment();
-      const sec = document.createElement('div');
-      sec.style.marginBottom = '20px';
-      
-      const head = document.createElement('div');
-      head.style.padding = '8px 12px';
-      head.style.fontSize = '12px';
-      head.style.fontWeight = '700';
-      head.style.color = 'var(--muted)';
-      head.style.textTransform = 'uppercase';
-      head.style.letterSpacing = '1px';
-      head.style.display = 'flex';
-      head.style.alignItems = 'center';
-      head.style.gap = '8px';
-      
-      const icon = title === 'Nesya' ? '<i class="fa-solid fa-venus" style="color:#ff69b4"></i>' : 
-                   (title === 'Zaldy' ? '<i class="fa-solid fa-mars" style="color:#00bfff"></i>' : '<i class="fa-solid fa-users"></i>');
-      
-      head.innerHTML = `${icon} ${title} <span style="font-size:10px;opacity:0.7;margin-left:auto">${list.length}</span>`;
-      sec.appendChild(head);
-      
-      list.forEach(item => sec.appendChild(createItem(item, false)));
-      return sec;
+    if (list.length === 0) return document.createDocumentFragment();
+    const sec = document.createElement('div');
+    sec.style.marginBottom = '20px';
+
+    const head = document.createElement('div');
+    head.style.padding = '8px 12px';
+    head.style.fontSize = '12px';
+    head.style.fontWeight = '700';
+    head.style.color = 'var(--muted)';
+    head.style.textTransform = 'uppercase';
+    head.style.letterSpacing = '1px';
+    head.style.display = 'flex';
+    head.style.alignItems = 'center';
+    head.style.gap = '8px';
+
+    const icon = title === 'Nesya' ? '<i class="fa-solid fa-venus" style="color:#ff69b4"></i>' :
+      (title === 'Zaldy' ? '<i class="fa-solid fa-mars" style="color:#00bfff"></i>' : '<i class="fa-solid fa-users"></i>');
+
+    head.innerHTML = `${icon} ${title} <span style="font-size:10px;opacity:0.7;margin-left:auto">${list.length}</span>`;
+    sec.appendChild(head);
+
+    list.forEach(item => sec.appendChild(createItem(item, false)));
+    return sec;
   };
 
   if (active.length) {
@@ -272,10 +272,10 @@ async function create(e) {
   e.preventDefault();
   const btn = e.target.querySelector('button[type="submit"]');
   if (btn) btn.disabled = true;
-  
+
   const f = new FormData(e.target);
   const deadline = f.get('deadline');
-  
+
   // Validation: deadline must be future
   if (new Date(deadline) < new Date()) {
     showToast('Deadline tidak boleh di masa lalu', 'error');
@@ -283,14 +283,18 @@ async function create(e) {
     return;
   }
 
-  const body = { 
-    title: f.get('title'), 
+  const body = {
+    title: f.get('title'),
     description: f.get('description'),
     deadline: deadline
   };
-  
+
   await post('/assignments', body);
   e.target.reset();
+  if (document.getElementById('assignment-sheet')) {
+    document.getElementById('assignment-sheet').classList.remove('active');
+    document.getElementById('sheet-overlay').classList.remove('active');
+  }
   load();
   showToast('Tugas kuliah ditambahkan', 'success');
   if (btn) btn.disabled = false;
@@ -299,7 +303,7 @@ async function create(e) {
 async function actions(e) {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
-  
+
   const id = btn.dataset.id;
   const act = btn.dataset.action;
 
@@ -325,7 +329,16 @@ async function actions(e) {
 
 function init() {
   document.querySelector('#create-assignment').addEventListener('submit', create);
-  
+
+  // Sheet Toggle
+  const sheet = document.getElementById('assignment-sheet');
+  const overlay = document.getElementById('sheet-overlay');
+  const openBtn = document.getElementById('open-sheet');
+  const closeOverlay = () => { sheet.classList.remove('active'); overlay.classList.remove('active'); };
+
+  if (openBtn) openBtn.onclick = () => { sheet.classList.add('active'); overlay.classList.add('active'); };
+  if (overlay) overlay.onclick = (e) => { if (e.target === overlay) closeOverlay(); };
+
   // Delegate events for both lists
   const handleListClick = (e) => {
     if (e.target.tagName === 'INPUT') actions(e); // Checkbox change
@@ -334,10 +347,10 @@ function init() {
 
   document.querySelector('#assignments-active').addEventListener('click', handleListClick);
   document.querySelector('#assignments-active').addEventListener('change', handleListClick); // For checkbox
-  
+
   document.querySelector('#assignments-completed').addEventListener('click', handleListClick);
   document.querySelector('#assignments-completed').addEventListener('change', handleListClick); // For checkbox
-  
+
   load();
   moodOverlay = document.getElementById('mood-overlay');
   moodSheet = document.getElementById('mood-sheet');

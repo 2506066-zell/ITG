@@ -8,19 +8,41 @@ body {
 }
 
 .schedule-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
     gap: var(--space-md);
     padding: 0 var(--space-md) 100px;
-    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+.schedule-grid::-webkit-scrollbar {
+    display: none;
+    /* Chrome/Safari */
 }
 
 .day-card {
+    min-width: 85vw;
+    /* Mobile: Show part of next card */
+    scroll-snap-align: center;
     background: var(--glass-bg);
     border-radius: var(--radius-lg);
     padding: var(--space-md);
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(var(--glass-blur));
+    flex-shrink: 0;
+    /* Prevent shrinking */
+    height: fit-content;
+}
+
+@media (min-width: 768px) {
+    .day-card {
+        min-width: 350px;
+        scroll-snap-align: start;
+    }
 }
 
 .day-header {

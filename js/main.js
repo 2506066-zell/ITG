@@ -54,6 +54,7 @@ export function initProtected() {
   loadTheme();
   setReducedMotion();
   startHeroTimer();
+  startClock();
   initParallax();
 }
 
@@ -123,6 +124,21 @@ function startHeroTimer() {
   updateHero();
   setInterval(updateHero, 1000);
 }
+
+function startClock() {
+  const el = document.getElementById('current-time');
+  if (!el) return;
+
+  function update() {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    el.textContent = `${hours}:${minutes}`;
+  }
+  update();
+  setInterval(update, 1000);
+}
+
 export function logout() {
   localStorage.removeItem('token');
   location.href = '/login.html';
