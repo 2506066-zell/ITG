@@ -22,6 +22,7 @@ const routes = new Set([
   'schedule',
   'chat',
   'chatbot-llm',
+  'chat_metrics',
   'weekly',
   'monthly',
   'monthly_stats',

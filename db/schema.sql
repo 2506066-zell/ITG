@@ -190,6 +190,39 @@ CREATE TABLE IF NOT EXISTS z_ai_feedback_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 15b. Z AI Router Events (engine selection telemetry)
+CREATE TABLE IF NOT EXISTS z_ai_router_events (
+  id BIGSERIAL PRIMARY KEY,
+  user_id VARCHAR(60),
+  response_id VARCHAR(80),
+  status VARCHAR(20) NOT NULL DEFAULT 'ok',
+  router_mode VARCHAR(20),
+  selected_engine VARCHAR(40),
+  engine_final VARCHAR(40),
+  fallback_used BOOLEAN NOT NULL DEFAULT FALSE,
+  complexity_score INTEGER,
+  complexity_level VARCHAR(20),
+  latency_ms INTEGER,
+  intent VARCHAR(80),
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 15c. Z AI Reminders (set reminder action queue)
+CREATE TABLE IF NOT EXISTS z_ai_reminders (
+  id BIGSERIAL PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  target_user VARCHAR(60),
+  reminder_text TEXT NOT NULL,
+  remind_at TIMESTAMPTZ NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  source_command TEXT,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  sent_at TIMESTAMPTZ,
+  cancelled_at TIMESTAMPTZ
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed) WHERE is_deleted = FALSE;
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to) WHERE is_deleted = FALSE;
@@ -204,3 +237,8 @@ CREATE INDEX IF NOT EXISTS idx_chatbot_profiles_updated_at ON chatbot_profiles(u
 CREATE INDEX IF NOT EXISTS idx_zai_user_memory_updated_at ON z_ai_user_memory(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_zai_memory_events_user_time ON z_ai_memory_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_zai_feedback_events_user_time ON z_ai_feedback_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_zai_router_events_user_time ON z_ai_router_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_zai_router_events_time ON z_ai_router_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_zai_router_events_engine ON z_ai_router_events(engine_final, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_zai_reminders_due ON z_ai_reminders(status, remind_at ASC);
+CREATE INDEX IF NOT EXISTS idx_zai_reminders_user ON z_ai_reminders(target_user, status, remind_at ASC);

@@ -250,15 +250,121 @@ function extractJsonCandidate(text = '') {
   return clean;
 }
 
-function parseModelPayload(rawText = '') {
-  const candidate = extractJsonCandidate(rawText);
-  if (!candidate) return null;
+function safeJsonObjectParse(text = '') {
+  if (!text) return null;
   try {
-    const parsed = JSON.parse(candidate);
+    const parsed = JSON.parse(text);
     return parsed && typeof parsed === 'object' ? parsed : null;
   } catch {
     return null;
   }
+}
+
+function repairJsonCandidate(candidate = '') {
+  if (!candidate) return '';
+  let out = String(candidate)
+    .replace(/\u201c|\u201d/g, '"')
+    .replace(/\u2018|\u2019/g, '\'')
+    .replace(/^\uFEFF/, '')
+    .trim();
+
+  // Quote bare keys: { reply: "...", intent: "..." }
+  out = out.replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)/g, '$1"$2"$3');
+  // Convert single-quoted strings to JSON-compatible double quotes.
+  out = out.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_, inner) => `"${String(inner || '').replace(/"/g, '\\"')}"`);
+  // Remove trailing commas before closing braces/brackets.
+  out = out.replace(/,\s*([}\]])/g, '$1');
+  return out;
+}
+
+function extractLooseField(text = '', field = '') {
+  if (!text || !field) return '';
+  const pattern = new RegExp(`(?:^|\\n|\\r)\\s*["']?${field}["']?\\s*[:=-]\\s*(.+)$`, 'im');
+  const match = String(text).match(pattern);
+  if (!match || !match[1]) return '';
+  return String(match[1])
+    .trim()
+    .replace(/^["']/, '')
+    .replace(/["'],?\s*$/, '')
+    .trim();
+}
+
+function extractReplyFromJsonLike(text = '') {
+  const match = String(text || '').match(/["']reply["']\s*:\s*["']([\s\S]{1,620}?)["']\s*(?:,|\n|\r|}|$)/i);
+  if (!match || !match[1]) return '';
+  return String(match[1] || '')
+    .replace(/\\n/g, ' ')
+    .replace(/\\"/g, '"')
+    .trim();
+}
+
+function parseLoosePayload(rawText = '') {
+  const clean = String(rawText || '').trim();
+  if (!clean) return null;
+
+  const replyCandidate = extractLooseField(clean, 'reply')
+    || extractReplyFromJsonLike(clean)
+    || clean.replace(/\s+/g, ' ');
+  const reply = normalizeText(replyCandidate, MAX_REPLY_LEN);
+  if (!reply) return null;
+
+  const payload = { reply };
+  const intentRaw = normalizeText(extractLooseField(clean, 'intent'), 48).toLowerCase().replace(/[^a-z_]/g, '');
+  if (intentRaw) payload.intent = intentRaw;
+
+  const adaptive = {};
+  const style = normalizeText(extractLooseField(clean, 'style'), 24).toLowerCase();
+  if (style) adaptive.style = style;
+
+  const focusMinutes = Number(extractLooseField(clean, 'focus_minutes'));
+  if (Number.isFinite(focusMinutes) && focusMinutes > 0) {
+    adaptive.focus_minutes = Math.max(10, Math.min(180, Math.round(focusMinutes)));
+  }
+
+  const urgency = normalizeText(extractLooseField(clean, 'urgency'), 16).toLowerCase();
+  if (urgency) adaptive.urgency = urgency;
+  const energy = normalizeText(extractLooseField(clean, 'energy'), 16).toLowerCase();
+  if (energy) adaptive.energy = energy;
+  const domain = normalizeText(extractLooseField(clean, 'domain'), 16).toLowerCase();
+  if (domain) adaptive.domain = domain;
+
+  if (Object.keys(adaptive).length) payload.adaptive = adaptive;
+  return payload;
+}
+
+function parseModelPayload(rawText = '') {
+  const candidate = extractJsonCandidate(rawText);
+  if (!candidate) {
+    return {
+      payload: null,
+      parse_mode: 'none',
+    };
+  }
+
+  const strictParsed = safeJsonObjectParse(candidate);
+  if (strictParsed) {
+    return {
+      payload: strictParsed,
+      parse_mode: 'strict',
+    };
+  }
+
+  const repairedCandidate = repairJsonCandidate(candidate);
+  if (repairedCandidate) {
+    const repairedParsed = safeJsonObjectParse(repairedCandidate);
+    if (repairedParsed) {
+      return {
+        payload: repairedParsed,
+        parse_mode: 'repaired',
+      };
+    }
+  }
+
+  const looseParsed = parseLoosePayload(rawText);
+  return {
+    payload: looseParsed,
+    parse_mode: looseParsed ? 'heuristic' : 'none',
+  };
 }
 
 function buildMemoryUpdate(intent, message, memory, planner) {
@@ -299,24 +405,28 @@ function fallbackPayload(message = '', context = {}, planner = {}, memory = {}, 
 
 function buildSystemPrompt() {
   return [
-    'Kamu adalah Z AI, asisten couple productivity mobile.',
-    'Gaya bahasa natural, hangat, tegas saat perlu, bukan kaku.',
-    `Batas reply maksimal ${MAX_REPLY_LEN} karakter.`,
-    'Jawab dalam Bahasa Indonesia.',
-    'Jika input ambigu, balas dengan 1 pertanyaan klarifikasi paling penting.',
-    'Selalu keluarkan JSON valid TANPA markdown dengan schema:',
+    'Kamu adalah Z AI, asisten pintar untuk couple productivity di aplikasi mobile.',
+    'Gunakan Bahasa Indonesia yang natural, hangat, dan langsung ke aksi.',
+    `Batas reply maksimal ${MAX_REPLY_LEN} karakter, idealnya 1-3 kalimat.`,
+    'Jangan pakai gaya laporan teknis seperti: Kenapa, Dampak, Risiko, Confidence, Plan, Critic, Next.',
+    'Kalau informasi user kurang atau ambigu, tanya tepat 1 klarifikasi paling penting.',
+    'Kalau informasi sudah cukup, langsung bantu eksekusi tanpa minta konfirmasi tambahan.',
+    'Output WAJIB JSON valid saja, tanpa markdown dan tanpa teks tambahan.',
+    'Schema JSON:',
     '{',
     '  "reply": "string",',
     '  "intent": "greeting|check_daily_target|reminder_ack|checkin_progress|evaluation|affirmation|recommend_task|study_schedule|toxic_motivation|fallback",',
     '  "adaptive": { "style": "supportive|strict|balanced", "focus_minutes": 25, "urgency": "low|medium|high", "energy": "low|normal|high", "domain": "kuliah|habit|umum" },',
     '  "suggestions": [{ "label": "string", "command": "string", "tone": "info|success|warning|critical" }]',
     '}',
-    'Gunakan suggestions 2-4 item, actionable, natural.',
+    'Suggestions wajib 2-4 item, actionable, terdengar natural.',
+    'Label singkat, command siap dipakai user tanpa edit panjang.',
   ].join('\n');
 }
 
 function buildUserPrompt(message, context, planner, memory) {
   const compact = {
+    now_iso: new Date().toISOString(),
     user_message: message,
     context,
     planner_hint: planner,
@@ -337,12 +447,15 @@ function resolveLlmConfig() {
   const apiUrl = String(process.env.CHATBOT_LLM_API_URL || 'https://api.openai.com/v1/chat/completions').trim();
   const model = String(process.env.CHATBOT_LLM_MODEL || 'gpt-4o-mini').trim();
   const timeoutMs = Math.max(500, Math.min(9000, Number(process.env.CHATBOT_LLM_TIMEOUT_MS || 1700)));
-  const temperature = Math.max(0, Math.min(1.5, Number(process.env.CHATBOT_LLM_TEMPERATURE || 0.45)));
+  const temperature = Math.max(0, Math.min(1.5, Number(process.env.CHATBOT_LLM_TEMPERATURE || 0.28)));
   const maxTokens = Math.max(100, Math.min(1200, Number(process.env.CHATBOT_LLM_MAX_TOKENS || 380)));
   const authHeader = String(process.env.CHATBOT_LLM_AUTH_HEADER || 'Authorization').trim();
   const authPrefixRaw = String(process.env.CHATBOT_LLM_AUTH_PREFIX || 'Bearer').trim();
   const authPrefix = authPrefixRaw ? `${authPrefixRaw} ` : '';
-  const forceJson = parseBooleanEnv(process.env.CHATBOT_LLM_FORCE_JSON || '');
+  const forceJsonRaw = process.env.CHATBOT_LLM_FORCE_JSON;
+  const forceJson = forceJsonRaw == null || String(forceJsonRaw).trim() === ''
+    ? true
+    : parseBooleanEnv(forceJsonRaw);
   return {
     apiKey,
     apiUrl,
@@ -470,7 +583,8 @@ export default withErrorHandling(async function handler(req, res) {
     return;
   }
 
-  const parsed = parseModelPayload(llm.content || '');
+  const parsedResult = parseModelPayload(llm.content || '');
+  const parsed = parsedResult.payload;
   if (!parsed) {
     const fallback = fallbackPayload(message, context, planner, memory, llm.content);
     sendJson(res, 200, fallback);
@@ -506,7 +620,7 @@ export default withErrorHandling(async function handler(req, res) {
     planner,
     memory_update: buildMemoryUpdate(intent, message, memory, planner),
     suggestions: suggestions.length ? suggestions : defaultSuggestions(intent),
-    engine: 'llm-v1',
+    engine: parsedResult.parse_mode === 'strict' ? 'llm-v1' : 'llm-v1-heuristic',
   };
 
   sendJson(res, 200, payload);

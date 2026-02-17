@@ -79,6 +79,9 @@ Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless
   - Feedback loop (learning):
     - `POST /api/chat` dengan body `{ "mode": "bot", "stateless": true, "feedback": { "response_id": "<uuid>", "helpful": true|false, "intent": "..." } }`
     - Z AI akan menyimpan feedback dan menyesuaikan rekomendasi per user.
+  - Action Engine reminder:
+    - Perintah `ingatkan/reminder/alarm/notifikasi` bisa auto `set_reminder` saat waktu jelas.
+    - Jika waktu belum jelas, Z AI akan minta 1 klarifikasi waktu.
 - Endpoint profile adaptif lintas device (auth wajib):
   - `GET /api/chatbot_profile`
   - `PUT /api/chatbot_profile`
@@ -98,6 +101,7 @@ Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless
   - `CHATBOT_ENGINE_MODE=hybrid|rule|python|llm` (default `hybrid`)
   - `CHATBOT_COMPLEXITY_THRESHOLD=20..95` (default `56`)
   - `CHATBOT_LLM_ENABLED=true|false` (opsional)
+  - `CHATBOT_ACTION_ENGINE_V2=true|false` (default `true`, auto create task/assignment dari chat stateless)
   - `CHATBOT_LLM_URL=https://...` (opsional)
   - `CHATBOT_LLM_USE_LOCAL_PATH=true` untuk mencoba `https://<host>/api/chatbot-llm` saat `CHATBOT_LLM_URL` kosong (opsional)
   - `CHATBOT_LLM_TIMEOUT_MS=1700` (opsional)
@@ -106,6 +110,17 @@ Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless
   - `CHATBOT_LLM_MODEL=gpt-4o-mini` (opsional)
   - `CHATBOT_LLM_API_URL=https://api.openai.com/v1/chat/completions` (opsional, OpenAI-compatible)
   - `CHATBOT_LLM_AUTH_HEADER=Authorization` dan `CHATBOT_LLM_AUTH_PREFIX=Bearer ` (opsional)
+  - `CHATBOT_LLM_FORCE_JSON=true|false` (default `true`, disarankan `true` agar output stabil)
+  - `CHATBOT_LLM_TEMPERATURE=0.28` (default `0.28`, naikkan jika ingin gaya lebih kreatif)
+- Monitoring endpoint (auth wajib):
+  - `GET /api/chat_metrics?days=7`
+  - `GET /api/chat_metrics?days=7&scope=global` (admin `Zaldy`)
+  - Output: `fallback_rate_pct`, `avg_latency_ms`, `p95_latency_ms`, breakdown engine/intent, trend 24 jam.
+- Routing regression test (lokal/CI):
+  - `npm run test:router`
+  - Opsional env:
+    - `CHATBOT_TEST_BASE_URL=https://itg-ten.vercel.app`
+    - `CHATBOT_TEST_STRICT_HYBRID=true|false`
 
 ### Struktur File Chatbot
 ```

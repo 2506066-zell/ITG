@@ -57,6 +57,86 @@ function sendNotification(title, timeLeft) {
   }
 }
 
+function summarizeDeadlineShield(assignments = []) {
+  const now = Date.now();
+  const out = {
+    overdue: 0,
+    due24h: 0,
+    due48h: 0,
+    nextItem: null,
+    nextDiff: Number.POSITIVE_INFINITY,
+  };
+
+  for (const item of assignments) {
+    if (!item || !item.deadline) continue;
+    const due = new Date(item.deadline).getTime();
+    if (!Number.isFinite(due)) continue;
+    const diff = due - now;
+    if (diff <= 0) out.overdue += 1;
+    else if (diff <= 24 * 60 * 60 * 1000) out.due24h += 1;
+    else if (diff <= 48 * 60 * 60 * 1000) out.due48h += 1;
+
+    if (diff > 0 && diff < out.nextDiff) {
+      out.nextDiff = diff;
+      out.nextItem = item;
+    }
+  }
+  return out;
+}
+
+function renderDeadlineShield(assignments = []) {
+  const host = document.getElementById('assignment-deadline-shield');
+  if (!host) return;
+
+  const stats = summarizeDeadlineShield(assignments);
+  const watchCount = stats.overdue + stats.due24h + stats.due48h;
+
+  if (watchCount === 0) {
+    host.innerHTML = `
+      <div class="deadline-shield">
+        <div>
+          <span class="deadline-shield-title">Deadline Shield</span>
+          <div class="deadline-shield-main">Semua deadline aman untuk 48 jam ke depan.</div>
+          <div class="deadline-shield-sub">Pertahankan ritme ini biar tugas kuliah tidak numpuk.</div>
+        </div>
+        <div class="deadline-shield-badges">
+          <span class="deadline-shield-badge">Calm</span>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const levelClass = stats.overdue > 0 ? 'is-critical' : 'is-warning';
+  let mainText = '';
+  if (stats.overdue > 0) {
+    mainText = `${stats.overdue} tugas kuliah sudah overdue. Tangani sekarang.`;
+  } else if (stats.due24h > 0) {
+    mainText = `${stats.due24h} tugas kuliah due <24 jam. Prioritaskan hari ini.`;
+  } else {
+    mainText = `${stats.due48h} tugas kuliah due <48 jam. Siapkan sprint lebih awal.`;
+  }
+
+  const nextLabel = stats.nextItem
+    ? `Terdekat: ${stats.nextItem.title} (${formatCountdown(stats.nextDiff)})`
+    : 'Tidak ada deadline aktif berikutnya.';
+
+  host.innerHTML = `
+    <div class="deadline-shield ${levelClass}">
+      <div>
+        <span class="deadline-shield-title">Deadline Shield</span>
+        <div class="deadline-shield-main">${mainText}</div>
+        <div class="deadline-shield-sub">${nextLabel}</div>
+      </div>
+      <div class="deadline-shield-badges">
+        <span class="deadline-shield-badge critical">Overdue ${stats.overdue}</span>
+        <span class="deadline-shield-badge warning">Due24h ${stats.due24h}</span>
+        <span class="deadline-shield-badge warning">Due48h ${stats.due48h}</span>
+      </div>
+    </div>
+  `;
+}
+
 function updateTimers() {
   const items = document.querySelectorAll('.countdown-timer');
   const now = Date.now();
@@ -103,6 +183,7 @@ async function load() {
   const data = await get('/assignments');
 
   if (!data.length) {
+    renderDeadlineShield([]);
     activeList.innerHTML = '<div class="empty center muted">Belum ada tugas.</div>';
     if (el1d) el1d.textContent = '0 tugas';
     if (el3d) el3d.textContent = '0 tugas';
@@ -131,6 +212,7 @@ async function load() {
 
   const active = data.filter(a => !a.completed).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
   const completed = data.filter(a => a.completed).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+  renderDeadlineShield(active);
 
   const createItem = (a, isCompleted) => {
     const el = document.createElement('div');

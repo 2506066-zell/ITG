@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
-import { pool, readBody, verifyToken, withErrorHandling, sendJson } from './_lib.js';
+import { pool, readBody, verifyToken, withErrorHandling, sendJson, logActivity } from './_lib.js';
+import { sendNotificationToUser } from './notifications.js';
 import { generateStudyPlanSnapshot } from './study_plan.js';
 
 const CHATBOT_ENDPOINT_PATH = '/api/chatbot';
@@ -11,6 +12,8 @@ const CHATBOT_HYBRID_COMPLEXITY_THRESHOLD = 56;
 const ZAI_MAX_ACTIONS = 5;
 const FEEDBACK_HISTORY_LIMIT = 12;
 const RELIABILITY_SAFE_SCORE = 78;
+const ACTION_ENGINE_V2_MAX_WRITES = 4;
+const ACTION_EXECUTION_KINDS = new Set(['create_task', 'create_assignment', 'set_reminder']);
 
 function parseBooleanEnv(value = '') {
   const normalized = String(value || '').trim().toLowerCase();
@@ -57,6 +60,12 @@ function chatbotLlmEnabled() {
   const mode = String(process.env.CHATBOT_ENGINE_MODE || '').trim().toLowerCase();
   if (mode === 'llm') return true;
   return parseBooleanEnv(process.env.CHATBOT_LLM_ENABLED || '');
+}
+
+function chatbotActionEngineEnabled() {
+  const raw = process.env.CHATBOT_ACTION_ENGINE_V2;
+  if (raw == null || String(raw).trim() === '') return true;
+  return parseBooleanEnv(raw);
 }
 
 function normalizeChatbotSuggestions(input) {
@@ -188,6 +197,10 @@ function hasDeadlineSignal(text = '') {
   return /(\bdeadline\b|\bdue\b|\bbesok\b|\blusa\b|\btoday\b|\bhari ini\b|\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2})/i.test(text);
 }
 
+function hasReminderTimeSignal(text = '') {
+  return /(\b(besok|lusa|hari ini|today|tomorrow)\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[:.]\d{2}\b|\b(?:dalam\s+)?\d{1,3}\s*(?:menit|min|jam|hours?)\s*(?:lagi)?\b)/i.test(text);
+}
+
 function buildPlannerActions(message = '') {
   const normalized = String(message || '').trim();
   if (!normalized) return [];
@@ -218,6 +231,7 @@ function buildPlannerActions(message = '') {
     } else if (/(?:ingatkan|reminder|alarm|notifikasi)/i.test(lower)) {
       kind = 'set_reminder';
       summary = 'Atur reminder fokus';
+      if (!hasReminderTimeSignal(lower)) missing.push('time');
     } else if (/(?:evaluasi|review|refleksi)/i.test(lower)) {
       kind = 'evaluation';
       summary = 'Jalankan evaluasi singkat';
@@ -264,7 +278,9 @@ function buildPlannerFrame(message = '') {
         field,
         question: field === 'deadline'
           ? 'Deadline-nya kapan?'
-          : 'Judul/tujuannya apa?',
+          : (field === 'time'
+            ? 'Remindernya mau kapan? Contoh: besok 19:00 atau 30 menit lagi.'
+            : 'Judul/tujuannya apa?'),
       });
     });
   });
@@ -286,6 +302,711 @@ function buildPlannerFrame(message = '') {
   };
 }
 
+function normalizeActionText(value = '') {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function extractActionField(command = '', pattern = null) {
+  if (!pattern) return '';
+  const match = String(command || '').match(pattern);
+  if (!match || !match[1]) return '';
+  return normalizeActionText(match[1]);
+}
+
+function normalizeActionPriority(raw = '') {
+  const lower = String(raw || '').trim().toLowerCase();
+  if (!lower) return 'medium';
+  if (lower === 'high' || lower === 'tinggi') return 'high';
+  if (lower === 'low' || lower === 'rendah') return 'low';
+  return 'medium';
+}
+
+function normalizeActionAssignee(raw = '', fallbackUser = '') {
+  const value = String(raw || '').trim();
+  if (!value) return fallbackUser || null;
+  const lower = value.toLowerCase();
+  if (lower.includes('zaldy')) return 'Zaldy';
+  if (lower.includes('nesya')) return 'Nesya';
+  return fallbackUser || value;
+}
+
+function stripActionMetaFromTitle(command = '') {
+  let value = normalizeActionText(command);
+  value = value.replace(/^\/ai\s+/i, '');
+  value = value.replace(/^(?:tolong\s+|please\s+)?(?:z\s*ai|zai|ai)\s*/i, '');
+  value = value.replace(/^(?:buatkan|buat|tambah|add|create)\s+(?:assignment|tugas kuliah|task|tugas)\s*/i, '');
+  value = value.replace(/\bdeadline\s+(.+?)(?=\s+\b(?:priority|prioritas|deskripsi|desc|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/ig, '');
+  value = value.replace(/\b(?:priority|prioritas)\s+[a-zA-Z]+\b/ig, '');
+  value = value.replace(/\b(?:deskripsi|desc)\s+(.+?)(?=\s+\b(?:deadline|priority|prioritas|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/ig, '');
+  value = value.replace(/\b(?:assign(?:ed)?(?:\s*to)?|untuk)\s+[a-zA-Z0-9_.-]+\b/ig, '');
+  return normalizeActionText(value).replace(/^[\s,:\-]+|[\s,:\-]+$/g, '');
+}
+
+function parseNaturalDeadlineIso(raw = '') {
+  const text = normalizeActionText(raw);
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  const now = new Date();
+  now.setSeconds(0, 0);
+
+  let base = null;
+  const iso = lower.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (iso) {
+    const y = Number(iso[1]);
+    const m = Number(iso[2]) - 1;
+    const d = Number(iso[3]);
+    const parsed = new Date(y, m, d);
+    if (!Number.isNaN(parsed.getTime())) base = parsed;
+  }
+
+  if (!base) {
+    const dmy = lower.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+    if (dmy) {
+      const d = Number(dmy[1]);
+      const m = Number(dmy[2]) - 1;
+      const currentYear = now.getFullYear();
+      const y = dmy[3] ? Number(dmy[3]) : currentYear;
+      const year = y < 100 ? (2000 + y) : y;
+      const parsed = new Date(year, m, d);
+      if (!Number.isNaN(parsed.getTime())) base = parsed;
+    }
+  }
+
+  if (!base) {
+    if (/\b(lusa|day after tomorrow)\b/.test(lower)) {
+      base = new Date(now);
+      base.setDate(base.getDate() + 2);
+    } else if (/\b(besok|tomorrow)\b/.test(lower)) {
+      base = new Date(now);
+      base.setDate(base.getDate() + 1);
+    } else if (/\b(hari ini|today)\b/.test(lower)) {
+      base = new Date(now);
+    }
+  }
+
+  const timeMatch = lower.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
+  if (!base) {
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+      parsed.setSeconds(0, 0);
+      return parsed.toISOString();
+    }
+    if (timeMatch) {
+      base = new Date(now);
+      base.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+      if (base.getTime() <= now.getTime()) base.setDate(base.getDate() + 1);
+      return base.toISOString();
+    }
+    return null;
+  }
+
+  if (timeMatch) {
+    base.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+  } else {
+    base.setHours(21, 0, 0, 0);
+  }
+
+  if (!Number.isFinite(base.getTime())) return null;
+  return base.toISOString();
+}
+
+function buildActionClarificationQuestion(kind = '', field = '') {
+  const actionKind = String(kind || '').toLowerCase();
+  const key = String(field || '').toLowerCase();
+  if (key === 'time') {
+    return 'Remindernya mau kapan? Contoh: besok 19:00 atau 30 menit lagi.';
+  }
+  if (key === 'deadline') {
+    return actionKind === 'create_assignment'
+      ? 'Deadline tugas kuliah ini kapan? Contoh: besok 19:00.'
+      : 'Deadline task ini kapan? Contoh: besok 19:00.';
+  }
+  if (key === 'title') {
+    return actionKind === 'create_assignment'
+      ? 'Judul tugas kuliahnya apa?'
+      : 'Judul task-nya apa?';
+  }
+  return 'Boleh lengkapi detail yang kurang dulu?';
+}
+
+function parseCreateActionDraft(action = {}, fallbackUser = '') {
+  const kind = String(action?.kind || '').trim().toLowerCase();
+  const command = normalizeActionText(action?.command || '');
+  const deadlineChunk = extractActionField(
+    command,
+    /\bdeadline\s+(.+?)(?=\s+\b(?:priority|prioritas|deskripsi|desc|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/i
+  );
+  const description = extractActionField(
+    command,
+    /\b(?:deskripsi|desc)\s+(.+?)(?=\s+\b(?:deadline|priority|prioritas|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/i
+  );
+  const priority = normalizeActionPriority(
+    extractActionField(command, /\b(?:priority|prioritas)\s+([a-zA-Z]+)/i)
+  );
+  const assignee = normalizeActionAssignee(
+    extractActionField(command, /\b(?:assign(?:ed)?(?:\s*to)?|untuk)\s+([a-zA-Z0-9_.-]+)/i),
+    fallbackUser
+  );
+  const title = stripActionMetaFromTitle(command);
+  const deadline = parseNaturalDeadlineIso(deadlineChunk || (hasDeadlineSignal(command) ? command : ''));
+
+  const missing = [];
+  if (!title) missing.push('title');
+  if (!deadline) missing.push('deadline');
+
+  return {
+    action_id: String(action?.id || '').trim(),
+    kind,
+    command,
+    title,
+    deadline,
+    priority,
+    description: description || null,
+    assigned_to: assignee,
+    missing,
+  };
+}
+
+function partnerUser(user = '') {
+  const normalized = String(user || '').trim().toLowerCase();
+  if (normalized === 'zaldy') return 'Nesya';
+  if (normalized === 'nesya') return 'Zaldy';
+  return '';
+}
+
+function parseReminderAtIso(command = '') {
+  const text = normalizeActionText(command);
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  const now = new Date();
+  now.setSeconds(0, 0);
+
+  const relativeMinutes = lower.match(/\b(?:dalam\s+)?(\d{1,3})\s*(?:menit|min)\s*(?:lagi)?\b/i);
+  if (relativeMinutes) {
+    const minutes = Math.max(1, Math.min(720, Number(relativeMinutes[1] || 0)));
+    const target = new Date(now.getTime() + minutes * 60000);
+    return target.toISOString();
+  }
+
+  const relativeHours = lower.match(/\b(?:dalam\s+)?(\d{1,2})\s*(?:jam|hours?)\s*(?:lagi)?\b/i);
+  if (relativeHours) {
+    const hours = Math.max(1, Math.min(72, Number(relativeHours[1] || 0)));
+    const target = new Date(now.getTime() + hours * 3600000);
+    return target.toISOString();
+  }
+
+  const parsed = parseNaturalDeadlineIso(text);
+  if (!parsed) return null;
+  const hasExactTime = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/.test(lower);
+  if (hasExactTime) return parsed;
+
+  const byWindow = /\bpagi\b/.test(lower)
+    ? [8, 0]
+    : (/\bsiang\b/.test(lower)
+      ? [13, 0]
+      : (/\b(sore|petang)\b/.test(lower)
+        ? [17, 30]
+        : (/\bmalam\b/.test(lower) ? [19, 30] : null)));
+  if (!byWindow) return parsed;
+
+  const adjusted = new Date(parsed);
+  adjusted.setHours(byWindow[0], byWindow[1], 0, 0);
+  return adjusted.toISOString();
+}
+
+function parseReminderTargetUser(command = '', fallbackUser = '') {
+  const lower = String(command || '').toLowerCase();
+  if (/\bnesya\b/.test(lower)) return 'Nesya';
+  if (/\bzaldy\b/.test(lower)) return 'Zaldy';
+  if (/\b(pasangan|partner|couple)\b/.test(lower)) {
+    return partnerUser(fallbackUser) || fallbackUser || null;
+  }
+  return fallbackUser || null;
+}
+
+function stripReminderMetaFromText(command = '') {
+  let value = normalizeActionText(command);
+  value = value.replace(/^\/ai\s+/i, '');
+  value = value.replace(/^(?:tolong\s+|please\s+|pls\s+)?(?:z\s*ai|zai|ai)\s*/i, '');
+  value = value.replace(/^(?:ingatkan|ingetin|reminder|alarm|notifikasi)\s*/i, '');
+  value = value.replace(/\b(?:aku|saya|gue|gw|me|pasangan|partner|couple|zaldy|nesya)\b/ig, ' ');
+  value = value.replace(/\b(?:dalam\s+)?\d{1,3}\s*(?:menit|min|jam|hours?)\s*(?:lagi)?\b/ig, ' ');
+  value = value.replace(/\b(?:besok|lusa|hari ini|today|tomorrow|pagi|siang|sore|petang|malam)\b/ig, ' ');
+  value = value.replace(/\b(?:pukul|jam)\b/ig, ' ');
+  value = value.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ' ');
+  value = value.replace(/\b\d{1,2}[:.]\d{2}\b/g, ' ');
+  value = value.replace(/\b(?:untuk|soal|tentang)\b/ig, ' ');
+  value = value.replace(/^[\s,:\-]+|[\s,:\-]+$/g, '');
+  return normalizeActionText(value);
+}
+
+function parseReminderText(command = '') {
+  const direct = extractActionField(
+    command,
+    /\b(?:untuk|soal|tentang)\s+(.+?)(?=\s+\b(?:dalam\s+\d{1,3}\s*(?:menit|min|jam)|besok|lusa|hari ini|today|tomorrow|pukul|jam|\d{1,2}[:.]\d{2}|\d{4}-\d{2}-\d{2})\b|$)/i
+  );
+  const cleaned = direct || stripReminderMetaFromText(command);
+  return cleaned || 'lanjutkan prioritas utama';
+}
+
+function parseReminderActionDraft(action = {}, fallbackUser = '') {
+  const command = normalizeActionText(action?.command || '');
+  const remindAt = parseReminderAtIso(command);
+  const reminderText = parseReminderText(command);
+  const targetUser = parseReminderTargetUser(command, fallbackUser);
+  const missing = [];
+  if (!remindAt) missing.push('time');
+  return {
+    action_id: String(action?.id || '').trim(),
+    kind: 'set_reminder',
+    command,
+    reminder_text: reminderText,
+    remind_at: remindAt,
+    target_user: targetUser,
+    missing,
+  };
+}
+
+function buildActionEnginePlan(planner = null, fallbackUser = '') {
+  const actions = Array.isArray(planner?.actions) ? planner.actions : [];
+  const drafts = actions
+    .filter((item) => ACTION_EXECUTION_KINDS.has(String(item?.kind || '').trim().toLowerCase()))
+    .slice(0, ACTION_ENGINE_V2_MAX_WRITES)
+    .map((item) => {
+      const kind = String(item?.kind || '').trim().toLowerCase();
+      if (kind === 'set_reminder') return parseReminderActionDraft(item, fallbackUser);
+      return parseCreateActionDraft(item, fallbackUser);
+    });
+
+  const clarifications = [];
+  for (const draft of drafts) {
+    for (const field of draft.missing || []) {
+      clarifications.push({
+        action_id: draft.action_id,
+        field,
+        question: buildActionClarificationQuestion(draft.kind, field),
+      });
+    }
+  }
+
+  return {
+    has_actions: drafts.length > 0,
+    drafts,
+    clarifications,
+  };
+}
+
+function buildActionPlannerResult(basePlanner = null, actionPlan = null, execution = null) {
+  const safePlanner = basePlanner && typeof basePlanner === 'object'
+    ? { ...basePlanner }
+    : { mode: 'single', confidence: 'medium', requires_clarification: false, clarifications: [], actions: [] };
+  const baseActions = Array.isArray(safePlanner.actions) ? safePlanner.actions : [];
+  const drafts = Array.isArray(actionPlan?.drafts) ? actionPlan.drafts : [];
+  const baseClarifications = Array.isArray(safePlanner.clarifications) ? safePlanner.clarifications : [];
+  const extraClarifications = Array.isArray(actionPlan?.clarifications) ? actionPlan.clarifications : [];
+  const clarifications = [...baseClarifications];
+  for (const item of extraClarifications) {
+    const key = `${item?.action_id || ''}:${item?.field || ''}`;
+    const exists = clarifications.some((c) => `${c?.action_id || ''}:${c?.field || ''}` === key);
+    if (!exists) clarifications.push(item);
+  }
+
+  const executedById = new Map();
+  for (const item of execution?.executed || []) {
+    const key = String(item?.action_id || '').trim();
+    if (key) executedById.set(key, item);
+  }
+  const failedById = new Map();
+  for (const item of execution?.failed || []) {
+    const key = String(item?.action_id || '').trim();
+    if (key) failedById.set(key, item);
+  }
+  const draftById = new Map();
+  for (const draft of drafts) {
+    const key = String(draft?.action_id || '').trim();
+    if (key) draftById.set(key, draft);
+  }
+
+  const actions = baseActions.map((action) => {
+    const id = String(action?.id || '').trim();
+    if (!id) return action;
+    const draft = draftById.get(id);
+    if (!draft) return action;
+    if (executedById.has(id)) {
+      return { ...action, status: 'completed', missing: [] };
+    }
+    if (failedById.has(id)) {
+      return { ...action, status: 'failed', missing: [] };
+    }
+    if (Array.isArray(draft.missing) && draft.missing.length) {
+      return { ...action, status: 'blocked', missing: draft.missing.slice(0, 3) };
+    }
+    return { ...action, status: 'ready', missing: [] };
+  });
+
+  const executedCount = Number(execution?.executed?.length || 0);
+  const failedCount = Number(execution?.failed?.length || 0);
+  const blockedCount = drafts.filter((item) => Array.isArray(item.missing) && item.missing.length).length;
+  const requiresClarification = clarifications.length > 0;
+
+  let summary = safePlanner.summary || 'Action plan siap.';
+  if (executedCount > 0) {
+    summary = `Action Engine mengeksekusi ${executedCount} item.`;
+  } else if (requiresClarification) {
+    summary = 'Action Engine butuh detail tambahan sebelum eksekusi.';
+  }
+  if (failedCount > 0) {
+    summary = `${summary} ${failedCount} item gagal disimpan.`;
+  }
+
+  return {
+    ...safePlanner,
+    actions,
+    clarifications,
+    requires_clarification: requiresClarification,
+    confidence: failedCount > 0 ? 'medium' : (requiresClarification ? 'medium' : 'high'),
+    summary,
+    next_best_action: requiresClarification
+      ? (clarifications[0]?.question || 'Lengkapi detail yang kurang.')
+      : (failedCount > 0 ? 'Ulangi item yang gagal.' : 'Lanjut ke evaluasi atau urgent radar.'),
+    action_execution: {
+      executed_count: executedCount,
+      blocked_count: blockedCount,
+      failed_count: failedCount,
+    },
+  };
+}
+
+async function insertAssignmentFromAction(client, payload = {}) {
+  const title = String(payload.title || '').trim();
+  const description = payload.description ? String(payload.description).trim() : null;
+  const deadline = payload.deadline ? new Date(payload.deadline) : null;
+  const assignedTo = payload.assigned_to ? String(payload.assigned_to).trim() : null;
+  try {
+    const withAssignee = await client.query(
+      'INSERT INTO assignments (title, description, deadline, assigned_to) VALUES ($1, $2, $3, $4) RETURNING *',
+      [title, description, deadline, assignedTo]
+    );
+    return withAssignee.rows[0] || null;
+  } catch (err) {
+    const message = String(err?.message || '').toLowerCase();
+    if (!message.includes('assigned_to')) throw err;
+    const fallback = await client.query(
+      'INSERT INTO assignments (title, description, deadline) VALUES ($1, $2, $3) RETURNING *',
+      [title, description, deadline]
+    );
+    return fallback.rows[0] || null;
+  }
+}
+
+async function executeActionEngineWrites(userId = '', actionPlan = null) {
+  await ensureZaiMemorySchema();
+  const drafts = Array.isArray(actionPlan?.drafts)
+    ? actionPlan.drafts.filter((item) => Array.isArray(item?.missing) ? item.missing.length === 0 : false)
+    : [];
+  if (!drafts.length) {
+    return { executed: [], failed: [] };
+  }
+
+  const client = await pool.connect();
+  const executed = [];
+  const failed = [];
+  try {
+    await client.query('BEGIN');
+    for (let idx = 0; idx < drafts.length; idx += 1) {
+      const draft = drafts[idx];
+      const savepoint = `zai_action_${idx + 1}`;
+      await client.query(`SAVEPOINT ${savepoint}`);
+      try {
+        if (draft.kind === 'create_task') {
+          const taskRes = await client.query(
+            `INSERT INTO tasks (title, created_by, updated_by, deadline, priority, assigned_to)
+             VALUES ($1, $2, $2, $3, $4, $5)
+             RETURNING id, title, deadline, priority, assigned_to`,
+            [
+              draft.title,
+              userId,
+              draft.deadline ? new Date(draft.deadline) : null,
+              draft.priority || 'medium',
+              draft.assigned_to || userId,
+            ]
+          );
+          const row = taskRes.rows[0] || {};
+          await logActivity(client, 'task', row.id, 'CREATE', userId, {
+            title: row.title,
+            deadline: row.deadline || null,
+            priority: row.priority || draft.priority || 'medium',
+            assigned_to: row.assigned_to || draft.assigned_to || userId,
+            source: 'z_ai_action_v2',
+          });
+          executed.push({
+            action_id: draft.action_id,
+            kind: draft.kind,
+            entity: 'task',
+            id: row.id,
+            title: row.title || draft.title,
+            deadline: row.deadline || draft.deadline,
+          });
+        } else if (draft.kind === 'create_assignment') {
+          const row = await insertAssignmentFromAction(client, draft);
+          await logActivity(client, 'assignment', row?.id, 'CREATE', userId, {
+            title: row?.title || draft.title,
+            description: row?.description || draft.description || null,
+            deadline: row?.deadline || draft.deadline || null,
+            assigned_to: row?.assigned_to || draft.assigned_to || userId,
+            source: 'z_ai_action_v2',
+          });
+          executed.push({
+            action_id: draft.action_id,
+            kind: draft.kind,
+            entity: 'assignment',
+            id: row?.id,
+            title: row?.title || draft.title,
+            deadline: row?.deadline || draft.deadline,
+          });
+        } else if (draft.kind === 'set_reminder') {
+          const rowRes = await client.query(
+            `INSERT INTO z_ai_reminders (
+               user_id,
+               target_user,
+               reminder_text,
+               remind_at,
+               status,
+               source_command,
+               payload,
+               created_at
+             )
+             VALUES ($1, $2, $3, $4, 'pending', $5, $6::jsonb, NOW())
+             RETURNING id, user_id, target_user, reminder_text, remind_at, status`,
+            [
+              userId,
+              draft.target_user || userId,
+              draft.reminder_text || 'lanjutkan prioritas utama',
+              draft.remind_at ? new Date(draft.remind_at) : null,
+              draft.command || '',
+              JSON.stringify({
+                source: 'z_ai_action_v2',
+                kind: 'set_reminder',
+              }),
+            ]
+          );
+          const row = rowRes.rows[0] || {};
+          await logActivity(client, 'reminder', row.id, 'CREATE', userId, {
+            reminder_text: row.reminder_text || draft.reminder_text || '',
+            remind_at: row.remind_at || draft.remind_at || null,
+            target_user: row.target_user || draft.target_user || userId,
+            source: 'z_ai_action_v2',
+          });
+          executed.push({
+            action_id: draft.action_id,
+            kind: draft.kind,
+            entity: 'reminder',
+            id: row.id,
+            title: row.reminder_text || draft.reminder_text || 'Reminder',
+            deadline: row.remind_at || draft.remind_at || null,
+            target_user: row.target_user || draft.target_user || userId,
+          });
+        }
+        await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+      } catch (err) {
+        await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+        failed.push({
+          action_id: draft.action_id,
+          kind: draft.kind,
+          reason: normalizeActionText(err?.message || 'failed').slice(0, 180),
+        });
+      }
+    }
+    await client.query('COMMIT');
+    return { executed, failed };
+  } catch {
+    await client.query('ROLLBACK');
+    return { executed: [], failed: [] };
+  } finally {
+    client.release();
+  }
+}
+
+function buildActionExecutionReply(execution = null, clarifications = []) {
+  const executed = Array.isArray(execution?.executed) ? execution.executed : [];
+  const failed = Array.isArray(execution?.failed) ? execution.failed : [];
+  const asks = Array.isArray(clarifications) ? clarifications : [];
+  const lines = [];
+
+  if (executed.length > 0) {
+    const reminderItems = executed.filter((item) => item?.entity === 'reminder');
+    const createdItems = executed.filter((item) => item?.entity !== 'reminder');
+    if (createdItems.length > 0) {
+      const labels = createdItems
+        .slice(0, 3)
+        .map((item) => `${item.entity === 'assignment' ? 'tugas kuliah' : 'task'} "${item.title}"`)
+        .join(', ');
+      lines.push(`Siap, aku sudah buat ${createdItems.length} item: ${labels}.`);
+    }
+
+    if (reminderItems.length > 0) {
+      const reminderLabel = reminderItems
+        .slice(0, 2)
+        .map((item) => `"${item.title}"`)
+        .join(', ');
+      lines.push(`Reminder aktif ${reminderItems.length} item: ${reminderLabel}.`);
+    }
+  }
+
+  if (asks.length > 0) {
+    lines.push(`Biar sisanya bisa aku eksekusi juga, ${asks[0].question}`);
+  }
+
+  if (failed.length > 0) {
+    lines.push(`Ada ${failed.length} item yang belum berhasil disimpan. Coba kirim ulang setelah ini.`);
+  }
+
+  if (!lines.length) {
+    return 'Aku siap eksekusi otomatis. Tinggal kirim perintah task, assignment, atau reminder.';
+  }
+  return lines.join(' ').slice(0, CHATBOT_MAX_REPLY);
+}
+
+function formatReminderDueLabel(value = '') {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  try {
+    return new Intl.DateTimeFormat('id-ID', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  } catch {
+    return date.toISOString();
+  }
+}
+
+function buildDueReminderFollowup(reminders = []) {
+  const list = Array.isArray(reminders) ? reminders : [];
+  if (!list.length) return '';
+  const sample = list.slice(0, 2).map((item) => {
+    const title = String(item?.reminder_text || '').trim();
+    const time = formatReminderDueLabel(item?.remind_at || '');
+    if (!title) return '';
+    return time ? `"${title}" (${time})` : `"${title}"`;
+  }).filter(Boolean);
+  if (!sample.length) return '';
+  const suffix = list.length > sample.length ? ` (+${list.length - sample.length} lagi)` : '';
+  return `Pengingat jatuh tempo: ${sample.join(', ')}${suffix}.`;
+}
+
+function buildActionExecutionSuggestions(execution = null, clarifications = []) {
+  const suggestions = [];
+  const executed = Array.isArray(execution?.executed) ? execution.executed : [];
+  const hasTask = executed.some((item) => item?.entity === 'task');
+  const hasAssignment = executed.some((item) => item?.entity === 'assignment');
+  const hasReminder = executed.some((item) => item?.entity === 'reminder');
+
+  if (hasTask) {
+    suggestions.push({ label: 'Task Pending', command: 'task pending saya apa', tone: 'info' });
+  }
+  if (hasAssignment) {
+    suggestions.push({ label: 'Assignment Pending', command: 'assignment pending saya apa', tone: 'info' });
+  }
+  if (hasReminder) {
+    suggestions.push({ label: 'Set Reminder Lagi', command: 'ingatkan aku 30 menit lagi untuk cek progres', tone: 'success' });
+  }
+  suggestions.push({ label: 'Urgent Radar', command: 'risk deadline 48 jam ke depan', tone: 'warning' });
+
+  const asks = Array.isArray(clarifications) ? clarifications : [];
+  for (const item of asks) {
+    if (item?.field === 'deadline') {
+      suggestions.push({ label: 'Isi Deadline', command: 'deadline besok 19:00', tone: 'warning' });
+    } else if (item?.field === 'title') {
+      suggestions.push({ label: 'Isi Judul', command: 'judul [isi judul tugas]', tone: 'info' });
+    } else if (item?.field === 'time') {
+      suggestions.push({ label: 'Isi Waktu', command: 'besok 19:00', tone: 'warning' });
+    }
+  }
+
+  return normalizeChatbotSuggestions(suggestions);
+}
+
+function buildActionExecutionMemoryUpdate(memory, intent, message, execution = null, clarifications = []) {
+  const extraTopics = ['target'];
+  const executed = Array.isArray(execution?.executed) ? execution.executed : [];
+  if (executed.some((item) => item?.entity === 'reminder')) extraTopics.push('reminder');
+  if (executed.some((item) => item?.entity === 'assignment')) extraTopics.push('kuliah');
+  const update = buildStatelessMemoryUpdate(memory, intent, message, extraTopics);
+  const taskInc = executed.filter((item) => item?.entity === 'task').length;
+  const assignmentInc = executed.filter((item) => item?.entity === 'assignment').length;
+  update.pending_tasks = Math.max(0, Number(update.pending_tasks || 0) + taskInc);
+  update.pending_assignments = Math.max(0, Number(update.pending_assignments || 0) + assignmentInc);
+  update.unresolved_fields = normalizeRecentStrings(
+    (Array.isArray(clarifications) ? clarifications : []).map((item) => String(item?.field || '').trim().toLowerCase()),
+    6
+  );
+  return update;
+}
+
+async function flushDueRemindersForUser(userId = '', maxItems = 4) {
+  if (!userId) return { reminders: [], pushed_count: 0 };
+  await ensureZaiMemorySchema();
+  const safeLimit = Math.max(1, Math.min(Number(maxItems) || 4, 10));
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const dueRes = await client.query(
+      `SELECT id, user_id, target_user, reminder_text, remind_at
+       FROM z_ai_reminders
+       WHERE status = 'pending'
+         AND remind_at <= NOW()
+         AND (target_user = $1 OR (target_user IS NULL AND user_id = $1))
+       ORDER BY remind_at ASC
+       LIMIT $2
+       FOR UPDATE SKIP LOCKED`,
+      [userId, safeLimit]
+    );
+    const reminders = dueRes.rows || [];
+    if (!reminders.length) {
+      await client.query('COMMIT');
+      return { reminders: [], pushed_count: 0 };
+    }
+
+    let pushedCount = 0;
+    const sentAt = new Date().toISOString();
+    for (const item of reminders) {
+      const targetUser = String(item.target_user || item.user_id || userId).trim() || userId;
+      try {
+        const sent = await sendNotificationToUser(targetUser, {
+          title: 'Z AI Reminder',
+          body: String(item.reminder_text || 'Waktunya lanjut fokus.'),
+          url: '/chat',
+          data: { url: '/chat', reminder_id: item.id },
+          tag: `zai-reminder-${item.id}`,
+        });
+        pushedCount += Number(sent || 0) > 0 ? 1 : 0;
+      } catch {}
+    }
+
+    await client.query(
+      `UPDATE z_ai_reminders
+       SET status = 'sent',
+           sent_at = NOW(),
+           payload = COALESCE(payload, '{}'::jsonb) || $2::jsonb
+       WHERE id = ANY($1::bigint[])`,
+      [
+        reminders.map((item) => Number(item.id)),
+        JSON.stringify({ source: 'chat_stateless_flush', sent_at: sentAt }),
+      ]
+    );
+    await client.query('COMMIT');
+    return { reminders, pushed_count: pushedCount };
+  } catch {
+    await client.query('ROLLBACK');
+    return { reminders: [], pushed_count: 0 };
+  } finally {
+    client.release();
+  }
+}
+
 function plannerSuggestionChips(planner = null) {
   if (!planner || typeof planner !== 'object') return [];
   const chips = [];
@@ -295,6 +1016,8 @@ function plannerSuggestionChips(planner = null) {
         chips.push({ label: 'Isi Deadline', command: 'deadline besok 19:00', tone: 'warning' });
       } else if (item?.field === 'title') {
         chips.push({ label: 'Isi Judul', command: 'judul tugas [isi judulnya]', tone: 'info' });
+      } else if (item?.field === 'time') {
+        chips.push({ label: 'Isi Waktu', command: 'besok 19:00', tone: 'warning' });
       }
     }
   } else {
@@ -347,8 +1070,46 @@ async function ensureZaiMemorySchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS z_ai_router_events (
+      id BIGSERIAL PRIMARY KEY,
+      user_id VARCHAR(60),
+      response_id VARCHAR(80),
+      status VARCHAR(20) NOT NULL DEFAULT 'ok',
+      router_mode VARCHAR(20),
+      selected_engine VARCHAR(40),
+      engine_final VARCHAR(40),
+      fallback_used BOOLEAN NOT NULL DEFAULT FALSE,
+      complexity_score INTEGER,
+      complexity_level VARCHAR(20),
+      latency_ms INTEGER,
+      intent VARCHAR(80),
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS z_ai_reminders (
+      id BIGSERIAL PRIMARY KEY,
+      user_id VARCHAR(60) NOT NULL,
+      target_user VARCHAR(60),
+      reminder_text TEXT NOT NULL,
+      remind_at TIMESTAMPTZ NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      source_command TEXT,
+      payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      sent_at TIMESTAMPTZ,
+      cancelled_at TIMESTAMPTZ
+    );
+  `);
   await pool.query('CREATE INDEX IF NOT EXISTS idx_zai_events_user_time ON z_ai_memory_events(user_id, created_at DESC)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_zai_feedback_user_time ON z_ai_feedback_events(user_id, created_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_zai_router_events_user_time ON z_ai_router_events(user_id, created_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_zai_router_events_time ON z_ai_router_events(created_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_zai_router_events_engine ON z_ai_router_events(engine_final, created_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_zai_reminders_due ON z_ai_reminders(status, remind_at ASC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_zai_reminders_user ON z_ai_reminders(target_user, status, remind_at ASC)');
   global._zaiMemorySchemaReady = true;
 }
 
@@ -681,6 +1442,71 @@ async function writeZaiMemoryBundle(userId, interaction) {
       nowIso,
     ]
   );
+}
+
+function toSafeInt(value, fallback = null, min = 0, max = 120000) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+async function writeRouterMetricEvent(payload = {}) {
+  try {
+    await ensureZaiMemorySchema();
+    const router = payload.router && typeof payload.router === 'object' ? payload.router : {};
+    const engineFinal = String(payload.engine || router.engine_final || router.selected_engine || '').trim().slice(0, 40) || null;
+    const selectedEngine = String(router.selected_engine || '').trim().slice(0, 40) || null;
+    const routerMode = String(router.mode || '').trim().slice(0, 20) || null;
+    const complexityScore = toSafeInt(router.complexity_score, null, 0, 100);
+    const complexityLevel = String(router.complexity_level || '').trim().toLowerCase().slice(0, 20) || null;
+    const latencyMs = toSafeInt(payload.latency_ms, null, 0, 120000);
+    const fallbackUsed = Boolean(
+      router.fallback_used
+      || String(engineFinal || '').includes('fallback')
+      || String(selectedEngine || '').includes('fallback')
+    );
+
+    const metadata = {
+      reasons: Array.isArray(router.reasons) ? router.reasons.slice(0, 8).map((item) => String(item || '').slice(0, 60)) : [],
+      complexity_threshold: toSafeInt(router.complexity_threshold, null, 0, 100),
+      status: String(payload.status || 'ok').trim().slice(0, 20) || 'ok',
+    };
+
+    await pool.query(
+      `INSERT INTO z_ai_router_events (
+        user_id,
+        response_id,
+        status,
+        router_mode,
+        selected_engine,
+        engine_final,
+        fallback_used,
+        complexity_score,
+        complexity_level,
+        latency_ms,
+        intent,
+        metadata,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, NOW())`,
+      [
+        String(payload.user_id || '').trim().slice(0, 60) || null,
+        String(payload.response_id || '').trim().slice(0, 80) || null,
+        String(payload.status || 'ok').trim().slice(0, 20) || 'ok',
+        routerMode,
+        selectedEngine,
+        engineFinal,
+        fallbackUsed,
+        complexityScore,
+        complexityLevel,
+        latencyMs,
+        String(payload.intent || '').trim().toLowerCase().slice(0, 80) || null,
+        JSON.stringify(metadata),
+      ]
+    );
+  } catch {
+    // Telemetry should never break chatbot flow.
+  }
 }
 
 function plannerTextBlock(planner) {
@@ -1040,13 +1866,41 @@ function evaluateHybridComplexity(message = '', planner = null) {
     score += 10;
     reasons.push('multi_step_language');
   }
-  if (/(\bkenapa\b|\bjelaskan\b|\bbandingkan\b|\bstrategi\b|\banalisis\b)/i.test(lower)) {
+  const advancedReasoning = /(\bkenapa\b|\bjelaskan\b|\bbandingkan\b|\bstrategi\b|\banalisis\b|\bkomparasi\b|\btrade-?off\b|\broot cause\b)/i.test(lower);
+  if (advancedReasoning) {
     score += 12;
     reasons.push('reasoning_request');
   }
+  if (advancedReasoning && /(\bbandingkan\b|\banalisis\b|\bstrategi\b)/i.test(lower)) {
+    score += 14;
+    reasons.push('deep_reasoning');
+  }
   if (/(\bini\b|\bitu\b|\baja\b|\bnanti\b|\bseperti biasa\b|\byang tadi\b)/i.test(lower)) {
-    score += 8;
+    score += 22;
     reasons.push('ambiguous_reference');
+  }
+  if (/(\bminggu ini\b|\bpekan ini\b|\b48 jam\b|\b72 jam\b|\bbulan ini\b|\bhari kerja\b)/i.test(lower)) {
+    score += 10;
+    reasons.push('time_horizon');
+  }
+  if (/(\bplan\b|\blangkah\b|\brencana\b|\broadmap\b)/i.test(lower)) {
+    score += 8;
+    reasons.push('planning_request');
+  }
+  const domainHits = ['task', 'tugas', 'assignment', 'deadline', 'pasangan', 'couple', 'belajar', 'mood']
+    .filter((token) => lower.includes(token))
+    .length;
+  if (domainHits >= 3) {
+    score += 14;
+    reasons.push('multi_domain_context');
+  } else if (domainHits === 2) {
+    score += 8;
+    reasons.push('cross_domain_context');
+  }
+  const connectors = (lower.match(/\b(dan|lalu|kemudian|terus|sekalian|plus)\b/g) || []).length;
+  if (connectors >= 2) {
+    score += 8;
+    reasons.push('many_connectors');
   }
   if ((text.match(/\?/g) || []).length > 1) {
     score += 6;
@@ -1194,6 +2048,7 @@ async function routeStatelessChatbot(req, message, contextHint = null, plannerHi
   const complexity = evaluateHybridComplexity(message, plannerHint);
   let payload = null;
   let selectedEngine = 'rule';
+  let fallbackUsed = false;
 
   if (mode === 'rule') {
     selectedEngine = 'rule';
@@ -1205,6 +2060,7 @@ async function routeStatelessChatbot(req, message, contextHint = null, plannerHi
     selectedEngine = 'llm';
     payload = await askLlmChatbot(req, message, contextHint, plannerHint, memoryHint);
     if (!payload) {
+      fallbackUsed = true;
       selectedEngine = 'python';
       payload = await askPythonChatbot(req, message, contextHint, plannerHint, memoryHint);
     }
@@ -1217,6 +2073,7 @@ async function routeStatelessChatbot(req, message, contextHint = null, plannerHi
       selectedEngine = 'llm';
       payload = await askLlmChatbot(req, message, contextHint, plannerHint, memoryHint);
       if (!payload) {
+        fallbackUsed = true;
         selectedEngine = 'python';
         payload = await askPythonChatbot(req, message, contextHint, plannerHint, memoryHint);
       }
@@ -1227,16 +2084,24 @@ async function routeStatelessChatbot(req, message, contextHint = null, plannerHi
   }
 
   if (!payload) {
+    fallbackUsed = true;
     selectedEngine = 'rule-fallback';
     payload = fallbackChatbotPayload(message, plannerHint, memoryHint);
   }
 
+  const engineFinal = String(payload.engine || selectedEngine);
+  if (engineFinal.includes('fallback') && selectedEngine !== 'rule') {
+    fallbackUsed = true;
+  }
+
   return {
     ...payload,
-    engine: String(payload.engine || selectedEngine),
+    engine: engineFinal,
     router: {
       mode,
       selected_engine: selectedEngine,
+      engine_final: engineFinal,
+      fallback_used: fallbackUsed,
       complexity_score: complexity.score,
       complexity_level: complexity.level,
       complexity_threshold: complexity.threshold,
@@ -1271,6 +2136,7 @@ export default withErrorHandling(async function handler(req, res) {
     }
 
     if (statelessMode) {
+      const routeStartedAt = Date.now();
       const optionalUser = extractOptionalUser(req);
       const planner = buildPlannerFrame(message);
       const memory = optionalUser ? await getZaiMemoryBundle(optionalUser).catch(() => null) : null;
@@ -1285,17 +2151,185 @@ export default withErrorHandling(async function handler(req, res) {
         avoid_commands: learningHints.avoid_commands,
         helpful_ratio: learningHints.helpful_ratio,
       };
+      const dueReminderState = optionalUser
+        ? await flushDueRemindersForUser(optionalUser, 4).catch(() => ({ reminders: [], pushed_count: 0 }))
+        : { reminders: [], pushed_count: 0 };
+      const dueReminderTail = buildDueReminderFollowup(dueReminderState.reminders);
+
+      const actionPlan = buildActionEnginePlan(planner, optionalUser);
+      if (chatbotActionEngineEnabled() && actionPlan.has_actions) {
+        const complexity = evaluateHybridComplexity(message, planner);
+        const responseId = randomUUID();
+        const draftKinds = (actionPlan.drafts || []).map((item) => String(item?.kind || '').toLowerCase());
+        const reminderOnly = draftKinds.length > 0 && draftKinds.every((item) => item === 'set_reminder');
+        const intent = reminderOnly ? 'reminder_ack' : 'recommend_task';
+
+        if (!optionalUser) {
+          const plannerOut = buildActionPlannerResult(planner, actionPlan, { executed: [], failed: [] });
+          const reliability = buildReliabilityAssessment(message, plannerOut, intent);
+          const router = {
+            mode: 'native',
+            selected_engine: 'action-engine-v2',
+            engine_final: 'action-engine-v2',
+            fallback_used: false,
+            complexity_score: complexity.score,
+            complexity_level: complexity.level,
+            complexity_threshold: complexity.threshold,
+            reasons: complexity.reasons,
+          };
+          writeRouterMetricEvent({
+            user_id: null,
+            response_id: responseId,
+            status: 'ok',
+            engine: 'action-engine-v2',
+            intent,
+            latency_ms: Date.now() - routeStartedAt,
+            router,
+          }).catch(() => {});
+          sendJson(res, 200, {
+            reply: reminderOnly
+              ? 'Aku bisa set reminder otomatis, tapi kamu perlu login dulu supaya pengingatnya bisa kusimpan dan dikirim.'
+              : 'Aku bisa eksekusi task/assignment/reminder otomatis, tapi kamu perlu login dulu supaya datanya bisa kusimpan.',
+            intent,
+            response_id: responseId,
+            engine: 'action-engine-v2',
+            router,
+            adaptive: {
+              style: String(contextWithMemory?.tone_mode || 'supportive'),
+              focus_minutes: Number(contextWithMemory?.focus_minutes || 25),
+              urgency: 'medium',
+              energy: 'normal',
+              domain: reminderOnly ? 'umum' : 'kuliah',
+            },
+            planner: plannerOut,
+            reliability,
+            unified_memory: null,
+            memory_update: null,
+            suggestions: normalizeChatbotSuggestions([
+              { label: 'Login Dulu', command: 'login', tone: 'warning' },
+              reminderOnly
+                ? { label: 'Template Reminder', command: 'ingatkan aku besok 19:00 untuk cek deadline kuliah', tone: 'info' }
+                : { label: 'Template Tugas', command: 'buat assignment [judul] deadline [besok 19:00]', tone: 'info' },
+            ]),
+            execution: {
+              executed: [],
+              failed: [],
+            },
+          });
+          return;
+        }
+
+        const execution = await executeActionEngineWrites(optionalUser, actionPlan);
+        const plannerOut = buildActionPlannerResult(planner, actionPlan, execution);
+        const clarifications = Array.isArray(plannerOut.clarifications) ? plannerOut.clarifications : [];
+        const reliability = buildReliabilityAssessment(message, plannerOut, intent);
+        const rawReply = buildActionExecutionReply(execution, clarifications);
+        const replyWithReminder = [rawReply, dueReminderTail].filter(Boolean).join('\n\n').slice(0, CHATBOT_MAX_REPLY);
+        const reply = applyReliabilityFollowup(replyWithReminder, reliability).slice(0, CHATBOT_MAX_REPLY);
+        const suggestions = applyLearningToSuggestions(
+          buildActionExecutionSuggestions(execution, clarifications),
+          learningHints
+        );
+        const memoryUpdate = buildActionExecutionMemoryUpdate(memory, intent, message, execution, clarifications);
+        const router = {
+          mode: 'native',
+          selected_engine: 'action-engine-v2',
+          engine_final: 'action-engine-v2',
+          fallback_used: false,
+          complexity_score: complexity.score,
+          complexity_level: complexity.level,
+          complexity_threshold: complexity.threshold,
+          reasons: complexity.reasons,
+        };
+        const actionTopics = ['target'];
+        if (reminderOnly) actionTopics.push('reminder');
+        else actionTopics.push('kuliah');
+        const topics = normalizeRecentStrings([...extractMessageTopics(message), ...actionTopics], 5);
+
+        writeZaiMemoryBundle(optionalUser, {
+          message,
+          intent,
+          reply,
+          planner: plannerOut,
+          context: {
+            ...contextWithMemory,
+            response_id: responseId,
+            execution: {
+              executed_count: Number(execution?.executed?.length || 0),
+              failed_count: Number(execution?.failed?.length || 0),
+            },
+          },
+          topics,
+        }).catch(() => {});
+        writeRouterMetricEvent({
+          user_id: optionalUser,
+          response_id: responseId,
+          status: 'ok',
+          engine: 'action-engine-v2',
+          intent,
+          latency_ms: Date.now() - routeStartedAt,
+          router,
+        }).catch(() => {});
+
+        sendJson(res, 200, {
+          reply,
+          intent,
+          response_id: responseId,
+          engine: 'action-engine-v2',
+          router,
+          adaptive: {
+            style: String(contextWithMemory?.tone_mode || 'supportive'),
+            focus_minutes: Number(contextWithMemory?.focus_minutes || 25),
+            urgency: reminderOnly ? 'medium' : 'high',
+            energy: 'normal',
+            domain: reminderOnly ? 'umum' : 'kuliah',
+          },
+          planner: plannerOut,
+          reliability,
+          unified_memory: memory,
+          memory_update: memoryUpdate,
+          feedback_profile: normalizeFeedbackProfile(memory?.memory?.feedback_profile || {}),
+          suggestions: normalizeChatbotSuggestions(suggestions),
+          execution: {
+            executed: Array.isArray(execution?.executed) ? execution.executed : [],
+            failed: Array.isArray(execution?.failed) ? execution.failed : [],
+          },
+          due_reminders: Array.isArray(dueReminderState.reminders) ? dueReminderState.reminders : [],
+        });
+        return;
+      }
 
       const studyPlanRequest = parseStudyPlanRequest(message);
       if (studyPlanRequest) {
         if (!optionalUser) {
           const reliability = buildReliabilityAssessment(message, planner, 'study_schedule');
+          const responseId = randomUUID();
+          const complexity = evaluateHybridComplexity(message, planner);
+          const router = {
+            mode: 'native',
+            selected_engine: 'study-plan-native',
+            engine_final: 'study-plan-native',
+            fallback_used: false,
+            complexity_score: complexity.score,
+            complexity_level: complexity.level,
+            complexity_threshold: complexity.threshold,
+            reasons: complexity.reasons,
+          };
+          writeRouterMetricEvent({
+            user_id: optionalUser || null,
+            response_id: responseId,
+            status: 'ok',
+            engine: 'study-plan-native',
+            intent: 'study_schedule',
+            latency_ms: Date.now() - routeStartedAt,
+            router,
+          }).catch(() => {});
           sendJson(res, 200, {
             reply: 'Bisa. Untuk bikin jadwal belajar dari waktu kosong yang akurat, login dulu supaya aku bisa baca jadwal kuliah kamu.',
             intent: 'study_schedule',
-            response_id: randomUUID(),
+            response_id: responseId,
             engine: 'study-plan-native',
-            router: { mode: 'native', selected_engine: 'study-plan-native' },
+            router,
             adaptive: null,
             planner,
             reliability,
@@ -1314,10 +2348,22 @@ export default withErrorHandling(async function handler(req, res) {
           const intent = 'study_schedule';
           const reliability = buildReliabilityAssessment(message, planner, intent);
           const rawReply = buildStudyPlanNaturalReply(studyPlan).slice(0, CHATBOT_MAX_REPLY);
-          const reply = applyReliabilityFollowup(rawReply, reliability).slice(0, CHATBOT_MAX_REPLY);
+          const replyWithReminder = [rawReply, dueReminderTail].filter(Boolean).join('\n\n').slice(0, CHATBOT_MAX_REPLY);
+          const reply = applyReliabilityFollowup(replyWithReminder, reliability).slice(0, CHATBOT_MAX_REPLY);
           const memoryUpdate = buildStatelessMemoryUpdate(memory, intent, message, ['study']);
           const suggestions = applyLearningToSuggestions(buildStudyPlanSuggestions(studyPlan), learningHints);
           const responseId = randomUUID();
+          const complexity = evaluateHybridComplexity(message, planner);
+          const router = {
+            mode: 'native',
+            selected_engine: 'study-plan-native',
+            engine_final: 'study-plan-native',
+            fallback_used: false,
+            complexity_score: complexity.score,
+            complexity_level: complexity.level,
+            complexity_threshold: complexity.threshold,
+            reasons: complexity.reasons,
+          };
 
           const topics = normalizeRecentStrings([...extractMessageTopics(message), 'study'], 5);
           writeZaiMemoryBundle(optionalUser, {
@@ -1328,13 +2374,22 @@ export default withErrorHandling(async function handler(req, res) {
             context: { ...contextWithMemory, response_id: responseId },
             topics,
           }).catch(() => {});
+          writeRouterMetricEvent({
+            user_id: optionalUser || null,
+            response_id: responseId,
+            status: 'ok',
+            engine: 'study-plan-native',
+            intent,
+            latency_ms: Date.now() - routeStartedAt,
+            router,
+          }).catch(() => {});
 
           sendJson(res, 200, {
             reply,
             intent,
             response_id: responseId,
             engine: 'study-plan-native',
-            router: { mode: 'native', selected_engine: 'study-plan-native' },
+            router,
             adaptive: {
               style: String(contextWithMemory?.tone_mode || 'supportive'),
               focus_minutes: Number(contextWithMemory?.focus_minutes || 25),
@@ -1348,6 +2403,7 @@ export default withErrorHandling(async function handler(req, res) {
             memory_update: memoryUpdate,
             feedback_profile: normalizeFeedbackProfile(memory?.memory?.feedback_profile || {}),
             suggestions: normalizeChatbotSuggestions(suggestions),
+            due_reminders: Array.isArray(dueReminderState.reminders) ? dueReminderState.reminders : [],
           });
           return;
         } catch {
@@ -1374,6 +2430,7 @@ export default withErrorHandling(async function handler(req, res) {
       const finalReply = includeMeta
         ? replyParts.filter(Boolean).join('\n\n').slice(0, CHATBOT_MAX_REPLY)
         : replyCore;
+      const finalReplyWithReminder = [finalReply, dueReminderTail].filter(Boolean).join('\n\n').slice(0, CHATBOT_MAX_REPLY);
       const suggestionsOut = applyLearningToSuggestions(payload?.suggestions, learningHints);
       const responseId = randomUUID();
 
@@ -1382,19 +2439,29 @@ export default withErrorHandling(async function handler(req, res) {
         writeZaiMemoryBundle(optionalUser, {
           message,
           intent: intentOut,
-          reply: finalReply,
+          reply: finalReplyWithReminder,
           planner: plannerOut,
           context: { ...contextWithMemory, response_id: responseId },
           topics,
         }).catch(() => {});
       }
+      const routerOut = payload?.router && typeof payload.router === 'object' ? payload.router : null;
+      writeRouterMetricEvent({
+        user_id: optionalUser || null,
+        response_id: responseId,
+        status: 'ok',
+        engine: String(payload?.engine || ''),
+        intent: intentOut,
+        latency_ms: Date.now() - routeStartedAt,
+        router: routerOut || {},
+      }).catch(() => {});
 
       sendJson(res, 200, {
-        reply: finalReply,
+        reply: finalReplyWithReminder,
         intent: intentOut,
         response_id: responseId,
         engine: String(payload?.engine || ''),
-        router: payload?.router && typeof payload.router === 'object' ? payload.router : null,
+        router: routerOut,
         adaptive: payload?.adaptive && typeof payload.adaptive === 'object' ? payload.adaptive : null,
         planner: plannerOut,
         reliability,
@@ -1402,6 +2469,7 @@ export default withErrorHandling(async function handler(req, res) {
         memory_update: memoryUpdate,
         feedback_profile: normalizeFeedbackProfile(memoryOut?.memory?.feedback_profile || {}),
         suggestions: normalizeChatbotSuggestions(suggestionsOut),
+        due_reminders: Array.isArray(dueReminderState.reminders) ? dueReminderState.reminders : [],
       });
       return;
     }

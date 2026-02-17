@@ -231,7 +231,7 @@ function renderHourlyHeatmap(container, hourlyCounts = []) {
 
     const cell = document.createElement('div');
     cell.className = `activity-heatmap-cell intensity-${intensity}`;
-    cell.title = `${String(hour).padStart(2, '0')}:00 · ${count} events`;
+    cell.title = `${String(hour).padStart(2, '0')}:00 | ${count} events`;
     cell.innerHTML = `
       <span class="hour">${String(hour).padStart(2, '0')}</span>
       <strong>${count}</strong>
@@ -270,7 +270,7 @@ function renderActivityAnalytics(metrics) {
     document.getElementById('activity-funnel-list'),
     metrics.funnel,
     (item) => item.label,
-    (item) => `${formatCount(item.count)} · ${item.conversion}%`,
+    (item) => `${formatCount(item.count)} | ${item.conversion}%`,
     (item) => ((Number(item.count || 0) / funnelMax) * 100)
   );
 
@@ -285,6 +285,73 @@ function renderActivityAnalytics(metrics) {
 
   renderHourlyHeatmap(document.getElementById('activity-hourly-heatmap'), metrics.hourlyCounts);
   renderRetentionRows(document.getElementById('activity-retention-rows'), metrics.recentDays);
+}
+
+function renderKeyValueRows(container, rows = []) {
+  if (!container) return;
+  container.innerHTML = '';
+  if (!Array.isArray(rows) || rows.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'activity-empty';
+    empty.textContent = 'Belum ada data.';
+    container.appendChild(empty);
+    return;
+  }
+
+  for (const row of rows) {
+    const node = document.createElement('div');
+    node.className = 'activity-row';
+    const head = document.createElement('div');
+    head.className = 'activity-row-head';
+
+    const titleEl = document.createElement('span');
+    titleEl.className = 'activity-row-title';
+    titleEl.textContent = String(row.label || '-');
+
+    const valueEl = document.createElement('span');
+    valueEl.className = 'activity-row-value';
+    valueEl.textContent = String(row.value || '-');
+
+    head.appendChild(titleEl);
+    head.appendChild(valueEl);
+    node.appendChild(head);
+    container.appendChild(node);
+  }
+}
+
+function renderChatMetrics(payload = {}) {
+  const summary = payload && typeof payload.summary === 'object' ? payload.summary : {};
+  const engines = Array.isArray(payload.engines) ? payload.engines : [];
+
+  renderKeyValueRows(
+    document.getElementById('chat-metrics-summary'),
+    [
+      { label: 'Requests (7d)', value: formatCount(summary.total_requests || 0) },
+      { label: 'Fallback Rate', value: `${Number(summary.fallback_rate_pct || 0).toFixed(1)}%` },
+      { label: 'Avg Latency', value: `${Math.round(Number(summary.avg_latency_ms || 0))} ms` },
+      { label: 'P95 Latency', value: `${Math.round(Number(summary.p95_latency_ms || 0))} ms` },
+    ]
+  );
+
+  const max = Math.max(1, ...engines.map((item) => Number(item.count || 0)));
+  renderListWithBars(
+    document.getElementById('chat-metrics-engines'),
+    engines.slice(0, 6),
+    (item) => String(item.engine || 'unknown'),
+    (item) => formatCount(item.count || 0),
+    (item) => ((Number(item.count || 0) / max) * 100)
+  );
+}
+
+async function refreshChatMetrics() {
+  const summaryEl = document.getElementById('chat-metrics-summary');
+  if (!summaryEl) return;
+  try {
+    const payload = await get('/chat_metrics?days=7');
+    renderChatMetrics(payload || {});
+  } catch {
+    renderKeyValueRows(summaryEl, [{ label: 'Engine Health', value: 'Gagal memuat metrics' }]);
+  }
 }
 
 async function refreshActivityAnalytics() {
@@ -316,10 +383,13 @@ function initActivityAnalytics() {
   if (!refreshBtn || !funnel) return;
 
   refreshBtn.addEventListener('click', () => {
-    refreshActivityAnalytics().catch(() => {});
+    refreshActivityAnalytics()
+      .then(() => refreshChatMetrics())
+      .catch(() => {});
   });
 
   refreshActivityAnalytics().catch(() => {});
+  refreshChatMetrics().catch(() => {});
 }
 
 function normalizeLmsUrl(raw) {

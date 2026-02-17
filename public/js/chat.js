@@ -1074,7 +1074,7 @@ async function runStatelessBot(message = '') {
   syncBotAdaptiveProfileToServer(profile).catch(() => {});
   appendLocalChatMessage(currentUser, text, { me: true });
 
-  let contentEl = appendLocalSystemMessage('Companion Bot', '...');
+  let contentEl = appendLocalSystemMessage('Z AI', '...');
   if (contentEl) contentEl.classList.add('v3-assistant-typing');
 
   try {
@@ -1105,7 +1105,7 @@ async function runStatelessBot(message = '') {
       setTimeout(() => contentEl.classList.remove('v3-assistant-arrived'), 520);
       return;
     }
-    const fallbackContent = appendLocalSystemMessage('Companion Bot', reply);
+    const fallbackContent = appendLocalSystemMessage('Z AI', reply);
     renderBotQuickChips(fallbackContent, suggestions);
     renderBotFeedbackRow(fallbackContent, result);
   } catch (err) {
@@ -1119,7 +1119,7 @@ async function runStatelessBot(message = '') {
       contentEl.textContent = textErr;
       return;
     }
-    appendLocalSystemMessage('Companion Bot', textErr);
+    appendLocalSystemMessage('Z AI', textErr);
   }
 }
 
@@ -1293,7 +1293,7 @@ function init() {
       writeChatbotStatelessPreference(chatbotStatelessMode);
       syncAssistantModeUI();
       appendLocalSystemMessage(
-        'Companion Bot',
+        'Z AI',
         chatbotStatelessMode
           ? 'Bot Mode aktif. Pesan biasa akan dibalas chatbot stateless.'
           : 'Bot Mode nonaktif. Pesan biasa kembali ke chat pasangan.'
