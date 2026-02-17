@@ -37,9 +37,21 @@
       style="font-family: var(--font-head); font-size: clamp(2.8rem, 8vw, 5.6rem); text-align:center; letter-spacing: 0.06em; margin: 10px 0 0; color: var(--text);">
       I LOVE U</h1>
 
-    <!-- 🚀 HERO DASHBOARD: GROW TOGETHER -->
-    <section class="hero-section">
-      <div class="card hero-card">
+    <!-- 🌅 DAILY BRIEFING ASSISTANT -->
+    <div id="briefing-container" style="display: none;">
+      <div class="card briefing-card">
+        <div class="briefing-greeting" id="briefing-greeting">Good Morning!</div>
+        <div class="briefing-summary" id="briefing-summary">Checking the cosmic tides for you...</div>
+        <div class="briefing-items" id="briefing-items">
+          <!-- Items injected via JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 🚀 UNIFIED DASHBOARD GRID -->
+    <section class="dashboard-parent">
+      <!-- 1: HERO DASHBOARD (MISSION) -->
+      <div class="card hero-card div-hero">
         <header class="hero-header">
           <div class="section-title"><i class="fa-solid fa-rocket-launch"></i> MISSION: GROW TOGETHER</div>
           <div class="mission-status"><span class="pulse"></span> ACTIVE</div>
@@ -73,23 +85,20 @@
           <div class="muted">OBJECTIVE: UNCONDITIONAL SUPPORT</div>
         </footer>
       </div>
-    </section>
 
-    <!-- 📊 ANALYTICS HUB -->
-    <section class="analytics-grid">
-      <div class="card stats-card">
-        <div class="section-title"><i class="fa-solid fa-chart-simple"></i> WEEKLY CONTRIBUTION</div>
+      <!-- 2: ANALYTICS (WEEKLY CONTRIBUTION) -->
+      <div class="card stats-card div-stats">
+        <div class="section-title"><i class="fa-solid fa-chart-simple"></i> WEEKLY</div>
         <div id="weekly-stats" class="stats-container">
           <div class="skeleton skeleton-line"></div>
-          <div class="skeleton skeleton-line" style="width:80%"></div>
         </div>
       </div>
 
-      <div class="card stats-card">
-        <div class="section-title"><i class="fa-solid fa-wave-pulse"></i> MOOD STABILITY</div>
+      <!-- 4: ANALYTICS (MOOD STABILITY) -->
+      <div class="card stats-card div-stats">
+        <div class="section-title"><i class="fa-solid fa-wave-pulse"></i> MOOD</div>
         <div id="weekly-mood" class="stats-container">
           <div class="skeleton skeleton-line"></div>
-          <div class="skeleton skeleton-line" style="width:70%"></div>
         </div>
       </div>
     </section>
@@ -294,6 +303,69 @@
           moodContainer.innerHTML = '<div class="muted center">Sync error.</div>';
         }
       }
+
+      // --- 🌅 DAILY BRIEFING LOGIC ---
+      async function initBriefing() {
+        const container = document.getElementById('briefing-container');
+        const greetingEl = document.getElementById('briefing-greeting');
+        const summaryEl = document.getElementById('briefing-summary');
+        const itemsEl = document.getElementById('briefing-items');
+
+        const user = localStorage.getItem('user') || 'NZ';
+        const hour = new Date().getHours();
+        let greetText = "Good Morning";
+        if (hour >= 12 && hour < 17) greetText = "Good Afternoon";
+        else if (hour >= 17 || hour < 4) greetText = "Good Evening";
+
+        greetingEl.textContent = `${greetText}, ${user}! ✨`;
+
+        try {
+          // Parallel fetch for speed
+          const [tasks, assignments] = await Promise.all([
+            get('/tasks'),
+            get('/assignments')
+          ]);
+
+          const pendingTasks = tasks.filter(t => !t.completed);
+          const urgentAssignments = assignments.filter(a => {
+            if (a.completed) return false;
+            const diff = new Date(a.deadline).getTime() - Date.now();
+            return diff > 0 && diff < 86400000; // < 24 hours
+          });
+
+          itemsEl.innerHTML = '';
+          let summary = "";
+
+          if (pendingTasks.length === 0 && urgentAssignments.length === 0) {
+            summary = "Semua misi selesai! Waktunya bersantai dan menikmati waktu bersama. 🥂";
+            container.style.display = 'block';
+            return;
+          }
+
+          summary = `Ada ${pendingTasks.length + urgentAssignments.length} hal penting yang perlu perhatianmu hari ini.`;
+          summaryEl.textContent = summary;
+
+          // Add top priority items
+          const priorities = [
+            ...urgentAssignments.map(a => ({ type: 'assignment', text: `Deadline: ${a.title}`, urgent: true })),
+            ...pendingTasks.slice(0, 2).map(t => ({ type: 'task', text: t.title, urgent: false }))
+          ];
+
+          priorities.forEach(p => {
+            const item = document.createElement('div');
+            item.className = `briefing-item ${p.type} ${p.urgent ? 'urgent' : ''}`;
+            const icon = p.type === 'assignment' ? 'fa-graduation-cap' : 'fa-list-check';
+            item.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${p.text}</span>`;
+            itemsEl.appendChild(item);
+          });
+
+          container.style.display = 'block';
+        } catch (e) {
+          console.error("Briefing failed", e);
+        }
+      }
+
+      initBriefing();
     });
 
 
