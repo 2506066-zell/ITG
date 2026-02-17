@@ -1,4 +1,4 @@
-﻿﻿<!doctype html>
+﻿﻿﻿﻿<!doctype html>
 <html lang="en" data-theme="dark">
 
 <head>
@@ -9,7 +9,6 @@
   <link rel="stylesheet" href="css/variables.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/bottom-nav.css">
-  <link rel="stylesheet" href="css/memories.css">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
@@ -17,15 +16,16 @@
 </head>
 
 <body>
-  <nav class="navbar">
-    <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
-    <div class="nav-actions">
-      <a class="btn" href="/"><i class="fa-solid fa-house"></i> Home</a>
-      <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
-    </div>
-  </nav>
-  <div class="container">
-    <a class="btn back-home" href="/"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
+  <main class="mobile-layout-container" style="padding-bottom: calc(var(--bottom-nav-height) + 20px);">
+
+    <!-- HEADER CONTEXT -->
+    <header class="header-context">
+      <div class="brand short">
+        <i class="fa-solid fa-heart" style="color: var(--brand-rose)"></i> NZ
+      </div>
+      <h2 class="header-title-lg">Memories</h2>
+      <div class="muted-text">Archive of our journey</div>
+    </header>
     <div class="grid">
       <div class="card">
         <div class="section-title">Create Memory</div>
@@ -73,32 +73,32 @@
       </div>
     </div>
     <div class="footer">NZ</div>
-  </div>
-  <!-- MOBILE BOTTOM NAVIGATION -->
-  <nav class="bottom-nav">
-    <a href="/" class="nav-item">
-      <i class="fa-solid fa-house"></i>
-      <span>Home</span>
-    </a>
-    <a href="/daily-tasks" class="nav-item">
-      <i class="fa-solid fa-list-check"></i>
-      <span>Tasks</span>
-    </a>
-    <a href="/goals" class="nav-item">
-      <i class="fa-solid fa-bullseye"></i>
-      <span>Goals</span>
-    </a>
-    <a href="/chat" class="nav-item">
-      <i class="fa-solid fa-message-heart"></i>
-      <span>Chat</span>
-    </a>
-    <a href="/menu" class="nav-item active" onclick="event.preventDefault(); window.location.href='/#modules'">
-      <i class="fa-solid fa-grid-2"></i>
-      <span>Menu</span>
-    </a>
-  </nav>
+    </div>
+    <!-- MOBILE BOTTOM NAVIGATION -->
+    <nav class="bottom-nav">
+      <a href="/" class="nav-item">
+        <i class="fa-solid fa-house"></i>
+        <span>Home</span>
+      </a>
+      <a href="/daily-tasks" class="nav-item">
+        <i class="fa-solid fa-list-check"></i>
+        <span>Tasks</span>
+      </a>
+      <a href="/goals" class="nav-item">
+        <i class="fa-solid fa-bullseye"></i>
+        <span>Goals</span>
+      </a>
+      <a href="/chat" class="nav-item">
+        <i class="fa-solid fa-message-heart"></i>
+        <span>Chat</span>
+      </a>
+      <a href="/menu" class="nav-item active" onclick="event.preventDefault(); window.location.href='/#modules'">
+        <i class="fa-solid fa-grid-2"></i>
+        <span>Menu</span>
+      </a>
+    </nav>
 
-  <script type="module" src="js/memories.js"></script>
+    <script type="module" src="js/memories.js"></script>
 </body>
 
 </html>

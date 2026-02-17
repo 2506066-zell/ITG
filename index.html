@@ -3,153 +3,222 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
-  <meta name="theme-color" content="#1a202c">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#050816">
+  <link rel="apple-touch-icon" href="icons/192.png">
+
+  <!-- PERFORMANCE OPTIMIZATION -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+
   <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/variables.css">
-  <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/bottom-nav.css">
-  <link rel="stylesheet" href="css/themes.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
-  <title>NZ • Soft Glass</title>
+  <title>NZ • Dashboard</title>
 </head>
 
-<body>
-  <!-- Background Layers -->
-  <div class="glass-background"></div>
-  <div class="glass-orb orb-1"></div>
-  <div class="glass-orb orb-2"></div>
+<body class="dashboard-page">
 
-  <div class="container mobile-layout">
-    <!-- 1. HEADER INFORMASIONAL -->
-    <header class="home-header">
-      <div class="greeting-section">
-        <h1 class="greeting-text">Selamat pagi!</h1>
-        <p class="greeting-sub">Ada jadwal yang sedang berlangsung. Pastikan Anda tidak ketinggalan.</p>
-      </div>
 
-      <!-- Event Highlight Card -->
-      <div class="event-card-pill">
-        <div class="event-icon">
-          <i class="fa-solid fa-calendar-day"></i>
-        </div>
-        <div class="event-details">
-          <span class="event-title">Tahun Baru Imlek</span>
-          <span class="event-time">Seharian</span>
-        </div>
+
+
+  <main class="mobile-layout-container">
+
+    <!-- 1. HEADER CONTEXT (Compact & Calm) -->
+    <header class="header-context">
+      <div class="brand short">
+        <i class="fa-solid fa-heart" style="color: var(--brand-rose)"></i> NZ
       </div>
+      <h1 class="header-title-lg">Good Morning</h1>
+      <div class="muted-text">Ready to grow together today?</div>
     </header>
 
-    <!-- 2. BANNER AKSI UTAMA -->
-    <section class="banner-cta">
-      <div class="cta-content">
-        <div class="cta-icon-circle">
-          <i class="fa-solid fa-wand-magic-sparkles"></i>
+    <!-- 2. HIGHLIGHT SECTION (Visual Anchor) -->
+    <section class="highlight-section">
+      <div class="card card-highlight">
+        <div class="section-title"><i class="fa-solid fa-rocket-launch"></i> MISSION STATUS</div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+          <div>
+            <div class="mission-status"><span class="pulse"></span> ACTIVE</div>
+            <div class="muted-text" style="margin-top:4px">Day <span id="t-days">00</span> of Forever</div>
+          </div>
+          <div style="text-align:right">
+            <div class="stat-value" style="font-size:1.5rem">84%</div>
+            <div class="muted-text">Week Sync</div>
+          </div>
         </div>
-        <div class="cta-text">
-          Jelajahi lebih banyak fitur AI dengan satu ketukan
-        </div>
-      </div>
-      <button class="cta-close-btn">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </section>
-
-    <!-- 3. SECTION GRID FITUR -->
-    <section class="modules-section">
-      <div class="section-title">Sering Digunakan</div>
-      <div class="grid-2">
-        <a href="/daily-tasks" class="card-pill">
-          <div class="card-pill-icon">
-            <i class="fa-solid fa-list-check"></i>
-          </div>
-          <span class="module-name">Daily Tasks</span>
-        </a>
-        <a href="/goals" class="card-pill">
-          <div class="card-pill-icon">
-            <i class="fa-solid fa-bullseye"></i>
-          </div>
-          <span class="module-name">Goals</span>
-        </a>
-        <a href="/memories" class="card-pill">
-          <div class="card-pill-icon">
-            <i class="fa-solid fa-camera-retro"></i>
-          </div>
-          <span class="module-name">Memories</span>
-        </a>
-        <a href="/schedule" class="card-pill">
-          <div class="card-pill-icon">
-            <i class="fa-solid fa-calendar-week"></i>
-          </div>
-          <span class="module-name">Schedule</span>
-        </a>
       </div>
     </section>
 
-    <section class="modules-section" style="margin-top: 24px;">
-      <div class="section-title">Alat Produktivitas</div>
-      <div class="grid-2">
-        <a href="/monthly-todos" class="card-pill">
-          <div class="card-pill-icon">
-            <i class="fa-solid fa-calendar-check"></i>
-          </div>
-          <span class="module-name">Monthly</span>
+    <!-- 3. TOOLS GRID (2-Column Mobile First) -->
+    <section class="tools-section">
+      <div class="section-title"><i class="fa-solid fa-grid-2"></i> SYSTEM MODULES</div>
+
+      <div class="tools-grid">
+        <!-- Row 1: Core Daily -->
+        <a href="/daily-tasks" class="tool-card">
+          <i class="fa-solid fa-list-check tool-icon"></i>
+          <span class="tool-label">Daily Tasks</span>
         </a>
-        <a href="/college-assignments" class="card-pill">
-          <div class="card-pill-icon">
-            <i class="fa-solid fa-book-open"></i>
-          </div>
-          <span class="module-name">College</span>
+
+        <a href="/chat" class="tool-card">
+          <i class="fa-solid fa-message-heart tool-icon" style="color:hsl(var(--brand-rose))"></i>
+          <span class="tool-label">Chat</span>
         </a>
-        <a href="/chat" class="card-pill">
-          <div class="card-pill-icon">
-            <i class="fa-solid fa-comments"></i>
-          </div>
-          <span class="module-name">Chat</span>
+
+        <!-- Row 2: Progress -->
+        <a href="/goals" class="tool-card">
+          <i class="fa-solid fa-bullseye tool-icon"></i>
+          <span class="tool-label">Goals</span>
         </a>
-        <a href="/settings" class="card-pill">
-          <div class="card-pill-icon">
-            <i class="fa-solid fa-gear"></i>
-          </div>
-          <span class="module-name">Settings</span>
+
+        <a href="/monthly-todos" class="tool-card">
+          <i class="fa-solid fa-calendar-check tool-icon"></i>
+          <span class="tool-label">Habits</span>
+        </a>
+
+        <!-- Row 3: Management -->
+        <a href="/schedule" class="tool-card">
+          <i class="fa-regular fa-calendar-days tool-icon"></i>
+          <span class="tool-label">Schedule</span>
+        </a>
+
+        <a href="/memories" class="tool-card">
+          <i class="fa-solid fa-sparkles tool-icon" style="color:hsl(var(--brand-violet))"></i>
+          <span class="tool-label">Memories</span>
         </a>
       </div>
     </section>
-  </div>
 
-  <!-- 4. FLOATING INPUT BAR -->
-  <div class="floating-input-bar">
-    <input type="text" class="floating-input-field" placeholder="Ketuk di sini untuk mengobrol dengan AI...">
-    <button class="floating-action-btn">
-      <i class="fa-solid fa-microphone"></i>
-    </button>
-    <button class="floating-action-btn"
-      style="background: transparent; color: var(--text-primary); border: 1px solid var(--glass-border);">
-      <i class="fa-solid fa-plus"></i>
-    </button>
-  </div>
+    <!-- 4. FLOATING INTERACTION ZONE (Fixed Bottom) -->
+    <div class="floating-zone">
+      <div class="input-pill-wrapper">
+        <input type="text" class="input-pill" placeholder="Quick capture ideas..." readonly
+          onclick="window.location.href='/daily-tasks#new'">
+        <button class="action-fab">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+      </div>
+    </div>
 
-  <!-- Mobile Bottom Nav (Optional or replaced by floating bar?) -->
-  <!-- Trying to stick to reference which implies no standard bottom nav OR it's just partially visible. 
-       The reference image covers the bottom with the floating bar. 
-       I will comment out the standard bottom nav for now to match the "Floating Input" request strictly, 
-       BUT the user might still need navigation using text commands or buttons.
-       Wait, the user said "reference coverage 99%". The reference has NO bottom nav. 
-       However, for usability of a multi-page app, I will keep the bottom nav but push it down 
-       or maybe the "Grid" is the navigation.
-       Let's stick to the 99% match. The Dashboard is the "Home".
-       I will keep the bottom nav but maybe hide it on this page if the user wants 99% accuracy to the image. 
-       Actually, standard apps often have a bottom nav. The image looks like an iOS widget screen or home screen.
-       I'll keep `bottom-nav.css` imported but maybe not include the nav element in `index.html` layout 
-       IF the floating bar is the primary interaction. 
-       Let's look at the Floating Input carefully. It has "Chat with AI". 
-       Okay, I will include the Bottom Nav but ensure it plays nice with the Floating Input (padding).
-  -->
+    <div style="height: 100px"></div> <!-- Spacer for scroll -->
+  </main>
 
-  <script type="module" src="js/script.js"></script>
-  <script type="module" src="js/service-worker-setup.js"></script>
+  <!-- MOBILE BOTTOM NAVIGATION -->
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item active">
+      <i class="fa-solid fa-house"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/menu" class="nav-item"
+      onclick="event.preventDefault(); document.querySelector('.modules-grid').scrollIntoView({behavior: 'smooth'})">
+      <i class="fa-solid fa-grid-2"></i>
+      <span>Menu</span>
+    </a>
+  </nav>
+
+  <script type="module">
+    import { initProtected } from './js/main.js';
+    import { get } from './js/api.js';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      initProtected();
+
+      // Load Weekly Stats
+      const statsContainer = document.getElementById('weekly-stats');
+      try {
+        const data = await get('/stats');
+        if (data && data.stats) {
+          statsContainer.innerHTML = '';
+          const max = data.combined || 1;
+
+          data.stats.forEach(s => {
+            const user = s.user || 'Unknown';
+            const score = Number(s.total_score);
+            const percent = Math.round((score / max) * 100);
+
+            const row = document.createElement('div');
+            row.className = 'stat-row';
+            row.innerHTML = `
+              <div class="stat-info">
+                <span class="stat-user">${user}</span>
+                <span class="stat-value">${score} <span class="muted-text">XP</span></span>
+              </div>
+              <div class="stat-bar-bg">
+                <div class="stat-bar-fill" style="width:0%"></div>
+              </div>
+            `;
+            statsContainer.appendChild(row);
+
+            setTimeout(() => {
+              row.querySelector('.stat-bar-fill').style.width = `${percent}%`;
+            }, 100);
+          });
+
+          if (data.stats.length === 0) {
+            statsContainer.innerHTML = '<div class="muted center">No mission status reported.</div>';
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        statsContainer.innerHTML = '<div class="muted center">Link failed.</div>';
+      }
+
+      const moodContainer = document.getElementById('weekly-mood');
+      if (moodContainer) {
+        try {
+          const w = await get('/weekly');
+          moodContainer.innerHTML = '';
+          if (!w || !w.users || Object.keys(w.users).length === 0) {
+            moodContainer.innerHTML = '<div class="muted center">No stability data.</div>';
+          } else {
+            const users = Object.keys(w.users);
+            const emoji = n => ({ 1: '😫', 2: '😕', 3: '😐', 4: '🙂', 5: '🤩' }[Math.round(n)] || '😐');
+            users.forEach(u => {
+              const info = w.users[u];
+              const section = document.createElement('div');
+              section.className = 'mood-user-section';
+              section.innerHTML = `
+                <div class="mood-header">
+                  <span class="mood-user">${u}</span>
+                  <span class="mood-sync">SYNC: ${info.correlation ?? '0'}%</span>
+                </div>
+                <div class="mood-grid"></div>
+              `;
+              const grid = section.querySelector('.mood-grid');
+              info.per_day.forEach(p => {
+                const cell = document.createElement('div');
+                cell.className = 'mood-cell';
+                const m = p.mood !== null ? emoji(p.mood) : '—';
+                cell.innerHTML = `<span>${m}</span>`;
+                grid.appendChild(cell);
+              });
+              moodContainer.appendChild(section);
+            });
+          }
+        } catch (err) {
+          console.error(err);
+          moodContainer.innerHTML = '<div class="muted center">Sync error.</div>';
+        }
+      }
+    });
+
+
+  </script>
 </body>
 
 </html>
