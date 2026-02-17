@@ -58,10 +58,14 @@ export function initProtected() {
 }
 
 function setReducedMotion() {
-  const noAnim = window.innerWidth < 768;
+  const perfLite = document.documentElement.classList.contains('perf-lite');
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const noAnim = perfLite || prefersReduced;
   document.body.classList.toggle('no-anim', noAnim);
   window.addEventListener('resize', () => {
-    const noAnimNow = window.innerWidth < 768;
+    const perfLiteNow = document.documentElement.classList.contains('perf-lite');
+    const prefersReducedNow = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const noAnimNow = perfLiteNow || prefersReducedNow;
     document.body.classList.toggle('no-anim', noAnimNow);
   });
 }

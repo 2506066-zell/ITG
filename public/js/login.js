@@ -78,7 +78,36 @@ function init() {
 function initVisuals() {
   const container = document.querySelector('.romantic-container');
   const chars = document.querySelectorAll('.nesya-char');
+  const perfLite = document.documentElement.classList.contains('perf-lite');
   chars.forEach(char => char.classList.add('show'));
+
+  const bindLightClick = () => {
+    const display = document.getElementById('message-display');
+    let messageTimeout;
+    chars.forEach(char => {
+      char.addEventListener('click', () => {
+        const msg = char.getAttribute('data-msg');
+        clearTimeout(messageTimeout);
+        display.classList.remove('active');
+        setTimeout(() => {
+          display.textContent = msg;
+          display.classList.remove('special-y');
+          if (char.getAttribute('data-letter') === 'Y') display.classList.add('special-y');
+          display.classList.add('active');
+          messageTimeout = setTimeout(() => display.classList.remove('active'), 5000);
+        }, 120);
+      });
+    });
+  };
+
+  if (perfLite) {
+    if (container) {
+      container.style.transform = 'translate(-50%, -50%)';
+      container.style.transition = 'none';
+    }
+    bindLightClick();
+    return;
+  }
 
   // --- 🪐 STABLE CINEMATIC DRIFTER ---
   let pos = { x: window.innerWidth / 2, y: window.innerHeight / 3, z: 0 };

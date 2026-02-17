@@ -18,6 +18,83 @@ body {
   overflow-x: clip;
 }
 
+/* Performance mode */
+html.perf-lite {
+  --glass-blur: 8px;
+}
+
+html.perf-lite body::before {
+  opacity: 0.12 !important;
+}
+
+html.perf-lite .galaxy-bg,
+html.perf-lite .galaxy-background {
+  filter: saturate(0.82) contrast(0.9);
+}
+
+html.perf-lite .nebula,
+html.perf-lite .stars-container,
+html.perf-lite .stars-lg,
+html.perf-lite .stars-sm,
+html.perf-lite .planet-container {
+  animation: none !important;
+}
+
+html.perf-lite .card,
+html.perf-lite .report-card,
+html.perf-lite .chat-card,
+html.perf-lite .bottom-sheet,
+html.perf-lite .navbar,
+html.perf-lite .bottom-nav,
+html.perf-lite .task-header,
+html.perf-lite .monthly-header,
+html.perf-lite .page-header {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.perf-lite .card,
+html.perf-lite .report-card,
+html.perf-lite .goal-card,
+html.perf-lite .todo-card,
+html.perf-lite .day-card,
+html.perf-lite .task-item,
+html.perf-lite .memory-card,
+html.perf-lite .chat-card {
+  box-shadow: 0 10px 20px -14px rgba(0, 0, 0, 0.72) !important;
+}
+
+html.perf-lite .glow-ring .progress,
+html.perf-lite .progress-fill,
+html.perf-lite .progress-bar-fill,
+html.perf-lite .cc-progress-fill,
+html.perf-lite .cc-bar-fill {
+  transition-duration: 220ms !important;
+}
+
+html.perf-lite .cc-reveal,
+html.perf-lite [data-v2-reveal],
+html.perf-lite .cc-feed-item,
+html.perf-lite .task-item,
+html.perf-lite .goal-card,
+html.perf-lite .report-card,
+html.perf-lite .v3-complete-burst,
+html.perf-lite .v3-mood-pop,
+html.perf-lite .v3-feed-in,
+html.perf-lite .v3-assistant-arrived {
+  animation: none !important;
+  transition-duration: 120ms !important;
+  transform: none !important;
+}
+
+html.perf-lite .assistant-bubble.v3-assistant-typing::after {
+  animation: none !important;
+}
+
+html.perf-lite #solar-system-layer {
+  display: none !important;
+}
+
 /* Completion interactions */
 .v3-complete-burst {
   position: relative;

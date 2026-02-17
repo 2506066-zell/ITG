@@ -1,5 +1,5 @@
-/**
- * 🪐 PRECISION SOLAR SYSTEM RENDERER
+﻿/**
+ * ðŸª PRECISION SOLAR SYSTEM RENDERER
  * Contract: Non-intrusive 60FPS background animation.
  */
 
@@ -8,7 +8,7 @@ const SUN_X_RATIO = 0.505;
 const SUN_Y_RATIO = 0.44;
 const GLOBAL_ELLIPSE = 0.51; // Vertical squash to match image perspective
 
-console.log('🪐 Solar System Layer Initializing...');
+console.log('ðŸª Solar System Layer Initializing...');
 
 const PLANETS = [
     { name: 'mercury', radius: 90, speed: 0.015, size: 6, angle: Math.random() * Math.PI * 2, label: 'Mercury', msg: 'Masih inget pas awal chatan?' },
@@ -55,12 +55,18 @@ const COMET = {
     size: 7,
     tail: 180
 };
+const PERF_LITE = document.documentElement.classList.contains('perf-lite');
 
 function init() {
-    console.log('🚀 Solar System Init - Sun at:', SUN_X_RATIO, SUN_Y_RATIO);
+    if (PERF_LITE) {
+        const layer = document.getElementById('solar-system-layer');
+        if (layer) layer.style.display = 'none';
+        return;
+    }
+    console.log('ðŸš€ Solar System Init - Sun at:', SUN_X_RATIO, SUN_Y_RATIO);
     const container = document.getElementById('solar-system-layer');
     if (!container) {
-        console.error('❌ Solar System Layer Container NOT found!');
+        console.error('âŒ Solar System Layer Container NOT found!');
         return;
     }
     canvas = document.getElementById('orbit-canvas');
@@ -785,3 +791,4 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
+

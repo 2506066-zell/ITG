@@ -6,6 +6,30 @@ function init() {
   const select = document.querySelector('#theme-select');
   select.value = current;
   select.addEventListener('change', e => setTheme(e.target.value));
+  const perfSelect = document.querySelector('#performance-select');
+  const perfNote = document.querySelector('#performance-note');
+  const modeLabel = (pref) => {
+    if (pref === 'lite') return 'Battery Saver';
+    if (pref === 'full') return 'Max Visual';
+    return 'Auto';
+  };
+  const syncPerfUI = (state) => {
+    const resolved = state || (window.getPerformanceModeState ? window.getPerformanceModeState() : { pref: 'auto', lite: false });
+    if (perfSelect) perfSelect.value = resolved.pref;
+    if (perfNote) perfNote.textContent = `Mode: ${modeLabel(resolved.pref)} - Active: ${resolved.lite ? 'Lite' : 'Full'}`;
+  };
+  syncPerfUI();
+  perfSelect?.addEventListener('change', (e) => {
+    const pref = e.target.value;
+    if (window.setPerformanceMode) {
+      const state = window.setPerformanceMode(pref);
+      syncPerfUI(state);
+      showToast(`Performance set to ${modeLabel(pref)}`, 'success');
+    } else {
+      showToast('Performance mode engine unavailable', 'error');
+    }
+  });
+  document.addEventListener('performance-mode-changed', (e) => syncPerfUI(e.detail));
   document.querySelector('#logout-btn').addEventListener('click', logout);
 
   // Install Button Logic

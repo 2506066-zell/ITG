@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cf-v16';
+const CACHE_NAME = 'cf-v17';
 const ASSETS = [
   '/',
   '/login',
@@ -27,6 +27,7 @@ const ASSETS = [
   'js/main.js',
   'js/api.js',
   'js/home-v2.js',
+  'js/perf-mode.js',
   'js/v2-motion.js',
   'js/v3-micro.js',
   'js/login.js',
