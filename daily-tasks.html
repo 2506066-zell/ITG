@@ -69,106 +69,110 @@
   </div>
 
   <!-- BOTTOM SHEET FORM -->
-  <div class="bottom-sheet" id="sheet">
-    <div class="sheet-handle"></div>
-    <h3 style="margin:0 0 20px;font-size:18px" id="sheet-title">New Task</h3>
+  <div class="bottom-sheet-overlay" id="sheet-overlay">
+    <div class="bottom-sheet" id="sheet">
+      <div class="sheet-handle"></div>
+      <h3 style="margin:0 0 20px;font-size:18px" id="sheet-title">New Task</h3>
 
-    <form id="task-form">
-      <input type="hidden" name="id" id="task-id">
+      <form id="task-form">
+        <input type="hidden" name="id" id="task-id">
 
-      <div class="form-group">
-        <label class="form-label">Title</label>
-        <input type="text" name="title" id="task-title" class="form-input" placeholder="What needs to be done?" required
-          autocomplete="off">
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Deadline</label>
-          <input type="datetime-local" name="deadline" id="task-deadline" class="form-input">
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input type="text" name="title" id="task-title" class="form-input" placeholder="What needs to be done?"
+            required autocomplete="off">
         </div>
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Assigned To</label>
-          <select name="assigned_to" id="task-assigned" class="form-input" style="appearance:none">
-            <option value="Zaldy">Zaldy</option>
-            <option value="Nesya">Nesya</option>
+
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Deadline</label>
+            <input type="datetime-local" name="deadline" id="task-deadline" class="form-input">
+          </div>
+          <div class="form-group" style="flex:1">
+            <label class="form-label">Assigned To</label>
+            <select name="assigned_to" id="task-assigned" class="form-input" style="appearance:none">
+              <option value="Zaldy">Zaldy</option>
+              <option value="Nesya">Nesya</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <div class="prio-selector">
+            <div class="prio-btn" data-val="low">Low</div>
+            <div class="prio-btn active" data-val="medium">Medium</div>
+            <div class="prio-btn" data-val="high">High</div>
+          </div>
+          <input type="hidden" name="priority" id="task-priority" value="medium">
+        </div>
+
+        <div class="form-group" id="goal-group">
+          <label class="form-label">Link to Goal</label>
+          <select name="goal_id" id="task-goal" class="form-input" style="appearance:none">
+            <option value="">None</option>
           </select>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label class="form-label">Priority</label>
-        <div class="prio-selector">
-          <div class="prio-btn" data-val="low">Low</div>
-          <div class="prio-btn active" data-val="medium">Medium</div>
-          <div class="prio-btn" data-val="high">High</div>
+        <div id="snooze-section" style="display:none; margin-bottom: 20px;">
+          <label class="form-label">Snooze Task</label>
+          <div class="prio-selector" style="gap:8px">
+            <button type="button" class="snooze-btn" data-min="60">1 Hour</button>
+            <button type="button" class="snooze-btn" data-min="1440">1 Day</button>
+            <button type="button" class="snooze-btn" data-min="custom">Custom</button>
+          </div>
         </div>
-        <input type="hidden" name="priority" id="task-priority" value="medium">
-      </div>
 
-      <div class="form-group" id="goal-group">
-        <label class="form-label">Link to Goal</label>
-        <select name="goal_id" id="task-goal" class="form-input" style="appearance:none">
-          <option value="">None</option>
-        </select>
-      </div>
-
-      <div id="snooze-section" style="display:none; margin-bottom: 20px;">
-        <label class="form-label">Snooze Task</label>
-        <div class="prio-selector" style="gap:8px">
-          <button type="button" class="snooze-btn" data-min="60">1 Hour</button>
-          <button type="button" class="snooze-btn" data-min="1440">1 Day</button>
-          <button type="button" class="snooze-btn" data-min="custom">Custom</button>
+        <div class="sheet-actions">
+          <button type="button" class="btn secondary btn-block" id="sheet-cancel">Cancel</button>
+          <button type="submit" class="btn btn-block">Save Task</button>
         </div>
-      </div>
-
-      <div class="sheet-actions">
-        <button type="button" class="btn secondary btn-block" id="sheet-cancel">Cancel</button>
-        <button type="submit" class="btn btn-block">Save Task</button>
-      </div>
-    </form>
-  </div>
+      </form>
+    </div>
   </div>
 
   <div class="bottom-sheet-overlay" id="mood-overlay">
     <div class="bottom-sheet" id="mood-sheet">
-      <div class="sheet-handle"></div>
-      <h3 style="margin:0 0 20px;font-size:18px">Catat Mood Setelah Selesai</h3>
-      <form id="mood-form">
-        <div class="form-group">
-          <label class="form-label">Bagaimana perasaan Anda?</label>
-          <div class="prio-selector" id="mood-grid" style="gap:8px">
-            <button type="button" class="prio-btn" data-val="1">😫</button>
-            <button type="button" class="prio-btn" data-val="2">😕</button>
-            <button type="button" class="prio-btn" data-val="3">😐</button>
-            <button type="button" class="prio-btn" data-val="4">🙂</button>
-            <button type="button" class="prio-btn" data-val="5">🤩</button>
+      <div class="mood-glow-overlay" id="mood-glow"></div>
+      <div class="mood-sheet-content">
+        <div class="sheet-handle"></div>
+        <h3 style="margin:0 0 20px;font-size:18px">Catat Mood Setelah Selesai</h3>
+        <form id="mood-form">
+          <div class="form-group">
+            <label class="form-label">Bagaimana perasaan Anda?</label>
+            <div class="prio-selector" id="mood-grid" style="gap:10px; padding: 10px 0;">
+              <button type="button" class="prio-btn mood-btn-enhanced" data-val="1">😫</button>
+              <button type="button" class="prio-btn mood-btn-enhanced" data-val="2">😕</button>
+              <button type="button" class="prio-btn mood-btn-enhanced" data-val="3">😐</button>
+              <button type="button" class="prio-btn mood-btn-enhanced" data-val="4">🙂</button>
+              <button type="button" class="prio-btn mood-btn-enhanced" data-val="5">🤩</button>
+            </div>
+            <input type="hidden" name="mood" id="mood-value" required>
           </div>
-          <input type="hidden" name="mood" id="mood-value" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Faktor (Pilih semua yang relevan)</label>
-          <div class="tags-selector" id="mood-tags" style="display:flex;flex-wrap:wrap;gap:8px">
-            <div class="tag-chip" data-val="Lelah">😫 Lelah</div>
-            <div class="tag-chip" data-val="Sakit">🤒 Sakit</div>
-            <div class="tag-chip" data-val="Stres">🤯 Stres</div>
-            <div class="tag-chip" data-val="Biasa">😐 Biasa</div>
-            <div class="tag-chip" data-val="Fokus">🧠 Fokus</div>
-            <div class="tag-chip" data-val="Semangat">🔥 Semangat</div>
-            <div class="tag-chip" data-val="Senang">🥰 Senang</div>
-            <div class="tag-chip" data-val="Produktif">✅ Produktif</div>
+          <div class="form-group">
+            <label class="form-label">Faktor (Pilih semua yang relevan)</label>
+            <div class="tags-selector" id="mood-tags" style="display:flex;flex-wrap:wrap;gap:8px">
+              <div class="tag-chip tag-chip-enhanced" data-val="Lelah">😫 Lelah</div>
+              <div class="tag-chip tag-chip-enhanced" data-val="Sakit">🤒 Sakit</div>
+              <div class="tag-chip tag-chip-enhanced" data-val="Stres">🤯 Stres</div>
+              <div class="tag-chip tag-chip-enhanced" data-val="Biasa">😐 Biasa</div>
+              <div class="tag-chip tag-chip-enhanced" data-val="Fokus">🧠 Fokus</div>
+              <div class="tag-chip tag-chip-enhanced" data-val="Semangat">🔥 Semangat</div>
+              <div class="tag-chip tag-chip-enhanced" data-val="Senang">🥰 Senang</div>
+              <div class="tag-chip tag-chip-enhanced" data-val="Produktif">✅ Produktif</div>
+            </div>
           </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Catatan (opsional)</label>
-          <textarea name="note" id="mood-note" class="form-input"
-            placeholder="Contoh: Selesai tugas, rasanya lega"></textarea>
-        </div>
-        <div class="sheet-actions">
-          <button type="button" class="btn secondary btn-block" id="mood-cancel">Lewati</button>
-          <button type="submit" class="btn btn-block">Simpan</button>
-        </div>
-      </form>
+          <div class="form-group">
+            <label class="form-label">Catatan (opsional)</label>
+            <textarea name="note" id="mood-note" class="form-input"
+              placeholder="Contoh: Selesai tugas, rasanya lega"></textarea>
+          </div>
+          <div class="sheet-actions">
+            <button type="button" class="btn secondary btn-block" id="mood-cancel">Lewati</button>
+            <button type="submit" class="btn btn-block">Simpan</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 

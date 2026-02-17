@@ -120,17 +120,17 @@
     /* Day Scroller */
     .day-scroller {
       display: flex;
-      gap: 6px;
+      gap: 4px;
       overflow-x: auto;
-      padding-bottom: 8px;
+      padding-bottom: 6px;
       scrollbar-width: none;
     }
 
     .day-box {
-      flex: 0 0 30px;
-      height: 30px;
+      flex: 0 0 24px;
+      height: 24px;
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -400,29 +400,32 @@
   <!-- MOOD BOTTOM SHEET -->
   <div class="bottom-sheet-overlay" id="mood-overlay">
     <div class="bottom-sheet" id="mood-sheet">
-      <div class="sheet-handle"></div>
-      <h3 style="margin:0 0 20px;font-size:18px">Catat Mood Setelah Selesai</h3>
-      <form id="mood-form">
-        <div class="form-group">
-          <label class="form-label">Bagaimana perasaan Anda?</label>
-          <div class="prio-selector" id="mood-grid" style="gap:8px">
-            <button type="button" class="prio-btn" data-val="1">😫</button>
-            <button type="button" class="prio-btn" data-val="2">😕</button>
-            <button type="button" class="prio-btn" data-val="3">😐</button>
-            <button type="button" class="prio-btn" data-val="4">🙂</button>
-            <button type="button" class="prio-btn" data-val="5">🤩</button>
+      <div class="mood-glow-overlay" id="mood-glow"></div>
+      <div class="mood-sheet-content">
+        <div class="sheet-handle"></div>
+        <h3 style="margin:0 0 20px;font-size:18px">Catat Mood Setelah Selesai</h3>
+        <form id="mood-form">
+          <div class="form-group">
+            <label class="form-label">Bagaimana perasaan Anda?</label>
+            <div class="prio-selector" id="mood-grid" style="gap:10px; padding: 10px 0;">
+              <button type="button" class="prio-btn mood-btn-enhanced" data-val="1">😫</button>
+              <button type="button" class="prio-btn mood-btn-enhanced" data-val="2">😕</button>
+              <button type="button" class="prio-btn mood-btn-enhanced" data-val="3">😐</button>
+              <button type="button" class="prio-btn mood-btn-enhanced" data-val="4">🙂</button>
+              <button type="button" class="prio-btn mood-btn-enhanced" data-val="5">🤩</button>
+            </div>
+            <input type="hidden" name="mood" id="mood-value" required>
           </div>
-          <input type="hidden" name="mood" id="mood-value" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Catatan (opsional)</label>
-          <textarea name="note" id="mood-note" class="input"
-            placeholder="Contoh: Selesai kebiasaan hari ini, terasa baik"></textarea>
-        </div>
-        <div class="sheet-actions" style="display:flex;gap:12px;margin-top:12px">
-          <button type="submit" class="btn" style="flex:1">Simpan</button>
-        </div>
-      </form>
+          <div class="form-group">
+            <label class="form-label">Catatan (opsional)</label>
+            <textarea name="note" id="mood-note" class="input"
+              placeholder="Contoh: Selesai kebiasaan hari ini, terasa baik"></textarea>
+          </div>
+          <div class="sheet-actions" style="display:flex;gap:12px;margin-top:12px">
+            <button type="submit" class="btn" style="flex:1">Simpan</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 

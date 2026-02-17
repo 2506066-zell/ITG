@@ -515,6 +515,7 @@ function setupMoodEvents() {
       moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
       b.classList.add('active');
       moodValueEl.value = b.dataset.val;
+      updateMoodGlow(b.dataset.val);
     });
   });
 
@@ -573,6 +574,23 @@ function openMoodPrompt(note) {
 function closeMoodPrompt() {
   moodOverlay.classList.remove('active');
   moodSheet.classList.remove('active');
+}
+
+function updateMoodGlow(val) {
+  const glowOverlay = document.getElementById('mood-glow');
+  if (!glowOverlay) return;
+
+  // Remove existing mood classes
+  for (let i = 1; i <= 5; i++) {
+    moodSheet.classList.remove(`mood-${i}`);
+  }
+
+  if (val) {
+    moodSheet.classList.add(`mood-${val}`);
+    glowOverlay.classList.add('mood-glow-active');
+  } else {
+    glowOverlay.classList.remove('mood-glow-active');
+  }
 }
 
 // Event Listeners

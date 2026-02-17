@@ -113,7 +113,7 @@ async function loadTodos() {
     } catch (err) {
         console.error(err);
         if (err.message.includes('backend unreachable') || err.message.includes('404')) {
-             els.todoList.innerHTML = `
+            els.todoList.innerHTML = `
                  <div style="text-align:center;padding:20px;color:var(--danger)">
                      <p style="margin-bottom:8px"><strong>Connection Error</strong></p>
                      <p style="font-size:13px;margin-bottom:12px">Ensure backend is running on Port 3000.</p>
@@ -154,13 +154,13 @@ function renderTodos() {
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${state.month}-${String(d).padStart(2, '0')}`;
             const isCompleted = completedSet.has(d);
-            
+
             // Classes
             let classes = ['day-box'];
             if (isCurrentMonth && d === currentDay) classes.push('today');
             if (isCompleted) classes.push('completed');
             if (!isCurrentMonth || d !== currentDay) classes.push('disabled');
-            
+
             daysHtml += `<div class="${classes.join(' ')}" 
                 data-id="${todo.id}" 
                 data-date="${dateStr}"
@@ -198,7 +198,7 @@ function renderStats() {
     const combined = state.stats && typeof state.stats.combined === 'number' ? state.stats.combined : 0;
     const z = users.Zaldy || {};
     const n = users.Nesya || {};
-    
+
     els.zRate.textContent = (z.completion_rate || 0) + '%';
     els.zStreak.textContent = (z.streak || 0) + ' days';
     els.zTotal.textContent = (z.total_completed || 0);
@@ -206,14 +206,14 @@ function renderStats() {
     els.nRate.textContent = (n.completion_rate || 0) + '%';
     els.nStreak.textContent = (n.streak || 0) + ' days';
     els.nTotal.textContent = (n.total_completed || 0);
-    
+
     els.combinedRate.textContent = (combined || 0) + '%';
 }
 
 async function handleCreate(e) {
     e.preventDefault();
     const title = e.target.title.value;
-    
+
     try {
         await post('/monthly', {
             action: 'create_todo',
@@ -222,7 +222,7 @@ async function handleCreate(e) {
             month: localMonth(),
             tz_offset_min: new Date().getTimezoneOffset()
         });
-        
+
         els.modalOverlay.classList.remove('active');
         e.target.reset();
         els.monthPicker.disabled = false;
@@ -287,7 +287,7 @@ window.handleDayClick = async (box) => {
             box.classList.remove('completed');
             box.dataset.completed = false;
         }
-        
+
         // Refresh stats silently to update percentages
         loadStats();
     } catch (err) {
@@ -300,7 +300,7 @@ window.handleDayClick = async (box) => {
 
 window.deleteTodo = async (id) => {
     if (!confirm('Delete this habit? This cannot be undone.')) return;
-    
+
     try {
         await del(`/monthly?id=${id}`);
         loadAll();
@@ -320,6 +320,7 @@ function setupMoodEvents() {
             els.moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
             b.classList.add('active');
             els.moodValueEl.value = b.dataset.val;
+            updateMoodGlow(b.dataset.val);
         });
     });
     document.getElementById('mood-cancel')?.addEventListener('click', () => {
@@ -348,6 +349,23 @@ function openMoodPrompt(note) {
 function closeMoodPrompt() {
     els.moodOverlay.classList.remove('active');
     els.moodSheet.classList.remove('active');
+}
+
+function updateMoodGlow(val) {
+    const glowOverlay = document.getElementById('mood-glow');
+    if (!glowOverlay) return;
+
+    // Remove existing mood classes
+    for (let i = 1; i <= 5; i++) {
+        els.moodSheet.classList.remove(`mood-${i}`);
+    }
+
+    if (val) {
+        els.moodSheet.classList.add(`mood-${val}`);
+        glowOverlay.classList.add('mood-glow-active');
+    } else {
+        glowOverlay.classList.remove('mood-glow-active');
+    }
 }
 
 function waitForMood(note) {

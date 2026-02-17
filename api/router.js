@@ -25,7 +25,8 @@ const routes = new Set([
   'monthly_stats',
   'health',
   'evaluations',
-  'notifications'
+  'notifications',
+  'reports'
 ]);
 
 export default async function handler(req, res) {

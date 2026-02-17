@@ -3,6 +3,7 @@ import { get, post, put, del } from './api.js';
 
 let timerInterval;
 let moodOverlay, moodSheet, moodForm, moodGrid, moodValueEl, moodNoteEl;
+let addOverlay, addForm;
 
 function formatCountdown(ms) {
   if (ms <= 0) return 'Overdue';
@@ -10,9 +11,9 @@ function formatCountdown(ms) {
   const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
   const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-  
-  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m ${seconds}s`;
 }
 
@@ -34,23 +35,20 @@ function sendNotification(title, timeLeft) {
 function updateTimers() {
   const items = document.querySelectorAll('.countdown-timer');
   const now = Date.now();
-  
+
   items.forEach(el => {
     const deadline = new Date(el.dataset.deadline).getTime();
     const diff = deadline - now;
-    
+
     el.textContent = formatCountdown(diff);
-    
+
     const parent = el.closest('.list-item');
-    // Urgent logic: < 12 hours (12 * 60 * 60 * 1000 = 43200000)
     if (diff > 0 && diff < 43200000) {
       if (!parent.classList.contains('urgent')) {
         parent.classList.add('urgent');
-        // Trigger notification only once per session logic could be added here
-        // For now simple check to avoid spamming
         if (!el.dataset.notified) {
-           sendNotification(el.dataset.title, formatCountdown(diff));
-           el.dataset.notified = 'true';
+          sendNotification(el.dataset.title, formatCountdown(diff));
+          el.dataset.notified = 'true';
         }
       }
     } else if (diff <= 0) {
@@ -72,25 +70,21 @@ async function load() {
   const el1d = document.getElementById('stat-1d');
   const el3d = document.getElementById('stat-3d');
   const el5d = document.getElementById('stat-5d');
-  
-  // Skeleton
-  activeList.innerHTML = `<div class="list-item"><div class="skeleton skeleton-line" style="width:70%"></div></div>`;
-  completedList.innerHTML = '';
 
-  const data = await get('/assignments');
   activeList.innerHTML = '';
   completedList.innerHTML = '';
 
+  const data = await get('/assignments');
+
   if (!data.length) {
     activeList.innerHTML = '<div class="empty center muted">Belum ada tugas.</div>';
-    // Tetap render statistik sebagai 0 jika tidak ada data
     if (el1d) el1d.textContent = '0 tugas';
     if (el3d) el3d.textContent = '0 tugas';
     if (el5d) el5d.textContent = '0 tugas';
     return;
   }
 
-  // Stats: hitung penyelesaian dalam 1/3/5 hari terakhir untuk user saat ini
+  // Stats
   try {
     const currentUser = localStorage.getItem('user') || '';
     const now = Date.now();
@@ -107,199 +101,73 @@ async function load() {
     if (el1d) el1d.textContent = `${c1} tugas`;
     if (el3d) el3d.textContent = `${c3} tugas`;
     if (el5d) el5d.textContent = `${c5} tugas`;
-  } catch (_) {
-    if (el1d) el1d.textContent = '—';
-    if (el3d) el3d.textContent = '—';
-    if (el5d) el5d.textContent = '—';
-  }
+  } catch (_) { }
 
-  // Sort: Active by deadline (asc), Completed by completed_at (desc)
   const active = data.filter(a => !a.completed).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
   const completed = data.filter(a => a.completed).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
 
   const createItem = (a, isCompleted) => {
     const el = document.createElement('div');
     el.className = 'list-item assignment-item';
-    
-    const left = document.createElement('div');
-    left.style.flex = '1';
 
-    const header = document.createElement('div');
-    header.style.display = 'flex';
-    header.style.alignItems = 'center';
-    header.style.gap = '10px';
-
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = isCompleted;
-    cb.dataset.id = String(a.id);
-    cb.dataset.action = 'toggle';
-    header.appendChild(cb);
-
-    const title = document.createElement('strong');
-    title.textContent = a.title;
-    header.appendChild(title);
-
-    left.appendChild(header);
-
-    if (a.description) {
-      const desc = document.createElement('div');
-      desc.className = 'muted small';
-      desc.style.marginLeft = '24px';
-      desc.textContent = a.description;
-      left.appendChild(desc);
-    }
-
-    const info = document.createElement('div');
-    info.className = 'muted small';
-    info.style.marginLeft = '24px';
-    info.style.marginTop = '4px';
-    info.style.display = 'flex';
-    info.style.flexDirection = 'column';
-    info.style.gap = '4px';
-
-    const timeInfo = document.createElement('div');
-    timeInfo.style.display = 'flex';
-    timeInfo.style.gap = '10px';
-    timeInfo.style.alignItems = 'center';
-
-    if (isCompleted) {
-      const doneTime = a.completed_at ? new Date(a.completed_at).toLocaleString() : '-';
-      timeInfo.innerHTML = `<span><i class="fa-solid fa-check"></i> Selesai: ${doneTime}</span>`;
-      
-      if (a.completed_by) {
-        const by = document.createElement('span');
-        by.className = 'badge success';
-        by.innerHTML = `<i class="fa-solid fa-check-double"></i> ${a.completed_by}`;
-        timeInfo.appendChild(by);
+    el.innerHTML = `
+      <div style="flex:1">
+        <div style="display:flex; align-items:center; gap:8px">
+          <input type="checkbox" ${isCompleted ? 'checked' : ''} data-id="${a.id}" data-action="toggle">
+          <strong style="font-size:13px">${a.title}</strong>
+        </div>
+        ${a.description ? `<div class="muted small" style="margin-left:24px; font-size:11px">${a.description}</div>` : ''}
+        <div class="muted small" style="margin-left:24px; margin-top:4px; display:flex; flex-wrap:wrap; gap:6px; align-items:center">
+          ${isCompleted ?
+        `<span class="badge success"><i class="fa-solid fa-check"></i> ${new Date(a.completed_at).toLocaleDateString()}</span>` :
+        `<span class="badge countdown-timer" data-deadline="${a.deadline}" data-title="${a.title}">...</span>`
       }
-    } else {
-      const dl = new Date(a.deadline).toLocaleString();
-      timeInfo.innerHTML = `<span><i class="fa-solid fa-clock"></i> Deadline: ${dl}</span>`;
-      
-      const timer = document.createElement('span');
-      timer.className = 'countdown-timer badge';
-      timer.dataset.deadline = a.deadline;
-      timer.dataset.title = a.title;
-      timer.textContent = '...';
-      timeInfo.appendChild(timer);
-    }
-    info.appendChild(timeInfo);
-    left.appendChild(info);
-
-    // User Attribution (Assigned To)
-    if (a.assigned_to) {
-        const userMeta = document.createElement('div');
-        userMeta.style.fontSize = '10px';
-        userMeta.style.opacity = '0.7';
-        userMeta.innerHTML = `<i class="fa-solid fa-user-tag"></i> ${a.assigned_to}`;
-        info.appendChild(userMeta);
-    }
-
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-    const delBtn = document.createElement('button');
-    delBtn.className = 'btn danger small';
-    delBtn.dataset.id = String(a.id);
-    delBtn.dataset.action = 'delete';
-    delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
-    actions.appendChild(delBtn);
-
-    el.appendChild(left);
-    el.appendChild(actions);
+          <span style="font-size:10px; opacity:0.6"><i class="fa-solid fa-user"></i> ${a.assigned_to || 'Users'}</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn danger small" data-id="${a.id}" data-action="delete" style="padding:4px 8px"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    `;
     return el;
   };
 
-  const users = ['Nesya', 'Zaldy'];
-  const grouped = { Nesya: [], Zaldy: [], Other: [] };
-  
-  active.forEach(task => {
-      const assignee = task.assigned_to || 'Other';
-      if (users.includes(assignee)) {
-          grouped[assignee].push(task);
-      } else {
-          grouped.Other.push(task);
-      }
-  });
+  active.forEach(item => activeList.appendChild(createItem(item, false)));
+  completed.forEach(item => completedList.appendChild(createItem(item, true)));
 
-  const createSection = (title, list) => {
-      if (list.length === 0) return document.createDocumentFragment();
-      const sec = document.createElement('div');
-      sec.style.marginBottom = '20px';
-      
-      const head = document.createElement('div');
-      head.style.padding = '8px 12px';
-      head.style.fontSize = '12px';
-      head.style.fontWeight = '700';
-      head.style.color = 'var(--muted)';
-      head.style.textTransform = 'uppercase';
-      head.style.letterSpacing = '1px';
-      head.style.display = 'flex';
-      head.style.alignItems = 'center';
-      head.style.gap = '8px';
-      
-      const icon = title === 'Nesya' ? '<i class="fa-solid fa-venus" style="color:#ff69b4"></i>' : 
-                   (title === 'Zaldy' ? '<i class="fa-solid fa-mars" style="color:#00bfff"></i>' : '<i class="fa-solid fa-users"></i>');
-      
-      head.innerHTML = `${icon} ${title} <span style="font-size:10px;opacity:0.7;margin-left:auto">${list.length}</span>`;
-      sec.appendChild(head);
-      
-      list.forEach(item => sec.appendChild(createItem(item, false)));
-      return sec;
-  };
-
-  if (active.length) {
-    activeList.appendChild(createSection('Nesya', grouped.Nesya));
-    activeList.appendChild(createSection('Zaldy', grouped.Zaldy));
-    if (grouped.Other.length > 0) activeList.appendChild(createSection('Others', grouped.Other));
-  } else {
-    activeList.innerHTML = '<div class="muted center p-2">Tidak ada tugas aktif.</div>';
-  }
-
-  if (completed.length) {
-    completed.forEach(a => completedList.appendChild(createItem(a, true)));
-  } else {
-    completedList.innerHTML = '<div class="muted center p-2">Belum ada tugas selesai.</div>';
-  }
-
-  // Restart timer loop
   if (timerInterval) clearInterval(timerInterval);
-  updateTimers(); // Initial call
-  timerInterval = setInterval(updateTimers, 1000); // Update every second
+  updateTimers();
+  timerInterval = setInterval(updateTimers, 1000);
 }
 
 async function create(e) {
   e.preventDefault();
-  const btn = e.target.querySelector('button[type="submit"]');
-  if (btn) btn.disabled = true;
-  
   const f = new FormData(e.target);
   const deadline = f.get('deadline');
-  
-  // Validation: deadline must be future
+
   if (new Date(deadline) < new Date()) {
     showToast('Deadline tidak boleh di masa lalu', 'error');
-    if (btn) btn.disabled = false;
     return;
   }
 
-  const body = { 
-    title: f.get('title'), 
+  const body = {
+    title: f.get('title'),
     description: f.get('description'),
-    deadline: deadline
+    deadline: deadline,
+    assigned_to: f.get('assigned_to')
   };
-  
+
   await post('/assignments', body);
   e.target.reset();
+  closeAddModal();
   load();
-  showToast('Tugas kuliah ditambahkan', 'success');
-  if (btn) btn.disabled = false;
+  showToast('Tugas ditambahkan', 'success');
 }
 
 async function actions(e) {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
-  
+
   const id = btn.dataset.id;
   const act = btn.dataset.action;
 
@@ -309,15 +177,10 @@ async function actions(e) {
     showToast('Tugas dihapus', 'success');
   }
   if (act === 'toggle') {
-    try {
-      await post('/assignments', { action: 'toggle', id, completed: btn.checked });
-      showToast(btn.checked ? 'Tugas selesai' : 'Tugas dibuka kembali', 'info');
-      if (btn.checked) {
-        const title = btn.closest('.list-item')?.querySelector('strong')?.textContent || '';
-        openMoodPrompt(`Selesai tugas kuliah: ${title}`);
-      }
-    } catch (err) {
-      showToast('Gagal memperbarui', 'error');
+    await post('/assignments', { action: 'toggle', id, completed: btn.checked });
+    if (btn.checked) {
+      const title = btn.closest('.list-item')?.querySelector('strong')?.textContent || '';
+      openMoodPrompt(`Selesai tugas kuliah: ${title}`);
     }
   }
   load();
@@ -325,19 +188,16 @@ async function actions(e) {
 
 function init() {
   document.querySelector('#create-assignment').addEventListener('submit', create);
-  
-  // Delegate events for both lists
-  const handleListClick = (e) => {
-    if (e.target.tagName === 'INPUT') actions(e); // Checkbox change
-    else actions(e); // Button click (via closest in actions)
-  };
+  document.querySelector('#assignments-active').addEventListener('change', actions);
+  document.querySelector('#assignments-completed').addEventListener('change', actions);
+  document.querySelector('#assignments-active').addEventListener('click', actions);
+  document.querySelector('#assignments-completed').addEventListener('click', actions);
 
-  document.querySelector('#assignments-active').addEventListener('click', handleListClick);
-  document.querySelector('#assignments-active').addEventListener('change', handleListClick); // For checkbox
-  
-  document.querySelector('#assignments-completed').addEventListener('click', handleListClick);
-  document.querySelector('#assignments-completed').addEventListener('change', handleListClick); // For checkbox
-  
+  // FAB Modal logic
+  addOverlay = document.getElementById('add-overlay');
+  document.getElementById('open-add').addEventListener('click', openAddModal);
+  document.getElementById('add-cancel').addEventListener('click', closeAddModal);
+
   load();
   moodOverlay = document.getElementById('mood-overlay');
   moodSheet = document.getElementById('mood-sheet');
@@ -348,31 +208,62 @@ function init() {
   setupMoodEvents();
 }
 
+function openAddModal() {
+  addOverlay.classList.add('active');
+  addOverlay.querySelector('.bottom-sheet').classList.add('active');
+}
+
+function closeAddModal() {
+  addOverlay.classList.remove('active');
+  addOverlay.querySelector('.bottom-sheet').classList.remove('active');
+}
+
 document.addEventListener('DOMContentLoaded', init);
 
 function setupMoodEvents() {
   if (!moodGrid) return;
+
+  const moodGlows = {
+    1: 'radial-gradient(circle at center, hsla(0, 70%, 50%, 0.15), transparent 70%)',
+    2: 'radial-gradient(circle at center, hsla(30, 70%, 50%, 0.15), transparent 70%)',
+    3: 'radial-gradient(circle at center, hsla(200, 70%, 50%, 0.15), transparent 70%)',
+    4: 'radial-gradient(circle at center, hsla(140, 70%, 50%, 0.15), transparent 70%)',
+    5: 'radial-gradient(circle at center, hsla(280, 70%, 55%, 0.15), transparent 70%)'
+  };
+
   moodGrid.querySelectorAll('.prio-btn').forEach(b => {
     b.addEventListener('click', () => {
       moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
       b.classList.add('active');
       moodValueEl.value = b.dataset.val;
+
+      const glow = document.getElementById('mood-glow');
+      glow.style.background = moodGlows[b.dataset.val];
+      glow.style.opacity = '1';
     });
   });
-  document.getElementById('mood-cancel')?.addEventListener('click', () => {
-    closeMoodPrompt();
+
+  document.querySelectorAll('.tag-chip-enhanced').forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
   });
+
+  document.getElementById('mood-cancel')?.addEventListener('click', closeMoodPrompt);
+
   moodForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const val = moodValueEl.value;
-    if (!val) { showToast('Pilih mood', 'error'); return; }
-    const body = { mood: val, note: moodNoteEl.value, date: new Date().toISOString() };
-    try {
-      await post('/evaluations', body);
-      showToast('Mood disimpan', 'success');
-    } catch (err) {
-      showToast('Gagal menyimpan', 'error');
-    }
+    if (!moodValueEl.value) { showToast('Pilih mood', 'error'); return; }
+
+    const tags = Array.from(document.querySelectorAll('.tag-chip-enhanced.active'))
+      .map(c => c.dataset.val).join(', ');
+
+    const body = {
+      mood: moodValueEl.value,
+      note: `${tags ? '[' + tags + '] ' : ''}${moodNoteEl.value}`,
+      date: new Date().toISOString()
+    };
+
+    await post('/evaluations', body);
+    showToast('Mood disimpan', 'success');
     closeMoodPrompt();
   });
 }
@@ -382,6 +273,8 @@ function openMoodPrompt(note) {
   moodValueEl.value = '';
   moodNoteEl.value = note || '';
   moodGrid.querySelectorAll('.prio-btn').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.tag-chip-enhanced').forEach(x => x.classList.remove('active'));
+  document.getElementById('mood-glow').style.opacity = '0';
   moodOverlay.classList.add('active');
   moodSheet.classList.add('active');
 }
@@ -390,3 +283,4 @@ function closeMoodPrompt() {
   moodOverlay.classList.remove('active');
   moodSheet.classList.remove('active');
 }
+

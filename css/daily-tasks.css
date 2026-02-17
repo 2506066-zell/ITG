@@ -246,12 +246,7 @@ body {
     box-shadow: 0 15px 35px hsla(var(--nebula-core), 0.6);
 }
 
-/* Bottom Sheet */
-.bottom-sheet {
-    background: hsl(var(--space-900)) !important;
-    border-top: 1px solid hsla(var(--nebula-core), 0.3);
-    box-shadow: 0 -20px 50px hsla(0, 0%, 0%, 0.5);
-}
+/* FAB is handled above */
 
 .prio-btn.active {
     background: hsla(var(--nebula-core), 0.15) !important;

@@ -1080,3 +1080,168 @@ textarea {
 .animate-delete {
   animation: shrink-fade 0.5s ease forwards;
 }
+
+/* 🌈 ENHANCED MOOD UI */
+.mood-sheet-content {
+  position: relative;
+  z-index: 1;
+  transition: background 0.6s ease;
+}
+
+.mood-glow-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0;
+  transition: opacity 0.8s ease, background 0.8s ease;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.mood-glow-active {
+  opacity: 0.15;
+}
+
+/* Mood Specific Colors */
+.mood-1 .mood-glow-overlay {
+  background: radial-gradient(circle at 50% 50%, #4da3ff, transparent 70%);
+}
+
+.mood-2 .mood-glow-overlay {
+  background: radial-gradient(circle at 50% 50%, #8a5cff, transparent 70%);
+}
+
+.mood-3 .mood-glow-overlay {
+  background: radial-gradient(circle at 50% 50%, #ffffff, transparent 70%);
+}
+
+.mood-4 .mood-glow-overlay {
+  background: radial-gradient(circle at 50% 50%, #4da3ff, #8a5cff, transparent 70%);
+}
+
+.mood-5 .mood-glow-overlay {
+  background: radial-gradient(circle at 50% 50%, #ff8c42, #ffcc33, transparent 70%);
+}
+
+.mood-btn-enhanced {
+  font-size: 28px !important;
+  padding: 10px !important;
+  border-radius: 16px !important;
+  background: hsla(0, 0%, 100%, 0.05) !important;
+  border: 1px solid var(--glass-border) !important;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+}
+
+.mood-btn-enhanced:hover {
+  transform: translateY(-5px) scale(1.1);
+  background: hsla(0, 0%, 100%, 0.1) !important;
+  border-color: hsla(var(--nebula-core), 0.4) !important;
+  box-shadow: 0 5px 15px hsla(var(--nebula-core), 0.2);
+}
+
+.mood-btn-enhanced.active {
+  background: hsla(var(--nebula-core), 0.2) !important;
+  border-color: hsl(var(--nebula-core)) !important;
+  box-shadow: 0 0 20px hsla(var(--nebula-core), 0.3) !important;
+  transform: translateY(-8px) scale(1.2);
+}
+
+@keyframes mood-float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.mood-btn-enhanced i,
+.mood-btn-enhanced span {
+  display: inline-block;
+  animation: mood-float 3s infinite ease-in-out;
+}
+
+.mood-btn-enhanced:nth-child(2n) i {
+  animation-delay: 0.5s;
+}
+
+.mood-btn-enhanced:nth-child(3n) i {
+  animation-delay: 1s;
+}
+
+.tag-chip-enhanced {
+  padding: 8px 14px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  background: hsla(0, 0%, 100%, 0.03) !important;
+  border: 1px solid var(--glass-border) !important;
+  color: hsl(var(--text-300)) !important;
+  transition: all 0.3s ease !important;
+}
+
+.tag-chip-enhanced:hover {
+  background: hsla(0, 0%, 100%, 0.08) !important;
+  border-color: hsla(var(--nebula-core), 0.3) !important;
+  transform: translateY(-2px);
+}
+
+.tag-chip-enhanced.active {
+  background: hsla(var(--nebula-core), 0.15) !important;
+  color: hsl(var(--nebula-core)) !important;
+  border-color: hsl(var(--nebula-core)) !important;
+  box-shadow: 0 0 15px hsla(var(--nebula-core), 0.2);
+}
+
+/* 🏔️ GLOBAL BOTTOM SHEET SYSTEM */
+.bottom-sheet-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  z-index: 3000;
+  display: none;
+  align-items: flex-end;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.bottom-sheet-overlay.active {
+  display: flex !important;
+  opacity: 1;
+}
+
+.bottom-sheet {
+  width: 100%;
+  background: hsl(var(--space-900)) !important;
+  border-top: 1px solid hsla(var(--nebula-core), 0.3) !important;
+  border-radius: 24px 24px 0 0 !important;
+  padding: 24px 20px !important;
+  transform: translateY(100%);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1) !important;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.bottom-sheet-overlay.active .bottom-sheet {
+  transform: translateY(0);
+}
+
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--glass-border);
+  border-radius: 10px;
+  margin: -10px auto 20px;
+  opacity: 0.5;
+}

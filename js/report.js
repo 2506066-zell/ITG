@@ -24,7 +24,7 @@ function setupEvents() {
 async function loadData() {
   const loading = document.getElementById('loading');
   const content = document.getElementById('report-content');
-  
+
   loading.style.display = 'block';
   content.style.display = 'none';
 
@@ -66,7 +66,7 @@ function updateCard(id, stats) {
   const change = stats.change;
   const icon = change >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
   const color = change >= 0 ? 'var(--success, #4caf50)' : 'var(--danger, #f44336)';
-  
+
   changeEl.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${Math.abs(change)}%</span>`;
   changeEl.style.color = color;
 }
@@ -77,11 +77,11 @@ function updateMood(stats) {
   const tagsEl = document.getElementById('mood-tags');
 
   valEl.textContent = stats.current.toFixed(1);
-  
+
   const change = stats.change;
   const icon = change >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
   const color = change >= 0 ? 'var(--success, #4caf50)' : 'var(--danger, #f44336)';
-  
+
   changeEl.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${Math.abs(change)}</span>`;
   changeEl.style.color = color;
 
@@ -92,8 +92,8 @@ function updateMood(stats) {
       const chip = document.createElement('div');
       chip.className = 'tag-chip';
       chip.textContent = tag;
-      chip.style.fontSize = '12px';
-      chip.style.padding = '4px 10px';
+      chip.style.fontSize = '10px';
+      chip.style.padding = '3px 8px';
       tagsEl.appendChild(chip);
     });
   } else {

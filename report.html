@@ -13,33 +13,33 @@
     .report-card {
       background: var(--glass-bg);
       border: 1px solid var(--glass-border);
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 16px;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 6px;
     }
 
     .stat-value {
-      font-size: 32px;
+      font-size: 24px;
       font-weight: 700;
       font-family: var(--font-head);
       color: var(--text);
     }
 
     .stat-label {
-      font-size: 14px;
+      font-size: 11px;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
     }
 
     .stat-change {
-      font-size: 14px;
+      font-size: 12px;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
     }
 
     .stat-change.up {
@@ -100,28 +100,31 @@
 
       <div style="margin-bottom:16px;font-size:14px;color:var(--muted);text-align:center" id="period-label"></div>
 
-      <!-- Productivity -->
-      <div class="report-card">
-        <div class="stat-label">Produktivitas (Tasks)</div>
-        <div style="display:flex;justify-content:space-between;align-items:end">
-          <div class="stat-value" id="prod-val">0</div>
-          <div class="stat-change" id="prod-change">
-            <i class="fa-solid fa-arrow-up"></i> <span>0%</span>
+      <!-- Stats Grid -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <!-- Productivity -->
+        <div class="report-card" style="margin-bottom: 0;">
+          <div class="stat-label">Productivity</div>
+          <div style="display:flex;justify-content:space-between;align-items:end">
+            <div class="stat-value" id="prod-val">0</div>
+            <div class="stat-change" id="prod-change">
+              <i class="fa-solid fa-arrow-up"></i> <span>0%</span>
+            </div>
           </div>
+          <div style="font-size:10px;color:var(--muted)">Prev: <span id="prod-prev">0</span></div>
         </div>
-        <div style="font-size:12px;color:var(--muted)">vs periode sebelumnya (<span id="prod-prev">0</span>)</div>
-      </div>
 
-      <!-- Consistency -->
-      <div class="report-card">
-        <div class="stat-label">Konsistensi (Habits)</div>
-        <div style="display:flex;justify-content:space-between;align-items:end">
-          <div class="stat-value" id="cons-val">0</div>
-          <div class="stat-change" id="cons-change">
-            <i class="fa-solid fa-arrow-up"></i> <span>0%</span>
+        <!-- Consistency -->
+        <div class="report-card" style="margin-bottom: 0;">
+          <div class="stat-label">Consistency</div>
+          <div style="display:flex;justify-content:space-between;align-items:end">
+            <div class="stat-value" id="cons-val">0</div>
+            <div class="stat-change" id="cons-change">
+              <i class="fa-solid fa-arrow-up"></i> <span>0%</span>
+            </div>
           </div>
+          <div style="font-size:10px;color:var(--muted)">Prev: <span id="cons-prev">0</span></div>
         </div>
-        <div style="font-size:12px;color:var(--muted)">vs periode sebelumnya (<span id="cons-prev">0</span>)</div>
       </div>
 
       <!-- Mood -->
@@ -133,9 +136,9 @@
             <i class="fa-solid fa-arrow-up"></i> <span>0.0</span>
           </div>
         </div>
-        <div style="margin-top:12px">
-          <div style="font-size:12px;margin-bottom:6px;color:var(--muted)">Faktor Utama:</div>
-          <div id="mood-tags" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        <div style="margin-top:8px">
+          <div style="font-size:11px;margin-bottom:4px;color:var(--muted)">Faktor Utama:</div>
+          <div id="mood-tags" style="display:flex;gap:6px;flex-wrap:wrap"></div>
         </div>
       </div>
 

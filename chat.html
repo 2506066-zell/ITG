@@ -9,10 +9,18 @@
   <link rel="stylesheet" href="css/themes.css">
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/chat.css">
   <title>NZ • Chat</title>
 </head>
 
 <body>
+  <div class="galaxy-bg">
+    <div class="stars-container">
+      <div class="stars-sm"></div>
+      <div class="stars-lg"></div>
+    </div>
+  </div>
+
   <nav class="navbar">
     <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
     <div class="nav-actions">
@@ -20,13 +28,13 @@
       <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
     </div>
   </nav>
-  <div class="container">
-    <a class="btn back-home" href="/"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
-    <div class="card chat">
+
+  <div class="container chat-container">
+    <div class="card chat-card">
       <div id="chat-messages" class="chat-messages"></div>
       <form id="chat-form" class="chat-input">
-        <input id="chat-input" class="input" placeholder="Type message">
-        <button class="btn" type="submit"><i class="fa-solid fa-paper-plane"></i> Send</button>
+        <input id="chat-input" class="input" placeholder="Type message" autocomplete="off">
+        <button class="btn" type="submit"><i class="fa-solid fa-paper-plane"></i></button>
         <button class="btn danger" type="button" id="chat-clear"><i class="fa-solid fa-trash"></i></button>
       </form>
     </div>

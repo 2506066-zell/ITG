@@ -16,12 +16,12 @@ async function loadSchedule() {
     const today = new Date().getDay() || 7;
 
     // Group by day
-    const grouped = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] };
+    const grouped = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
     data.forEach(item => {
       if (grouped[item.day_id]) grouped[item.day_id].push(item);
     });
 
-    for (let d = 1; d <= 7; d++) {
+    for (let d = 1; d <= 6; d++) {
       if (!grouped[d].length && d > 5 && d !== today) continue;
 
       const card = document.createElement('div');
@@ -67,10 +67,10 @@ async function loadSchedule() {
 
           item.innerHTML = `
               <div class="class-time"><i class="fa-regular fa-clock"></i> ${start} - ${end}</div>
-              <div style="font-weight:600; font-size:1.1rem; margin-bottom:4px;">${c.subject}</div>
+              <div class="class-subject">${c.subject}</div>
               <div class="class-room"><i class="fa-solid fa-location-dot"></i> ${c.room || 'TBA'}</div>
               ${c.lecturer ? `<div class="class-lecturer"><i class="fa-solid fa-user-tie"></i> ${c.lecturer}</div>` : ''}
-              <div class="muted small" style="margin-top:4px;font-size:10px">By ${c.created_by}</div>
+              <div class="muted small" style="margin-top:4px;font-size:9px">By ${c.created_by}</div>
             `;
           item.appendChild(delBtn);
           card.appendChild(item);

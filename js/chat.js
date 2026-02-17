@@ -13,26 +13,35 @@ async function loadMessages() {
     // For now, let's just clear and render to ensure sync.
     const wasAtBottom = wrap.scrollHeight - wrap.scrollTop === wrap.clientHeight;
 
-    wrap.innerHTML = '';
-    const currentUser = localStorage.getItem('user'); // Basic assumption
+    const currentUser = localStorage.getItem('user');
 
     msgs.forEach(m => {
+      // Avoid duplicates
+      if (wrap.querySelector(`[data-id="${m.id}"]`)) return;
+
       const el = document.createElement('div');
       const isMe = m.user_id === currentUser;
-      el.className = `chat-msg ${isMe ? 'me' : ''}`;
+      const isSystem = m.user_id === 'System' || m.message.includes('Daily Topic');
+
+      el.className = `chat-msg ${isMe ? 'me' : ''} ${isSystem ? 'system' : ''}`;
+      el.setAttribute('data-id', m.id);
 
       const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
       el.innerHTML = `
-        <div style="font-size:10px;opacity:0.6;margin-bottom:2px">${m.user_id} • ${time}</div>
-        ${m.message}
+        <div class="msg-meta">
+          <span>${m.user_id}</span>
+          <span>${time}</span>
+        </div>
+        <div class="bubble-content">
+          ${m.message}
+        </div>
       `;
       wrap.appendChild(el);
-    });
 
-    // Auto scroll if was at bottom or first load
-    if (wasAtBottom || msgs.length && !pollingInterval) {
+      // Auto-scroll on new message
       wrap.scrollTop = wrap.scrollHeight;
-    }
+    });
   } catch (err) {
     console.error('Chat load failed', err);
   }
@@ -60,6 +69,7 @@ async function clearAll() {
   if (!confirm('Clear all chat history? (Admin only)')) return;
   try {
     await del('/chat');
+    document.querySelector('#chat-messages').innerHTML = '';
     loadMessages();
   } catch (e) {
     alert(e.error || 'Failed to clear');
