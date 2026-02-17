@@ -9,6 +9,26 @@ const ASSISTANT_AUDIENCE = 'cute-futura-assistant';
 const WRITE_CONFIRM_EXP = '10m';
 const ALLOWED_USERS = new Set(['Zaldy', 'Nesya']);
 
+function normalizePersonName(raw = '') {
+  const name = String(raw || '').trim();
+  if (!name) return '';
+  const lower = name.toLowerCase();
+  return lower[0].toUpperCase() + lower.slice(1);
+}
+
+function getPartnerUser(user = '') {
+  if (user === 'Zaldy') return 'Nesya';
+  if (user === 'Nesya') return 'Zaldy';
+  return '';
+}
+
+function isPlaceholderTitle(title = '') {
+  const clean = String(title || '').trim().toLowerCase();
+  if (!clean) return true;
+  if (clean.length < 3) return true;
+  return /^(task|tugas|todo|to-do|assignment|kuliah|belajar|study)$/i.test(clean);
+}
+
 function clampLimit(value, fallback = 8, min = 1, max = 25) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
@@ -64,7 +84,7 @@ function parseCreateTaskPayload(message = '') {
   const goalMatch = original.match(/(?:goal|tujuan)\s*#?(\d+)/i);
   const deadline = parseDateFromText(original);
 
-  let title = original.replace(/^(?:buat|tambah|add|create)\s+(?:task|tugas)\s*/i, '').trim();
+  let title = original.replace(/^(?:buat|buatkan|tambah|add|create|catat|ingatin|ingatkan)\s+(?:task|tugas)\s*/i, '').trim();
   const deadlineMarker = title.search(/\b(deadline|due)\b/i);
   if (deadlineMarker >= 0) {
     title = title.slice(0, deadlineMarker).trim();
@@ -99,7 +119,7 @@ function parseCreateAssignmentPayload(message = '') {
   const deadline = parseDateFromText(original);
 
   let title = original
-    .replace(/^(?:buat|tambah|add|create)\s+(?:assignment|tugas kuliah)\s*/i, '')
+    .replace(/^(?:buat|buatkan|tambah|add|create|catat|ingatin|ingatkan)\s+(?:assignment|tugas kuliah)\s*/i, '')
     .trim();
   const deadlineMarker = title.search(/\b(deadline|due)\b/i);
   if (deadlineMarker >= 0) {
@@ -206,6 +226,51 @@ function parseUnifiedMemoryArgs(message = '') {
   return { date: date ? toDateText(date) : null };
 }
 
+function parseMemoryGraphArgs(message = '') {
+  const date = parseDateFromText(message);
+  return {
+    date: date ? toDateText(date) : null,
+  };
+}
+
+function parseDeadlineRiskArgs(message = '') {
+  const hit = message.match(/(\d{1,3})\s*(?:jam|hours|hour)\b/i);
+  const horizonHours = hit ? Math.max(6, Math.min(168, Number(hit[1]))) : 48;
+  return { horizon_hours: horizonHours };
+}
+
+function parseCoupleCoordinationArgs(message = '') {
+  const lower = message.toLowerCase();
+  return {
+    include_assignments: !/\b(tanpa assignment|tanpa tugas kuliah|no assignment)\b/i.test(lower),
+    include_tasks: !/\b(tanpa task|tanpa tugas|no task)\b/i.test(lower),
+  };
+}
+
+function parseNudgePartnerPayload(message = '', user = '') {
+  const original = message.trim();
+  const explicitPartner = original.match(/\b(zaldy|nesya)\b/i);
+  const normalizedPartner = normalizePersonName(explicitPartner?.[1] || '');
+  const fallbackPartner = getPartnerUser(user);
+  const partner = ALLOWED_USERS.has(normalizedPartner) ? normalizedPartner : fallbackPartner;
+  const urgency = /(urgent|asap|penting|sekarang)/i.test(original) ? 'urgent' : 'normal';
+
+  let topic = original
+    .replace(/^(?:tolong|please|pls|bisa|minta|coba|ajak|nudge|ingatkan|ping|remind)\s*/i, '')
+    .replace(/\b(check-?in|sync|koordinasi|pasangan|partner|couple)\b/ig, '')
+    .replace(/\b(zaldy|nesya)\b/ig, '')
+    .replace(/\b(urgent|asap|penting|sekarang)\b/ig, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  if (!topic) topic = 'status hari ini + 1 kebutuhan support';
+
+  return {
+    partner,
+    topic,
+    urgency,
+  };
+}
+
 function isLikelyCreateShorthandSegment(segment = '', kind = 'task') {
   const text = segment.trim();
   if (!text) return false;
@@ -297,6 +362,15 @@ function parseBundleActionSegment(segment = '') {
     };
   }
 
+  if (/(check-?in|sync|koordinasi)/i.test(lower) && /(pasangan|partner|couple)/i.test(lower) && /(ingatkan|nudge|ajak|ping|remind|notif|notifikasi)/i.test(lower)) {
+    return {
+      tool: 'nudge_partner_checkin',
+      mode: 'write',
+      args: parseNudgePartnerPayload(msg),
+      summary: 'Kirim nudge check-in ke pasangan',
+    };
+  }
+
   return null;
 }
 
@@ -323,7 +397,7 @@ function splitBundleByConnectors(text = '') {
 
 function extractWriteActionChunks(text = '') {
   const starts = [];
-  const actionStartRegex = /(?:^|\s)(?:(?:buat|tambah|add|create)\s+(?:task|tugas|assignment|tugas kuliah)\b|(?:selesaikan|complete|done|tandai)\s+(?:task|tugas|assignment|tugas kuliah)\b|(?:ubah|update|ganti|reschedule|geser)\s+(?:deadline|due)\b|(?:geser|pindah|reschedule)\s+(?:sesi belajar|study session|jadwal belajar|study plan)\b|(?:atur|set|ubah|ganti)\s+(?:target belajar|study target|mode belajar|window belajar|atur belajar|set belajar)\b|(?:task|tugas|assignment|tugas kuliah)\b)/gi;
+  const actionStartRegex = /(?:^|\s)(?:(?:buat|tambah|add|create)\s+(?:task|tugas|assignment|tugas kuliah)\b|(?:selesaikan|complete|done|tandai)\s+(?:task|tugas|assignment|tugas kuliah)\b|(?:ubah|update|ganti|reschedule|geser)\s+(?:deadline|due)\b|(?:geser|pindah|reschedule)\s+(?:sesi belajar|study session|jadwal belajar|study plan)\b|(?:atur|set|ubah|ganti)\s+(?:target belajar|study target|mode belajar|window belajar|atur belajar|set belajar)\b|(?:ingatkan|nudge|ajak|ping|remind)\s+(?:pasangan|partner|couple)\b|(?:task|tugas|assignment|tugas kuliah)\b)/gi;
 
   let match;
   while ((match = actionStartRegex.exec(text)) !== null) {
@@ -379,6 +453,9 @@ function normalizeIntentArgsForUser(toolName, args, user) {
   if ((toolName === 'create_task' || toolName === 'create_assignment') && !out.assigned_to) {
     out.assigned_to = user;
   }
+  if (toolName === 'nudge_partner_checkin' && !out.partner) {
+    out.partner = getPartnerUser(user);
+  }
   return out;
 }
 
@@ -402,7 +479,7 @@ function normalizeIntentForUser(intent, user) {
   };
 }
 
-function detectIntent(message = '') {
+function detectIntent(message = '', user = '') {
   const msg = message.trim();
   const lower = msg.toLowerCase();
 
@@ -429,12 +506,30 @@ function detectIntent(message = '') {
     };
   }
 
+  if (isLikelyCreateShorthandSegment(msg, 'task')) {
+    return {
+      tool: 'create_task',
+      mode: 'write',
+      args: parseCreateTaskPayload(`buat task ${msg}`),
+      summary: 'Buat task baru',
+    };
+  }
+
   const createAssignmentMatch = lower.match(/^(buat|tambah|add|create)\s+(assignment|tugas kuliah)\b/);
   if (createAssignmentMatch) {
     return {
       tool: 'create_assignment',
       mode: 'write',
       args: parseCreateAssignmentPayload(msg),
+      summary: 'Buat assignment baru',
+    };
+  }
+
+  if (isLikelyCreateShorthandSegment(msg, 'assignment')) {
+    return {
+      tool: 'create_assignment',
+      mode: 'write',
+      args: parseCreateAssignmentPayload(`buat assignment ${msg}`),
       summary: 'Buat assignment baru',
     };
   }
@@ -466,6 +561,15 @@ function detectIntent(message = '') {
       mode: 'write',
       args: { id: Number(completeAssignmentMatch[1]) },
       summary: `Tandai assignment #${completeAssignmentMatch[1]} selesai`,
+    };
+  }
+
+  if (/(memory graph|knowledge graph|graph memory|relasi konteks|peta konteks|context graph)/i.test(lower)) {
+    return {
+      tool: 'get_memory_graph',
+      mode: 'read',
+      args: parseMemoryGraphArgs(msg),
+      summary: 'Lihat unified memory graph',
     };
   }
 
@@ -505,12 +609,39 @@ function detectIntent(message = '') {
     };
   }
 
+  if (/(check-?in|sync|koordinasi)/i.test(lower) && /(pasangan|partner|couple)/i.test(lower) && /(ingatkan|nudge|ajak|ping|remind|notif|notifikasi)/i.test(lower)) {
+    return {
+      tool: 'nudge_partner_checkin',
+      mode: 'write',
+      args: parseNudgePartnerPayload(msg, user),
+      summary: 'Kirim nudge check-in ke pasangan',
+    };
+  }
+
+  if (/(couple|pasangan|partner|berdua)/i.test(lower) && /(pulse|koordinasi|sync|beban|workload|status|radar|balance)/i.test(lower)) {
+    return {
+      tool: 'get_couple_coordination',
+      mode: 'read',
+      args: parseCoupleCoordinationArgs(msg),
+      summary: 'Lihat koordinasi couple',
+    };
+  }
+
   if (/(jadwal|schedule|kuliah)/i.test(lower)) {
     return {
       tool: 'get_schedule',
       mode: 'read',
       args: parseScheduleArgs(msg),
       summary: 'Lihat jadwal',
+    };
+  }
+
+  if (/(risk|resiko|risiko|prediksi|berisiko|rawan|telat|terlambat|gagal)/i.test(lower) && /(deadline|task|tugas|assignment|kuliah)/i.test(lower)) {
+    return {
+      tool: 'get_deadline_risk',
+      mode: 'read',
+      args: parseDeadlineRiskArgs(msg),
+      summary: 'Prediksi risiko deadline',
     };
   }
 
@@ -569,6 +700,127 @@ function detectIntent(message = '') {
   };
 }
 
+function buildClarifyIssue(field, question, example = '') {
+  return {
+    field,
+    question,
+    example,
+  };
+}
+
+function validateWriteIntentArgs(toolName, args = {}, opts = {}) {
+  const issues = [];
+  const prefix = opts.prefix ? `${opts.prefix}: ` : '';
+
+  if (toolName === 'create_task') {
+    const title = String(args.title || '').trim();
+    if (isPlaceholderTitle(title)) {
+      issues.push(buildClarifyIssue('title', `${prefix}Judul task-nya apa?`, 'buat task review basis data deadline besok 19:00 priority high'));
+    }
+    if (!args.deadline) {
+      issues.push(buildClarifyIssue('deadline', `${prefix}Deadline task kapan?`, 'buat task review basis data deadline besok 19:00 priority high'));
+    }
+    return issues;
+  }
+
+  if (toolName === 'create_assignment') {
+    const title = String(args.title || '').trim();
+    if (isPlaceholderTitle(title)) {
+      issues.push(buildClarifyIssue('title', `${prefix}Judul assignment-nya apa?`, 'buat assignment makalah AI deadline 2026-03-01 20:00'));
+    }
+    if (!args.deadline) {
+      issues.push(buildClarifyIssue('deadline', `${prefix}Deadline assignment kapan?`, 'buat assignment makalah AI deadline 2026-03-01 20:00'));
+    }
+    return issues;
+  }
+
+  if (toolName === 'update_task_deadline') {
+    if (!Number(args.id)) {
+      issues.push(buildClarifyIssue('id', `${prefix}Task mana yang mau diubah deadlinenya?`, 'ubah deadline task 12 besok 20:00'));
+    }
+    if (!args.deadline) {
+      issues.push(buildClarifyIssue('deadline', `${prefix}Deadline barunya kapan?`, 'ubah deadline task 12 besok 20:00'));
+    }
+    return issues;
+  }
+
+  if (toolName === 'complete_task') {
+    if (!Number(args.id)) {
+      issues.push(buildClarifyIssue('id', `${prefix}Task ID berapa yang mau diselesaikan?`, 'selesaikan task 12'));
+    }
+    return issues;
+  }
+
+  if (toolName === 'complete_assignment') {
+    if (!Number(args.id)) {
+      issues.push(buildClarifyIssue('id', `${prefix}Assignment ID berapa yang mau diselesaikan?`, 'selesaikan assignment 5'));
+    }
+    return issues;
+  }
+
+  if (toolName === 'set_study_preferences') {
+    if (args.target_minutes === undefined && !args.preferred_window) {
+      issues.push(buildClarifyIssue('study_preferences', `${prefix}Mau ubah target menit atau window belajar?`, 'atur target belajar 180 menit'));
+    }
+    return issues;
+  }
+
+  if (toolName === 'nudge_partner_checkin') {
+    const partner = normalizePersonName(args.partner || '');
+    if (!partner || !ALLOWED_USERS.has(partner)) {
+      issues.push(buildClarifyIssue('partner', `${prefix}Mau kirim nudge ke siapa, Zaldy atau Nesya?`, 'ingatkan pasangan Nesya check-in malam ini'));
+    }
+    return issues;
+  }
+
+  if (toolName === 'execute_action_bundle') {
+    const actions = Array.isArray(args.actions) ? args.actions : [];
+    if (actions.length < 2) {
+      issues.push(buildClarifyIssue('actions', 'Bundle minimal berisi 2 aksi write.', 'buat task ... lalu buat assignment ...'));
+      return issues;
+    }
+    actions.forEach((action, idx) => {
+      const actionTool = String(action?.tool || '').trim();
+      if (!actionTool) {
+        issues.push(buildClarifyIssue(`actions[${idx}]`, `Aksi ${idx + 1} belum valid.`, 'buat task ...'));
+        return;
+      }
+      const nested = validateWriteIntentArgs(actionTool, action.args || {}, { prefix: `Aksi ${idx + 1}` });
+      issues.push(...nested);
+    });
+    return issues;
+  }
+
+  return issues;
+}
+
+function buildClarificationResponse(intent, originalMessage = '') {
+  const issues = validateWriteIntentArgs(intent?.tool || '', intent?.args || {});
+  if (!issues.length) return null;
+
+  const quick = issues
+    .map((item) => item.example)
+    .filter(Boolean)
+    .slice(0, 4)
+    .map((cmd) => `/ai ${cmd}`);
+  const firstQuestions = issues.slice(0, 3).map((q, i) => `${i + 1}. ${q.question}`).join(' ');
+
+  return {
+    ok: true,
+    mode: 'clarification_required',
+    tool: intent.tool,
+    tool_calls: [{ name: intent.tool, mode: 'write', args: intent.args || {} }],
+    reply: `Aku butuh klarifikasi sebelum eksekusi write. ${firstQuestions}`.trim(),
+    clarifications: issues,
+    suggested_commands: quick,
+    preview: {
+      summary: intent.summary || intent.tool,
+      args: intent.args || {},
+      original_message: originalMessage,
+    },
+  };
+}
+
 function dayLabel(dayId) {
   const map = {
     1: 'Monday',
@@ -600,6 +852,60 @@ function hoursUntil(deadline) {
   const t = new Date(deadline).getTime();
   if (!Number.isFinite(t)) return null;
   return (t - Date.now()) / 3600000;
+}
+
+function clampInt(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function deadlineRiskModel(item = {}, kind = 'task') {
+  const hrs = hoursUntil(item.deadline);
+  if (hrs === null) {
+    return { risk_score: 24, risk_band: 'low', hours_left: null };
+  }
+
+  let score = 0;
+  if (hrs <= 0) score += 85;
+  else if (hrs <= 6) score += 70;
+  else if (hrs <= 12) score += 56;
+  else if (hrs <= 24) score += 42;
+  else if (hrs <= 48) score += 30;
+  else score += 18;
+
+  const pr = String(item.priority || '').toLowerCase();
+  if (pr === 'high') score += 14;
+  else if (pr === 'medium') score += 6;
+
+  if (kind === 'assignment') score += 6;
+
+  score = clampInt(Math.round(score), 0, 100);
+  let band = 'low';
+  if (score >= 75) band = 'critical';
+  else if (score >= 55) band = 'high';
+  else if (score >= 35) band = 'medium';
+
+  return {
+    risk_score: score,
+    risk_band: band,
+    hours_left: Number(hrs.toFixed(2)),
+  };
+}
+
+function enrichItemsWithRisk(items = [], kind = 'task') {
+  return (Array.isArray(items) ? items : []).map((item) => ({
+    ...item,
+    ...deadlineRiskModel(item, kind),
+  }));
+}
+
+function summarizeRiskBands(items = []) {
+  const summary = { low: 0, medium: 0, high: 0, critical: 0 };
+  for (const item of items) {
+    const band = String(item?.risk_band || 'low').toLowerCase();
+    if (summary[band] === undefined) continue;
+    summary[band] += 1;
+  }
+  return summary;
 }
 
 function analyzeDeadlineRisk(items = []) {
@@ -767,6 +1073,65 @@ function buildExplainability(toolName, data, user) {
     };
   }
 
+  if (toolName === 'get_deadline_risk') {
+    const items = Array.isArray(data?.items) ? data.items : [];
+    const summary = data?.summary || summarizeRiskBands(items);
+    const top = items[0] || null;
+    return {
+      why: [
+        `Model risiko mengevaluasi ${items.length} item dalam horizon ${Number(data?.horizon_hours || 48)} jam.`,
+        `Distribusi risiko: critical=${Number(summary.critical || 0)}, high=${Number(summary.high || 0)}, medium=${Number(summary.medium || 0)}.`,
+      ],
+      impact: 'Deteksi dini risiko deadline membantu replan sebelum telat.',
+      risk: Number(summary.critical || 0) > 0
+        ? `${Number(summary.critical || 0)} item masuk zona critical.`
+        : (Number(summary.high || 0) > 0 ? `${Number(summary.high || 0)} item berisiko tinggi.` : 'Tidak ada risiko kritis pada horizon ini.'),
+      recommended_action: top
+        ? `Eksekusi "${top.title}" dulu (${top.risk_band}, score ${top.risk_score}).`
+        : 'Pertahankan ritme eksekusi dan cek ulang risiko sore ini.',
+      confidence: items.length > 0 ? 'high' : 'medium',
+      generated_at: nowIso,
+    };
+  }
+
+  if (toolName === 'get_memory_graph') {
+    const nodes = Array.isArray(data?.nodes) ? data.nodes : [];
+    const edges = Array.isArray(data?.edges) ? data.edges : [];
+    const focus = data?.focus_recommendation || '';
+    return {
+      why: [
+        `Graph memori membentuk ${nodes.length} node dan ${edges.length} edge dari snapshot lintas konteks.`,
+        `Signal utama: task=${Number(data?.counters?.tasks_pending || 0)}, assignment=${Number(data?.counters?.assignments_pending || 0)}, mood7d=${Number(data?.mood?.avg_7d || 0).toFixed(2)}.`,
+      ],
+      impact: 'Relasi konteks membantu assistant melakukan reasoning lintas domain dengan lebih konsisten.',
+      risk: Number(data?.counters?.urgent_items || 0) > 0
+        ? `Ada ${Number(data?.counters?.urgent_items || 0)} item urgent di graph saat ini.`
+        : 'Graph saat ini stabil tanpa lonjakan urgent besar.',
+      recommended_action: focus || 'Jalankan fokus rekomendasi dari memory snapshot hari ini.',
+      confidence: 'high',
+      generated_at: nowIso,
+    };
+  }
+
+  if (toolName === 'get_couple_coordination') {
+    const me = data?.me || {};
+    const partner = data?.partner || {};
+    const reco = data?.recommendation || {};
+    return {
+      why: [
+        `Load index ${me.user || user}=${Number(me.load_index || 0)} vs ${partner.user || 'partner'}=${Number(partner.load_index || 0)}.`,
+        `Signal kritis couple: overdue=${Number(me.overdue || 0) + Number(partner.overdue || 0)}, critical12h=${Number(me.critical_12h || 0) + Number(partner.critical_12h || 0)}.`,
+      ],
+      impact: 'Koordinasi beban berdua mengurangi bottleneck dan menstabilkan progress harian.',
+      risk: Number(me.overdue || 0) + Number(partner.overdue || 0) > 0
+        ? 'Ada item overdue pada couple timeline, perlu realokasi segera.'
+        : 'Risiko couple flow moderat dan bisa dikendalikan via check-in rutin.',
+      recommended_action: reco.suggested_action || 'Jalankan sync 5 menit malam ini.',
+      confidence: 'high',
+      generated_at: nowIso,
+    };
+  }
+
   if (toolName === 'get_report') {
     const taskDone = Number(data?.completed_tasks || 0);
     const assignmentDone = Number(data?.completed_assignments || 0);
@@ -867,6 +1232,26 @@ function summarizeRead(toolName, data, user) {
     return `Study plan ${data.date}: ${s.sessions || 0} sesi, ${s.planned_minutes || 0} menit, load ${s.focus_load || 'light'}, first ${first}`;
   }
 
+  if (toolName === 'get_deadline_risk') {
+    const s = data.summary || {};
+    const top = Array.isArray(data.items) && data.items.length ? data.items[0] : null;
+    const topLabel = top ? `Top risk: [${top.source}] ${top.title} (${top.risk_band}/${top.risk_score}).` : 'Tidak ada item berisiko pada horizon ini.';
+    return `Risk horizon ${data.horizon_hours || 48} jam -> critical ${s.critical || 0}, high ${s.high || 0}, medium ${s.medium || 0}. ${topLabel}`;
+  }
+
+  if (toolName === 'get_memory_graph') {
+    const nodes = Array.isArray(data.nodes) ? data.nodes.length : 0;
+    const edges = Array.isArray(data.edges) ? data.edges.length : 0;
+    return `Memory graph ${data.date}: ${nodes} nodes, ${edges} edges. Focus: ${data.focus_recommendation || 'stabilkan prioritas utama hari ini.'}`;
+  }
+
+  if (toolName === 'get_couple_coordination') {
+    const me = data.me || {};
+    const partner = data.partner || {};
+    const reco = data.recommendation || {};
+    return `Couple pulse: ${me.user || user} load ${me.load_index || 0} vs ${partner.user || 'partner'} ${partner.load_index || 0}. ${reco.summary || ''} ${reco.suggested_action || ''}`.trim();
+  }
+
   if (toolName === 'help') {
     return `Perintah yang didukung: ${data.tips.join(' | ')}`;
   }
@@ -890,7 +1275,8 @@ async function toolGetTasks(ctx, args = {}) {
     values
   );
 
-  return { items: r.rows };
+  const items = enrichItemsWithRisk(r.rows, 'task');
+  return { items, risk_summary: summarizeRiskBands(items) };
 }
 
 async function toolGetSchedule(_ctx, args = {}) {
@@ -933,7 +1319,8 @@ async function toolGetAssignments(ctx, args = {}) {
      LIMIT $2`,
     [ctx.user, limit]
   );
-  return { items: r.rows };
+  const items = enrichItemsWithRisk(r.rows, 'assignment');
+  return { items, risk_summary: summarizeRiskBands(items) };
 }
 
 function getPeriodRange(type = 'weekly') {
@@ -1037,11 +1424,17 @@ async function toolGetDailyBrief(ctx, args = {}) {
     ),
   ]);
 
+  const riskItems = enrichItemsWithRisk([
+    ...tasks.rows.map((item) => ({ ...item, _kind: 'task' })),
+    ...assignments.rows.map((item) => ({ ...item, _kind: 'assignment' })),
+  ]);
+
   return {
     day_id: dayId,
-    tasks: tasks.rows,
-    assignments: assignments.rows,
+    tasks: enrichItemsWithRisk(tasks.rows, 'task'),
+    assignments: enrichItemsWithRisk(assignments.rows, 'assignment'),
     schedule: schedule.rows,
+    risk_summary: summarizeRiskBands(riskItems),
   };
 }
 
@@ -1067,6 +1460,112 @@ async function toolGetStudyPlan(ctx, args = {}) {
     targetMinutes,
     preferredWindow,
   });
+}
+
+async function toolGetDeadlineRisk(ctx, args = {}) {
+  const horizonHours = clampLimit(args.horizon_hours, 48, 6, 168);
+  const horizonIso = new Date(Date.now() + horizonHours * 3600000).toISOString();
+
+  const [tasks, assignments] = await Promise.all([
+    pool.query(
+      `SELECT id, title, priority, deadline, assigned_to, goal_id
+       FROM tasks
+       WHERE is_deleted = FALSE
+         AND completed = FALSE
+         AND (assigned_to = $1 OR created_by = $1)
+         AND deadline IS NOT NULL
+         AND deadline <= $2
+       ORDER BY deadline ASC
+       LIMIT 20`,
+      [ctx.user, horizonIso]
+    ),
+    pool.query(
+      `SELECT id, title, deadline, assigned_to
+       FROM assignments
+       WHERE completed = FALSE
+         AND (assigned_to = $1 OR assigned_to IS NULL)
+         AND deadline IS NOT NULL
+         AND deadline <= $2
+       ORDER BY deadline ASC
+       LIMIT 20`,
+      [ctx.user, horizonIso]
+    ),
+  ]);
+
+  const taskRisk = enrichItemsWithRisk(tasks.rows, 'task')
+    .map((item) => ({ ...item, source: 'task' }));
+  const assignmentRisk = enrichItemsWithRisk(assignments.rows, 'assignment')
+    .map((item) => ({ ...item, source: 'assignment', priority: item.priority || 'medium' }));
+
+  const items = [...taskRisk, ...assignmentRisk]
+    .sort((a, b) => Number(b.risk_score || 0) - Number(a.risk_score || 0))
+    .slice(0, 20);
+
+  return {
+    horizon_hours: horizonHours,
+    items,
+    summary: summarizeRiskBands(items),
+    counts: {
+      task: taskRisk.length,
+      assignment: assignmentRisk.length,
+    },
+    generated_at: new Date().toISOString(),
+  };
+}
+
+async function toolGetMemoryGraph(ctx, args = {}) {
+  const date = normalizeMemoryDate(args.date || '');
+  const snapshot = await buildUnifiedMemorySnapshot(ctx.user, { date });
+  const partner = getPartnerUser(ctx.user);
+  const [meLoad, partnerLoad] = await Promise.all([
+    readUserWorkload(ctx.user, { includeTasks: true, includeAssignments: true }),
+    partner ? readUserWorkload(partner, { includeTasks: true, includeAssignments: true }) : Promise.resolve(null),
+  ]);
+
+  const counters = snapshot.counters || {};
+  const nodes = [
+    { id: `person:${ctx.user}`, type: 'person', label: ctx.user },
+    { id: `memory:${snapshot.date}`, type: 'memory', label: `Memory ${snapshot.date}` },
+    { id: 'work:tasks', type: 'work', label: `Tasks ${Number(counters.tasks_pending || 0)}` },
+    { id: 'work:assignments', type: 'work', label: `Assignments ${Number(counters.assignments_pending || 0)}` },
+    { id: 'energy:mood', type: 'energy', label: `Mood ${Number(snapshot.mood?.avg_7d || 0).toFixed(2)}` },
+    { id: 'focus:study', type: 'focus', label: `Study ${Number(counters.study_done_minutes || 0)}m` },
+  ];
+  if (partnerLoad) {
+    nodes.push({ id: `person:${partnerLoad.user}`, type: 'person', label: partnerLoad.user });
+  }
+
+  const edges = [
+    { from: `person:${ctx.user}`, to: `memory:${snapshot.date}`, relation: 'has_snapshot', weight: 1 },
+    { from: `memory:${snapshot.date}`, to: 'work:tasks', relation: 'tracks', weight: Number(counters.tasks_pending || 0) },
+    { from: `memory:${snapshot.date}`, to: 'work:assignments', relation: 'tracks', weight: Number(counters.assignments_pending || 0) },
+    { from: `memory:${snapshot.date}`, to: 'energy:mood', relation: 'tracks', weight: Number(snapshot.mood?.avg_7d || 0) },
+    { from: `memory:${snapshot.date}`, to: 'focus:study', relation: 'tracks', weight: Number(counters.study_done_minutes || 0) },
+  ];
+
+  if (partnerLoad) {
+    edges.push({
+      from: `person:${ctx.user}`,
+      to: `person:${partnerLoad.user}`,
+      relation: 'couple_balance',
+      weight: Math.abs(Number(meLoad.pending_total || 0) - Number(partnerLoad.pending_total || 0)),
+    });
+  }
+
+  return {
+    date: snapshot.date,
+    nodes,
+    edges,
+    counters: snapshot.counters || {},
+    mood: snapshot.mood || {},
+    streak: snapshot.streak || {},
+    focus_recommendation: snapshot.assistant_memory?.focus_recommendation || '',
+    couple_load: {
+      me: meLoad,
+      partner: partnerLoad,
+    },
+    generated_at: new Date().toISOString(),
+  };
 }
 
 async function toolSetStudyPreferences(ctx, args = {}) {
@@ -1110,6 +1609,156 @@ async function toolReplanStudyWindow(ctx, args = {}) {
     preferredWindow: preference.preferred_window,
   });
   return { preference, preview, replan_date: targetDate };
+}
+
+function computeLoadIndex(load = {}) {
+  const pending = Number(load.pending_total || 0);
+  const warning = Number(load.warning_24h || 0);
+  const critical = Number(load.critical_12h || 0);
+  const overdue = Number(load.overdue || 0);
+  return pending + warning + critical * 2 + overdue * 3;
+}
+
+async function readUserWorkload(user, { includeTasks = true, includeAssignments = true } = {}) {
+  const nowIso = new Date().toISOString();
+  const in24hIso = new Date(Date.now() + 24 * 3600000).toISOString();
+  const in12hIso = new Date(Date.now() + 12 * 3600000).toISOString();
+
+  let task = { pending: 0, warning_24h: 0, critical_12h: 0, overdue: 0 };
+  let assignment = { pending: 0, warning_24h: 0, critical_12h: 0, overdue: 0 };
+
+  if (includeTasks) {
+    const taskRes = await pool.query(
+      `SELECT
+         COUNT(*)::int AS pending,
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > $2 AND deadline <= $3)::int AS warning_24h,
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > $2 AND deadline <= $4)::int AS critical_12h,
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline <= $2)::int AS overdue
+       FROM tasks
+       WHERE is_deleted = FALSE
+         AND completed = FALSE
+         AND (assigned_to = $1 OR created_by = $1)`,
+      [user, nowIso, in24hIso, in12hIso]
+    );
+    task = taskRes.rows[0] || task;
+  }
+
+  if (includeAssignments) {
+    const assignmentRes = await pool.query(
+      `SELECT
+         COUNT(*)::int AS pending,
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > $2 AND deadline <= $3)::int AS warning_24h,
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > $2 AND deadline <= $4)::int AS critical_12h,
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline <= $2)::int AS overdue
+       FROM assignments
+       WHERE completed = FALSE
+         AND assigned_to = $1`,
+      [user, nowIso, in24hIso, in12hIso]
+    );
+    assignment = assignmentRes.rows[0] || assignment;
+  }
+
+  return {
+    user,
+    include_tasks: includeTasks,
+    include_assignments: includeAssignments,
+    task_pending: Number(task.pending || 0),
+    assignment_pending: Number(assignment.pending || 0),
+    warning_24h: Number(task.warning_24h || 0) + Number(assignment.warning_24h || 0),
+    critical_12h: Number(task.critical_12h || 0) + Number(assignment.critical_12h || 0),
+    overdue: Number(task.overdue || 0) + Number(assignment.overdue || 0),
+    pending_total: Number(task.pending || 0) + Number(assignment.pending || 0),
+  };
+}
+
+function buildCoupleRecommendation(me, partner) {
+  const meIndex = computeLoadIndex(me);
+  const partnerIndex = computeLoadIndex(partner);
+  const gap = meIndex - partnerIndex;
+  const heavy = gap >= 2 ? me : gap <= -2 ? partner : null;
+  const support = heavy && heavy.user === me.user ? partner : heavy ? me : null;
+
+  let summary = 'Beban couple relatif seimbang. Lanjutkan check-in singkat malam ini.';
+  let suggestedAction = 'Jalankan sync 5 menit: status + 1 blocker + next action.';
+
+  if (heavy && support) {
+    summary = `${heavy.user} sedang lebih padat dari ${support.user}.`;
+    suggestedAction = `Minta ${support.user} bantu 1 quick win atau 1 task administratif dari ${heavy.user}.`;
+  } else if (Number(me.critical_12h || 0) + Number(partner.critical_12h || 0) > 0) {
+    summary = 'Ada deadline kritis <=12 jam pada couple timeline.';
+    suggestedAction = 'Pakai mode emergency: kerjakan item kritis dulu, chat singkat setelahnya.';
+  }
+
+  const balanceRaw = 100 - Math.min(100, Math.abs(gap) * 12);
+  return {
+    load_gap: gap,
+    balance_score: Math.max(0, Math.round(balanceRaw)),
+    summary,
+    suggested_action: suggestedAction,
+    suggested_supporter: support ? support.user : '',
+    suggested_focus_owner: heavy ? heavy.user : '',
+  };
+}
+
+async function toolGetCoupleCoordination(ctx, args = {}) {
+  const partner = getPartnerUser(ctx.user);
+  if (!partner) {
+    const err = new Error('Partner user tidak terdeteksi untuk akun ini.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const includeTasks = args.include_tasks !== false;
+  const includeAssignments = args.include_assignments !== false;
+
+  const [meLoad, partnerLoad] = await Promise.all([
+    readUserWorkload(ctx.user, { includeTasks, includeAssignments }),
+    readUserWorkload(partner, { includeTasks, includeAssignments }),
+  ]);
+
+  const recommendation = buildCoupleRecommendation(meLoad, partnerLoad);
+  return {
+    me: { ...meLoad, load_index: computeLoadIndex(meLoad) },
+    partner: { ...partnerLoad, load_index: computeLoadIndex(partnerLoad) },
+    recommendation,
+    generated_at: new Date().toISOString(),
+  };
+}
+
+async function toolNudgePartnerCheckin(ctx, args = {}) {
+  const fallbackPartner = getPartnerUser(ctx.user);
+  const normalizedPartner = normalizePersonName(args.partner || '');
+  const partner = ALLOWED_USERS.has(normalizedPartner) ? normalizedPartner : fallbackPartner;
+  if (!partner || !ALLOWED_USERS.has(partner) || partner === ctx.user) {
+    const err = new Error('Partner check-in target tidak valid.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const topic = String(args.topic || '').trim() || 'status hari ini + 1 kebutuhan support';
+  const urgency = String(args.urgency || 'normal').toLowerCase() === 'urgent' ? 'urgent' : 'normal';
+  const title = urgency === 'urgent' ? 'Couple Check-In Urgent' : 'Couple Check-In';
+  const body = `${ctx.user} ngajak check-in: ${topic}.`;
+
+  await sendNotificationToUser(partner, {
+    title,
+    body,
+    data: { url: '/chat' },
+    url: '/chat',
+    tag: 'couple-checkin',
+    actions: [
+      { action: 'open-chat', title: 'Open Chat' },
+      { action: 'open', title: 'Lihat Detail' },
+    ],
+  });
+
+  return {
+    sender: ctx.user,
+    partner,
+    topic,
+    urgency,
+    sent: true,
+  };
 }
 
 async function toolExecuteActionBundle(ctx, args = {}) {
@@ -1469,11 +2118,16 @@ const TOOLS = {
         'Buat assignment: "buat assignment makalah AI deadline 2026-03-01 20:00"',
         'Selesaikan assignment: "selesaikan assignment 5"',
         'Unified memory: "tampilkan memory hari ini"',
+        'Memory graph: "tampilkan memory graph hari ini"',
         'Study plan: "jadwal belajar besok pagi"',
+        'Deadline risk: "risk deadline 48 jam ke depan"',
         'Set target belajar: "atur target belajar 180 menit"',
         'Re-plan study: "geser sesi belajar malam ini ke besok pagi"',
+        'Couple coordination: "lihat couple pulse hari ini"',
+        'Nudge pasangan: "ingatkan pasangan check-in malam ini"',
         'Bundle multi-aksi: "buat task ... dan buat assignment ... dan atur target belajar 180 menit"',
         'Bundle chat-like: "tolong buat task revisi bab 2 besok 19:00 buat assignment AI minggu depan lalu atur target belajar 200 menit"',
+        'Write dieksekusi langsung tanpa /confirm. Jika detail kurang (mis. deadline), assistant akan minta klarifikasi dulu.',
       ],
     }),
   },
@@ -1484,7 +2138,10 @@ const TOOLS = {
   get_report: { mode: 'read', run: toolGetReport },
   get_daily_brief: { mode: 'read', run: toolGetDailyBrief },
   get_unified_memory: { mode: 'read', run: toolGetUnifiedMemory },
+  get_memory_graph: { mode: 'read', run: toolGetMemoryGraph },
   get_study_plan: { mode: 'read', run: toolGetStudyPlan },
+  get_deadline_risk: { mode: 'read', run: toolGetDeadlineRisk },
+  get_couple_coordination: { mode: 'read', run: toolGetCoupleCoordination },
   execute_action_bundle: { mode: 'write', run: toolExecuteActionBundle },
   create_task: { mode: 'write', run: toolCreateTask },
   create_assignment: { mode: 'write', run: toolCreateAssignment },
@@ -1493,6 +2150,7 @@ const TOOLS = {
   complete_assignment: { mode: 'write', run: toolCompleteAssignment },
   set_study_preferences: { mode: 'write', run: toolSetStudyPreferences },
   replan_study_window: { mode: 'write', run: toolReplanStudyWindow },
+  nudge_partner_checkin: { mode: 'write', run: toolNudgePartnerCheckin },
 };
 
 function buildConfirmationToken(user, tool, args, summary, originalMessage) {
@@ -1602,7 +2260,62 @@ function writeExecutionReply(toolName, result) {
     return `Study plan direplan ke window ${p.preferred_window || 'any'} untuk ${result.replan_date || preview.date || 'hari target'}. Hasil: ${summary.sessions || 0} sesi, ${summary.planned_minutes || 0} menit.`;
   }
 
+  if (toolName === 'nudge_partner_checkin') {
+    return `Nudge check-in terkirim ke ${result.partner}: ${result.topic}.`;
+  }
+
   return 'Aksi write berhasil dijalankan.';
+}
+
+function buildExecutionFrame({ mode = '', tool = '', summary = '', args = {}, explainability = null, clarifications = [] } = {}) {
+  const plan = [];
+  if (mode === 'clarification_required') {
+    plan.push('Parse intent');
+    plan.push('Validate required fields');
+    plan.push('Request missing details');
+  } else if (mode === 'write_executed') {
+    plan.push('Parse intent');
+    plan.push('Validate payload');
+    plan.push(`Execute ${tool}`);
+    plan.push('Return write result');
+  } else {
+    plan.push('Parse request');
+    plan.push(`Run read tool ${tool}`);
+    plan.push('Summarize + explain');
+  }
+
+  const criticChecks = [];
+  if (mode === 'clarification_required') {
+    criticChecks.push(`Missing fields: ${clarifications.map((x) => x.field).filter(Boolean).join(', ') || 'unknown'}`);
+    criticChecks.push('Execution blocked until required slots are complete');
+  } else {
+    criticChecks.push('Intent mapped to a valid tool');
+    criticChecks.push('Tool execution finished without thrown error');
+    if (explainability && explainability.risk) {
+      criticChecks.push(`Risk signal: ${explainability.risk}`);
+    }
+  }
+
+  const quality = mode === 'clarification_required'
+    ? 'guarded'
+    : (explainability?.confidence ? String(explainability.confidence).toLowerCase() : 'high');
+
+  return {
+    planner: {
+      summary: summary || tool,
+      tool,
+      mode,
+      args,
+      steps: plan,
+    },
+    critic: {
+      quality,
+      checks: criticChecks.slice(0, 4),
+      next_best_action: explainability?.recommended_action || (mode === 'clarification_required'
+        ? 'Lengkapi detail yang diminta lalu kirim ulang.'
+        : 'Eksekusi aksi prioritas tertinggi sekarang.'),
+    },
+  };
 }
 
 function isStreamRequest(req, body) {
@@ -1711,6 +2424,12 @@ async function processAssistantRequest(user, body = {}) {
       tool_calls: toolCalls,
       reply: writeExecutionReply(payload.tool, result),
       data: result,
+      execution_frame: buildExecutionFrame({
+        mode: 'write_executed',
+        tool: payload.tool,
+        summary: payload.summary || payload.tool,
+        args: payload.args || {},
+      }),
     };
   }
 
@@ -1719,7 +2438,7 @@ async function processAssistantRequest(user, body = {}) {
     throw createError('Message required', 400);
   }
 
-  const intent = detectIntent(message);
+  const intent = detectIntent(message, user);
   if (!intent) {
     throw createError('Unable to detect intent', 400);
   }
@@ -1732,7 +2451,30 @@ async function processAssistantRequest(user, body = {}) {
   }
 
   if (def.mode === 'write') {
-    const previewToolCalls = intentWithUser.tool === 'execute_action_bundle'
+    const clarification = buildClarificationResponse(intentWithUser, message);
+    if (clarification) {
+      if (intentWithUser.tool === 'execute_action_bundle') {
+        const bundleCalls = Array.isArray(intentWithUser.args?.actions)
+          ? intentWithUser.args.actions.map((action) => ({
+              name: action.tool,
+              mode: 'write',
+              args: action.args || {},
+            }))
+          : [];
+        clarification.tool_calls = bundleCalls;
+      }
+      clarification.execution_frame = buildExecutionFrame({
+        mode: 'clarification_required',
+        tool: intentWithUser.tool,
+        summary: intentWithUser.summary || intentWithUser.tool,
+        args: intentWithUser.args || {},
+        clarifications: clarification.clarifications || [],
+      });
+      return clarification;
+    }
+
+    const result = await def.run({ user }, intentWithUser.args || {});
+    const toolCalls = intentWithUser.tool === 'execute_action_bundle'
       ? (Array.isArray(intentWithUser.args?.actions)
           ? intentWithUser.args.actions.map((action) => ({
               name: action.tool,
@@ -1740,27 +2482,25 @@ async function processAssistantRequest(user, body = {}) {
               args: action.args || {},
             }))
           : [])
-      : [{ name: intentWithUser.tool, mode: 'write', args: intentWithUser.args }];
-
-    const confirmationToken = buildConfirmationToken(
-      user,
-      intentWithUser.tool,
-      intentWithUser.args,
-      intentWithUser.summary,
-      message
-    );
+      : [{ name: intentWithUser.tool, mode: 'write', args: intentWithUser.args || {} }];
 
     return {
       ok: true,
-      mode: 'confirmation_required',
+      mode: 'write_executed',
       tool: intentWithUser.tool,
-      tool_calls: previewToolCalls,
-      reply: `Konfirmasi diperlukan untuk aksi write: ${intentWithUser.summary}. Kirim ulang dengan /confirm.`,
-      confirmation_token: confirmationToken,
+      tool_calls: toolCalls,
+      reply: writeExecutionReply(intentWithUser.tool, result),
+      data: result,
       preview: {
         summary: intentWithUser.summary,
         args: intentWithUser.args,
       },
+      execution_frame: buildExecutionFrame({
+        mode: 'write_executed',
+        tool: intentWithUser.tool,
+        summary: intentWithUser.summary || intentWithUser.tool,
+        args: intentWithUser.args || {},
+      }),
     };
   }
 
@@ -1774,6 +2514,13 @@ async function processAssistantRequest(user, body = {}) {
     reply: summarizeRead(intentWithUser.tool, result, user),
     data: result,
     explainability,
+    execution_frame: buildExecutionFrame({
+      mode: 'read',
+      tool: intentWithUser.tool,
+      summary: intentWithUser.summary || intentWithUser.tool,
+      args: intentWithUser.args || {},
+      explainability,
+    }),
   };
 }
 
@@ -1786,8 +2533,8 @@ export default withErrorHandling(async function handler(req, res) {
     const tools = Object.entries(TOOLS).map(([name, def]) => ({ name, mode: def.mode }));
     sendJson(res, 200, {
       ok: true,
-      assistant: 'phase-2.0-nla',
-      confirmation_required_for_write: true,
+      assistant: 'phase-2.3-nla',
+      confirmation_required_for_write: false,
       stream_endpoint: '/api/assistant/stream',
       tools,
     }, 10);

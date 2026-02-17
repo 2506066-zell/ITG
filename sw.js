@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cf-v25';
+const CACHE_NAME = 'cf-v26';
 const ASSETS = [
   '/',
   '/login',
@@ -156,7 +156,21 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification && event.notification.data && event.notification.data.url) || '/';
+  const baseUrl = (event.notification && event.notification.data && event.notification.data.url) || '/';
+  const action = (event.action || '').trim();
+  let targetUrl = baseUrl;
+
+  if (action === 'open-chat') targetUrl = '/chat';
+  if (action === 'open-replan') targetUrl = '/schedule?replan=1';
+  if (action === 'open-schedule') targetUrl = '/schedule';
+  if (action === 'complete-task') targetUrl = '/daily-tasks?filter=urgent';
+  if (action === 'snooze') targetUrl = '/';
+
+  try {
+    const u = new URL(targetUrl, self.location.origin);
+    if (action) u.searchParams.set('notif_action', action);
+    targetUrl = `${u.pathname}${u.search}${u.hash}`;
+  } catch {}
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

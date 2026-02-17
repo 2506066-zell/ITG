@@ -65,7 +65,7 @@ function proactiveExplainability(item) {
   const eventType = String(item?.event_type || '');
   const payload = normalizeExplainability(item?.payload) || {};
 
-  if (eventType === 'urgent_radar') {
+  if (eventType === 'urgent_radar' || eventType.startsWith('urgent_radar_')) {
     const minutesLeft = Number(payload.minutes_left);
     return {
       why: [Number.isFinite(minutesLeft) ? `Deadline tinggal ${minutesLeft} menit.` : 'Deadline item sangat dekat.'],
@@ -73,6 +73,19 @@ function proactiveExplainability(item) {
       risk: Number.isFinite(minutesLeft) && minutesLeft <= 0
         ? 'Item sudah overdue.'
         : 'Jika ditunda, risiko telat meningkat signifikan.',
+    };
+  }
+
+  if (eventType.startsWith('predictive_risk_')) {
+    const riskBand = String(payload.risk_band || '').toLowerCase() || eventType.replace('predictive_risk_', '');
+    const riskScore = Number(payload.risk_score || 0);
+    const hoursLeft = Number(payload.hours_left || 0);
+    return {
+      why: [riskScore > 0 ? `Model prediktif memberi skor ${riskScore} (${riskBand}).` : `Item terdeteksi berisiko ${riskBand}.`],
+      impact: 'Kamu bisa replan lebih awal sebelum masuk zona urgent.',
+      risk: Number.isFinite(hoursLeft) && hoursLeft > 0
+        ? `Tanpa eksekusi dini, item ini bisa jadi kritis dalam ~${Math.max(1, Math.round(hoursLeft))} jam.`
+        : 'Risiko deadline meningkat jika ditunda.',
     };
   }
 
@@ -92,6 +105,15 @@ function proactiveExplainability(item) {
       why: [gap > 0 ? `Sudah sekitar ${Math.floor(gap)} jam tanpa check-in.` : 'Ritme check-in menurun.'],
       impact: 'Sync singkat membantu distribusi beban couple lebih seimbang.',
       risk: 'Miskomunikasi dapat menaikkan friksi dan menurunkan produktivitas.',
+    };
+  }
+
+  if (eventType === 'predictive_support_ping') {
+    const target = String(payload.target || 'partner');
+    return {
+      why: [`Sistem mendeteksi ${target} butuh support untuk item berisiko tinggi.`],
+      impact: 'Intervensi lebih awal membantu mencegah eskalasi ke overdue.',
+      risk: 'Tanpa support/check-in, risiko miss deadline meningkat.',
     };
   }
 
@@ -233,13 +255,30 @@ function buildProactiveEvidenceChips(item) {
   const eventType = String(item?.event_type || '');
   const payload = normalizeExplainability(item?.payload) || {};
 
-  if (eventType === 'urgent_radar') {
+  if (eventType === 'urgent_radar' || eventType.startsWith('urgent_radar_')) {
     const minutesLeft = Number(payload.minutes_left);
     if (Number.isFinite(minutesLeft)) {
       chips.push({
         label: minutesLeft <= 0 ? 'Overdue' : `Due ${minutesLeft}m`,
         tone: minutesLeft <= 0 ? 'critical' : 'warning',
         command: payload.source === 'assignment' ? 'assignment pending saya apa' : 'task urgent saya apa',
+      });
+    }
+  }
+
+  if (eventType.startsWith('predictive_risk_')) {
+    const band = String(payload.risk_band || '').toLowerCase() || eventType.replace('predictive_risk_', '');
+    const score = Number(payload.risk_score || 0);
+    chips.push({
+      label: `Predictive ${band}`,
+      tone: band === 'critical' ? 'critical' : 'warning',
+      command: 'risk deadline 48 jam ke depan',
+    });
+    if (score > 0) {
+      chips.push({
+        label: `Score ${score}`,
+        tone: band === 'critical' ? 'critical' : 'warning',
+        command: 'risk deadline 48 jam ke depan',
       });
     }
   }
@@ -252,6 +291,10 @@ function buildProactiveEvidenceChips(item) {
   if (eventType === 'checkin_suggestion') {
     const gap = Number(payload.gap_hours || 0);
     if (gap > 0) chips.push({ label: `No Check-In ${Math.floor(gap)}h`, tone: 'warning', command: 'bantu buat pesan check-in pasangan sekarang' });
+  }
+
+  if (eventType === 'predictive_support_ping') {
+    chips.push({ label: 'Support Needed', tone: 'warning', command: 'ingatkan pasangan check-in malam ini' });
   }
 
   if (eventType === 'morning_brief') {
@@ -632,8 +675,10 @@ function buildAssistantFeedItems() {
     const eventType = (item.event_type || '').toString();
     let tag = 'Proactive';
     if (eventType === 'morning_brief') tag = 'Morning Brief';
-    if (eventType === 'urgent_radar') tag = 'Urgent Radar';
-    if (eventType === 'mood_drop_alert') tag = 'Mood Alert';
+    if (eventType === 'urgent_radar' || eventType.startsWith('urgent_radar_')) tag = 'Urgent Radar';
+    if (eventType.startsWith('predictive_risk_')) tag = 'Predictive Risk';
+    if (eventType === 'predictive_support_ping') tag = 'Support Ping';
+    if (eventType === 'mood_drop_alert' || eventType === 'mood_drop_self') tag = 'Mood Alert';
     if (eventType === 'checkin_suggestion') tag = 'Check-In';
     const base = item.body || item.title || 'New proactive update.';
     feed.push({
@@ -685,12 +730,36 @@ function buildAssistantFeedItems() {
     });
   }
 
-  const proactiveUrgent = Number(state.proactive && state.proactive.signals ? state.proactive.signals.urgent_count : 0);
+  const proactiveSignals = state.proactive && state.proactive.signals ? state.proactive.signals : {};
+  const proactiveUrgent = Number(proactiveSignals.urgent_count || 0);
+  const proactiveCritical = Number(proactiveSignals.critical_count || 0);
+  const proactiveOverdue = Number(proactiveSignals.overdue_count || 0);
+  const predictiveHigh = Number(proactiveSignals.predicted_high_count || 0);
+  const predictiveCritical = Number(proactiveSignals.predicted_critical_count || 0);
   if (proactiveUrgent > 0) {
+    const riskLabel = proactiveOverdue > 0
+      ? `${proactiveOverdue} overdue`
+      : (proactiveCritical > 0 ? `${proactiveCritical} critical` : `${proactiveUrgent} warning`);
     feed.push({
       tag: 'Radar',
-      text: `Proactive Engine mendeteksi ${proactiveUrgent} item due <2 jam. Reprioritize sekarang.`,
-      chips: [{ label: `Urgent ${proactiveUrgent}`, tone: 'critical', command: 'task urgent saya apa' }],
+      text: `Proactive Engine mendeteksi ${proactiveUrgent} item urgent (${riskLabel}). Reprioritize sekarang.`,
+      chips: [{ label: `Urgent ${proactiveUrgent}`, tone: proactiveOverdue > 0 ? 'critical' : 'warning', command: 'task urgent saya apa' }],
+      at: null,
+    });
+  }
+
+  if (predictiveHigh + predictiveCritical > 0) {
+    const riskLabel = predictiveCritical > 0
+      ? `${predictiveCritical} critical forecast`
+      : `${predictiveHigh} high forecast`;
+    feed.push({
+      tag: 'Predictive',
+      text: `Model prediktif membaca ${predictiveHigh + predictiveCritical} item berisiko dalam 72 jam (${riskLabel}).`,
+      chips: [{
+        label: `Risk ${predictiveHigh + predictiveCritical}`,
+        tone: predictiveCritical > 0 ? 'critical' : 'warning',
+        command: 'risk deadline 48 jam ke depan',
+      }],
       at: null,
     });
   }

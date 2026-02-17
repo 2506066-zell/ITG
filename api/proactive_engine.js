@@ -35,10 +35,85 @@ function partnerFor(user) {
   return null;
 }
 
-function levelByMinutes(minutesLeft) {
-  if (minutesLeft <= 0) return 'critical';
+function stageByMinutes(minutesLeft) {
+  if (minutesLeft <= 0) return 'overdue';
   if (minutesLeft <= 30) return 'critical';
   if (minutesLeft <= 90) return 'warning';
+  return 'info';
+}
+
+function levelByStage(stage) {
+  if (stage === 'overdue') return 'critical';
+  if (stage === 'critical') return 'critical';
+  if (stage === 'warning') return 'warning';
+  return 'info';
+}
+
+function actionsByUrgentStage(stage, source) {
+  const routeAction = source === 'task' ? 'Open Task' : 'Open Assignment';
+  if (stage === 'warning') {
+    return [
+      { action: 'open', title: routeAction },
+      { action: 'open-replan', title: 'Replan 30m' },
+    ];
+  }
+  if (stage === 'critical') {
+    return [
+      { action: 'open', title: routeAction },
+      { action: 'open-chat', title: 'Request Support' },
+    ];
+  }
+  if (stage === 'overdue') {
+    return [
+      { action: 'open', title: routeAction },
+      { action: 'open-chat', title: 'Check-In Now' },
+    ];
+  }
+  return [{ action: 'open', title: routeAction }];
+}
+
+function clampInt(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function hoursLeftFrom(deadline, nowUtc) {
+  if (!deadline) return null;
+  const t = new Date(deadline).getTime();
+  if (!Number.isFinite(t)) return null;
+  return (t - nowUtc.getTime()) / 3600000;
+}
+
+function predictiveRiskScore(item = {}, source = 'task', nowUtc = new Date()) {
+  const hoursLeft = hoursLeftFrom(item.deadline, nowUtc);
+  if (hoursLeft === null) {
+    return { riskScore: 24, riskBand: 'low', hoursLeft: null };
+  }
+
+  let score = 0;
+  if (hoursLeft <= 0) score += 85;
+  else if (hoursLeft <= 6) score += 70;
+  else if (hoursLeft <= 12) score += 56;
+  else if (hoursLeft <= 24) score += 42;
+  else if (hoursLeft <= 48) score += 30;
+  else score += 18;
+
+  const pr = String(item.priority || '').toLowerCase();
+  if (pr === 'high') score += 14;
+  else if (pr === 'medium') score += 6;
+  if (source === 'assignment') score += 6;
+
+  score = clampInt(Math.round(score), 0, 100);
+  let riskBand = 'low';
+  if (score >= 75) riskBand = 'critical';
+  else if (score >= 55) riskBand = 'high';
+  else if (score >= 35) riskBand = 'medium';
+
+  return { riskScore: score, riskBand, hoursLeft: Number(hoursLeft.toFixed(2)) };
+}
+
+function levelByRiskBand(riskBand) {
+  if (riskBand === 'critical') return 'critical';
+  if (riskBand === 'high') return 'warning';
   return 'info';
 }
 
@@ -317,7 +392,7 @@ async function runMorningBrief(client, users, window, notify, schema) {
 }
 
 async function runUrgentRadar(client, users, window, notify, schema) {
-  const stats = { generated: 0, pushed: 0 };
+  const stats = { generated: 0, pushed: 0, partner_ping: 0 };
   const upcomingIso = new Date(window.nowUtc.getTime() + 90 * 60000).toISOString();
   const graceIso = new Date(window.nowUtc.getTime() - 120 * 60000).toISOString();
   const hourBucket = `${window.localDate}-${pad2(window.localHour)}`;
@@ -380,20 +455,26 @@ async function runUrgentRadar(client, users, window, notify, schema) {
     const recipients = Array.isArray(row.targets) ? row.targets.filter(Boolean) : [];
     if (!recipients.length) continue;
     const minutesLeft = Math.round((new Date(row.deadline).getTime() - window.nowUtc.getTime()) / 60000);
-    const level = levelByMinutes(minutesLeft);
+    const stage = stageByMinutes(minutesLeft);
+    if (stage === 'info') continue;
+    const level = levelByStage(stage);
     const sourceLabel = row.source === 'task' ? 'Task' : 'Assignment';
-    const body =
-      minutesLeft > 0
-        ? `${sourceLabel} "${row.title}" jatuh tempo ${minutesLeft} menit lagi.`
-        : `${sourceLabel} "${row.title}" sudah overdue. Tangani sekarang.`;
+    const body = stage === 'overdue'
+      ? `${sourceLabel} "${row.title}" sudah overdue. Tangani sekarang.`
+      : stage === 'critical'
+        ? `${sourceLabel} "${row.title}" masuk critical window (${minutesLeft} menit lagi).`
+        : `${sourceLabel} "${row.title}" due ${minutesLeft} menit lagi. Mulai 1 sprint fokus sekarang.`;
+    const eventType = `urgent_radar_${stage}`;
+    const eventKey = `${row.source}-${row.id}-${stage}-${hourBucket}`;
+    const actions = actionsByUrgentStage(stage, row.source);
 
     for (const user of recipients) {
       const result = await emitEvent(
         client,
         {
           userId: user,
-          eventType: 'urgent_radar',
-          eventKey: `${row.source}-${row.id}-${hourBucket}`,
+          eventType,
+          eventKey,
           level,
           title: 'Urgent Radar',
           body,
@@ -404,14 +485,209 @@ async function runUrgentRadar(client, users, window, notify, schema) {
             item_id: row.id,
             minutes_left: minutesLeft,
             deadline: row.deadline,
+            escalation_stage: stage,
           },
-          actions: [{ action: 'open', title: 'Open' }],
+          actions,
         },
         notify
       );
 
       if (result.inserted) stats.generated++;
       if (result.pushed) stats.pushed++;
+    }
+
+    const owner = (row.owner_user || '').toString().trim();
+    const partner = partnerFor(owner);
+    if (partner && (stage === 'critical' || stage === 'overdue')) {
+      const supportBody = stage === 'overdue'
+        ? `${owner} punya ${sourceLabel} overdue: "${row.title}". Coba check-in cepat sekarang.`
+        : `${owner} punya ${sourceLabel} kritis (${Math.max(0, minutesLeft)} menit lagi): "${row.title}". Bantu check-in 2 menit.`;
+      const supportRes = await emitEvent(
+        client,
+        {
+          userId: partner,
+          eventType: 'urgent_support_ping',
+          eventKey: `${row.source}-${row.id}-${stage}-${hourBucket}`,
+          level: stage === 'overdue' ? 'critical' : 'warning',
+          title: 'Couple Support Ping',
+          body: supportBody,
+          url: '/chat',
+          localDate: window.localDate,
+          payload: {
+            source: row.source,
+            item_id: row.id,
+            target: owner,
+            escalation_stage: stage,
+            minutes_left: minutesLeft,
+          },
+          actions: [
+            { action: 'open-chat', title: 'Open Chat' },
+            { action: 'open', title: sourceLabel === 'Task' ? 'Open Task' : 'Open Assignment' },
+          ],
+        },
+        notify
+      );
+      if (supportRes.inserted) {
+        stats.generated++;
+        stats.partner_ping++;
+      }
+      if (supportRes.pushed) stats.pushed++;
+    }
+  }
+
+  return stats;
+}
+
+async function runPredictiveRiskRadar(client, users, window, notify, schema) {
+  const stats = { generated: 0, pushed: 0, high: 0, critical: 0, partner_ping: 0 };
+  const targetUsers = Array.isArray(users) && users.length ? users : COUPLE_USERS;
+  const nearIso = new Date(window.nowUtc.getTime() + 90 * 60000).toISOString();
+  const horizonIso = new Date(window.nowUtc.getTime() + 72 * 3600000).toISOString();
+  const taskOwnerColumn = schema.tasksAssignedTo ? 'assigned_to' : schema.tasksCreatedBy ? 'created_by' : null;
+  const maxPerUser = 2;
+  const sentPerUser = new Map();
+
+  const taskQuery = taskOwnerColumn
+    ? client.query(
+      `SELECT id, title, deadline, priority, ${taskOwnerColumn} AS owner_user
+       FROM tasks
+       WHERE is_deleted = FALSE
+         AND completed = FALSE
+         AND ${taskOwnerColumn} IS NOT NULL
+         AND deadline IS NOT NULL
+         AND deadline > $1
+         AND deadline <= $2`,
+      [nearIso, horizonIso]
+    )
+    : Promise.resolve({ rows: [] });
+
+  const assignmentQuery = schema.assignmentsAssignedTo
+    ? client.query(
+      `SELECT id, title, deadline, assigned_to AS owner_user
+       FROM assignments
+       WHERE completed = FALSE
+         AND assigned_to IS NOT NULL
+         AND deadline IS NOT NULL
+         AND deadline > $1
+         AND deadline <= $2`,
+      [nearIso, horizonIso]
+    )
+    : client.query(
+      `SELECT id, title, deadline
+       FROM assignments
+       WHERE completed = FALSE
+         AND deadline IS NOT NULL
+         AND deadline > $1
+         AND deadline <= $2`,
+      [nearIso, horizonIso]
+    );
+
+  const [tasksRes, assignmentsRes] = await Promise.all([taskQuery, assignmentQuery]);
+
+  const rows = [
+    ...tasksRes.rows.map((x) => ({
+      ...x,
+      source: 'task',
+      url: '/daily-tasks',
+      targets: x.owner_user ? [x.owner_user] : [],
+    })),
+    ...assignmentsRes.rows.map((x) => ({
+      ...x,
+      source: 'assignment',
+      url: '/college-assignments',
+      targets: x.owner_user ? [x.owner_user] : targetUsers,
+      priority: x.priority || 'medium',
+    })),
+  ]
+    .map((row) => {
+      const risk = predictiveRiskScore(row, row.source, window.nowUtc);
+      return { ...row, ...risk };
+    })
+    .filter((row) => row.riskBand === 'high' || row.riskBand === 'critical')
+    .sort((a, b) => Number(b.riskScore || 0) - Number(a.riskScore || 0));
+
+  for (const row of rows) {
+    const sourceLabel = row.source === 'task' ? 'Task' : 'Assignment';
+    const recipients = Array.isArray(row.targets) ? row.targets.filter(Boolean) : [];
+    if (!recipients.length) continue;
+
+    for (const user of recipients) {
+      const currentSent = Number(sentPerUser.get(user) || 0);
+      if (currentSent >= maxPerUser) continue;
+
+      const hoursLabel = row.hoursLeft !== null ? `${Math.max(1, Math.round(row.hoursLeft))} jam` : 'horizon aktif';
+      const body = `${sourceLabel} "${row.title}" berisiko ${row.riskBand} (score ${row.riskScore}) dalam ${hoursLabel}.`;
+
+      const result = await emitEvent(
+        client,
+        {
+          userId: user,
+          eventType: `predictive_risk_${row.riskBand}`,
+          eventKey: `${row.source}-${row.id}-${row.riskBand}`,
+          level: levelByRiskBand(row.riskBand),
+          title: 'Predictive Risk',
+          body,
+          url: row.url,
+          localDate: window.localDate,
+          payload: {
+            source: row.source,
+            item_id: row.id,
+            risk_band: row.riskBand,
+            risk_score: row.riskScore,
+            hours_left: row.hoursLeft,
+            deadline: row.deadline,
+          },
+          actions: [
+            { action: 'open', title: sourceLabel === 'task' ? 'Open Task' : 'Open Assignment' },
+            { action: 'open-replan', title: 'Replan' },
+          ],
+        },
+        notify
+      );
+
+      if (result.inserted) {
+        stats.generated++;
+        sentPerUser.set(user, currentSent + 1);
+        if (row.riskBand === 'critical') stats.critical++;
+        else stats.high++;
+      }
+      if (result.pushed) stats.pushed++;
+    }
+
+    const owner = (row.owner_user || '').toString().trim();
+    const partner = partnerFor(owner);
+    if (partner && row.riskBand === 'critical') {
+      const supportRes = await emitEvent(
+        client,
+        {
+          userId: partner,
+          eventType: 'predictive_support_ping',
+          eventKey: `${row.source}-${row.id}-critical`,
+          level: 'warning',
+          title: 'Predictive Support',
+          body: `${owner} punya ${sourceLabel} berisiko critical: "${row.title}". Bantu sinkron cepat malam ini.`,
+          url: '/chat',
+          localDate: window.localDate,
+          payload: {
+            source: row.source,
+            item_id: row.id,
+            target: owner,
+            risk_band: row.riskBand,
+            risk_score: row.riskScore,
+            hours_left: row.hoursLeft,
+          },
+          actions: [
+            { action: 'open-chat', title: 'Open Chat' },
+            { action: 'open', title: sourceLabel === 'task' ? 'Open Task' : 'Open Assignment' },
+          ],
+        },
+        notify
+      );
+      if (supportRes.inserted) {
+        stats.generated++;
+        stats.partner_ping++;
+      }
+      if (supportRes.pushed) stats.pushed++;
     }
   }
 
@@ -580,6 +856,7 @@ export async function runProactiveEngine({ now = new Date(), notify = true } = {
 
     const morning = await runMorningBrief(client, targets, window, notify, schema);
     const urgent = await runUrgentRadar(client, targets, window, notify, schema);
+    const predictive = await runPredictiveRiskRadar(client, targets, window, notify, schema);
     const mood = await runMoodDropAlerts(client, targets, window, notify);
     const checkin = await runCheckinSuggestion(client, window, notify, schema);
 
@@ -594,6 +871,7 @@ export async function runProactiveEngine({ now = new Date(), notify = true } = {
       stats: {
         morning_brief: morning,
         urgent_radar: urgent,
+        predictive_risk: predictive,
         mood_drop: mood,
         checkin: checkin,
       },
@@ -619,24 +897,100 @@ export async function getProactiveFeedForUser(user, limit = 20) {
     );
 
     const now = new Date();
-    const soonIso = new Date(now.getTime() + 2 * 3600000).toISOString();
+    const nowIso = now.toISOString();
+    const warningIso = new Date(now.getTime() + 90 * 60000).toISOString();
+    const criticalIso = new Date(now.getTime() + 30 * 60000).toISOString();
+    const predictiveNearIso = warningIso;
+    const predictiveHorizonIso = new Date(now.getTime() + 72 * 3600000).toISOString();
+
     const taskOwner = buildTaskOwnershipClause(schema, user, 1);
-    const deadlineParam = `$${taskOwner.nextParam}`;
-    const urgentRes = await client.query(
-      `SELECT COUNT(*)::int AS cnt
+    const taskNowParam = `$${taskOwner.nextParam}`;
+    const taskWarningParam = `$${taskOwner.nextParam + 1}`;
+    const taskCriticalParam = `$${taskOwner.nextParam + 2}`;
+    const taskSignalPromise = client.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline <= ${taskNowParam})::int AS overdue_cnt,
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > ${taskNowParam} AND deadline <= ${taskCriticalParam})::int AS critical_cnt,
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > ${taskCriticalParam} AND deadline <= ${taskWarningParam})::int AS warning_cnt
+       FROM tasks
+       WHERE is_deleted = FALSE
+         AND completed = FALSE
+         AND ${taskOwner.clause}`,
+      [...taskOwner.params, nowIso, warningIso, criticalIso]
+    );
+
+    const assignmentOwner = buildAssignmentOwnershipClause(schema, user, 1);
+    const asgNowParam = `$${assignmentOwner.nextParam}`;
+    const asgWarningParam = `$${assignmentOwner.nextParam + 1}`;
+    const asgCriticalParam = `$${assignmentOwner.nextParam + 2}`;
+    const assignmentSignalPromise = client.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline <= ${asgNowParam})::int AS overdue_cnt,
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > ${asgNowParam} AND deadline <= ${asgCriticalParam})::int AS critical_cnt,
+         COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > ${asgCriticalParam} AND deadline <= ${asgWarningParam})::int AS warning_cnt
+       FROM assignments
+       WHERE completed = FALSE
+         AND ${assignmentOwner.clause}`,
+      [...assignmentOwner.params, nowIso, warningIso, criticalIso]
+    );
+
+    const taskPredictNearParam = `$${taskOwner.nextParam}`;
+    const taskPredictHorizonParam = `$${taskOwner.nextParam + 1}`;
+    const taskPredictRiskPromise = client.query(
+      `SELECT id, title, deadline, priority
        FROM tasks
        WHERE is_deleted = FALSE
          AND completed = FALSE
          AND ${taskOwner.clause}
          AND deadline IS NOT NULL
-         AND deadline <= ${deadlineParam}`,
-      [...taskOwner.params, soonIso]
+         AND deadline > ${taskPredictNearParam}
+         AND deadline <= ${taskPredictHorizonParam}
+       ORDER BY deadline ASC
+       LIMIT 40`,
+      [...taskOwner.params, predictiveNearIso, predictiveHorizonIso]
     );
+
+    const asgPredictNearParam = `$${assignmentOwner.nextParam}`;
+    const asgPredictHorizonParam = `$${assignmentOwner.nextParam + 1}`;
+    const assignmentPredictRiskPromise = client.query(
+      `SELECT id, title, deadline
+       FROM assignments
+       WHERE completed = FALSE
+         AND ${assignmentOwner.clause}
+         AND deadline IS NOT NULL
+         AND deadline > ${asgPredictNearParam}
+         AND deadline <= ${asgPredictHorizonParam}
+       ORDER BY deadline ASC
+       LIMIT 40`,
+      [...assignmentOwner.params, predictiveNearIso, predictiveHorizonIso]
+    );
+
+    const [taskSignals, assignmentSignals, taskPredictRisk, assignmentPredictRisk] = await Promise.all([
+      taskSignalPromise,
+      assignmentSignalPromise,
+      taskPredictRiskPromise,
+      assignmentPredictRiskPromise,
+    ]);
+    const taskRow = taskSignals.rows[0] || {};
+    const assignmentRow = assignmentSignals.rows[0] || {};
+    const overdueCount = Number(taskRow.overdue_cnt || 0) + Number(assignmentRow.overdue_cnt || 0);
+    const criticalCount = Number(taskRow.critical_cnt || 0) + Number(assignmentRow.critical_cnt || 0);
+    const warningCount = Number(taskRow.warning_cnt || 0) + Number(assignmentRow.warning_cnt || 0);
+    const taskRiskItems = taskPredictRisk.rows.map((item) => predictiveRiskScore(item, 'task', now));
+    const assignmentRiskItems = assignmentPredictRisk.rows.map((item) => predictiveRiskScore(item, 'assignment', now));
+    const predictiveCriticalCount = [...taskRiskItems, ...assignmentRiskItems].filter((x) => x.riskBand === 'critical').length;
+    const predictiveHighCount = [...taskRiskItems, ...assignmentRiskItems].filter((x) => x.riskBand === 'high').length;
 
     return {
       items: r.rows,
       signals: {
-        urgent_count: Number(urgentRes.rows[0]?.cnt || 0),
+        urgent_count: overdueCount + criticalCount + warningCount,
+        warning_count: warningCount,
+        critical_count: criticalCount,
+        overdue_count: overdueCount,
+        predicted_high_count: predictiveHighCount,
+        predicted_critical_count: predictiveCriticalCount,
+        predicted_total_count: predictiveHighCount + predictiveCriticalCount,
       },
       generated_at: now.toISOString(),
     };

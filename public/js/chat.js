@@ -10,8 +10,13 @@ let assistantAlwaysOn = false;
 const ASSISTANT_ALWAYS_ON_KEY = 'assistant_always_on_v1';
 
 const BASE_COMMAND_SUGGESTIONS = [
+  { label: 'Buat Daily Task', command: 'buat task belajar basis data deadline besok 19:00 priority high' },
+  { label: 'Buat Tugas Kuliah', command: 'buat assignment laporan jaringan deadline besok 21:00' },
+  { label: 'Risk Deadline 48h', command: 'risk deadline 48 jam ke depan' },
+  { label: 'Memory Graph', command: 'tampilkan memory graph hari ini' },
   { label: 'Ringkasan Hari Ini', command: 'ringkasan hari ini' },
   { label: 'Urgent Radar', command: 'task urgent saya hari ini apa', tone: 'urgent' },
+  { label: 'Couple Pulse', command: 'lihat couple pulse hari ini' },
   { label: 'Memory Snapshot', command: 'tampilkan memory hari ini' },
   { label: 'Study Plan Besok', command: 'jadwal belajar besok pagi' },
   { label: 'Assignment Pending', command: 'assignment pending' },
@@ -116,7 +121,19 @@ function formatAssistantReply(payload) {
   if (payload.reply) lines.push(payload.reply);
 
   if (payload.mode === 'confirmation_required') {
-    lines.push('Ketik /confirm untuk menjalankan aksi write.');
+    lines.push('Konfirmasi write tidak wajib pada mode terbaru.');
+  }
+
+  if (payload.mode === 'clarification_required') {
+    const clarifications = Array.isArray(payload.clarifications) ? payload.clarifications : [];
+    if (clarifications.length) {
+      const q = clarifications.slice(0, 4).map((item, idx) => {
+        const question = item && item.question ? item.question : '';
+        const example = item && item.example ? ` (contoh: ${item.example})` : '';
+        return `${idx + 1}. ${question}${example}`;
+      });
+      lines.push(q.join('\n'));
+    }
   }
 
   const items = payload.data && Array.isArray(payload.data.items) ? payload.data.items : [];
@@ -139,6 +156,17 @@ function formatAssistantReply(payload) {
     if (explain.risk) lines.push(`Risiko: ${explain.risk}`);
     if (explain.recommended_action) lines.push(`Saran: ${explain.recommended_action}`);
     if (explain.confidence) lines.push(`Confidence: ${explain.confidence}`);
+  }
+
+  const frame = payload && payload.execution_frame && typeof payload.execution_frame === 'object'
+    ? payload.execution_frame
+    : null;
+  if (frame && frame.planner && Array.isArray(frame.planner.steps) && frame.planner.steps.length) {
+    lines.push(`Plan: ${frame.planner.steps.join(' -> ')}`);
+  }
+  if (frame && frame.critic) {
+    if (frame.critic.quality) lines.push(`Critic: ${String(frame.critic.quality).toUpperCase()}`);
+    if (frame.critic.next_best_action) lines.push(`Next: ${frame.critic.next_best_action}`);
   }
 
   return lines.join('\n');
@@ -195,6 +223,7 @@ function extractAssistantEvidenceChips(payload) {
   const data = payload?.data || {};
 
   if (mode === 'confirmation_required') chips.push({ label: 'Needs Confirm', tone: 'warning', command: '/confirm' });
+  if (mode === 'clarification_required') chips.push({ label: 'Need Details', tone: 'warning', command: 'buat task review basis data deadline besok 19:00 priority high' });
   if (mode === 'write_executed') chips.push({ label: 'Write Executed', tone: 'success', command: 'ringkasan hari ini' });
 
   const toolCallsCount = Array.isArray(payload?.tool_calls) ? payload.tool_calls.length : 0;
@@ -238,6 +267,31 @@ function extractAssistantEvidenceChips(payload) {
     const criticalSessions = Number(summary.critical_sessions || 0);
     if (sessions > 0) chips.push({ label: `${sessions} Sessions`, tone: 'info', command: 'jadwal belajar besok pagi' });
     if (criticalSessions > 0) chips.push({ label: `${criticalSessions} Critical`, tone: 'warning', command: 'geser sesi belajar ke besok pagi' });
+  }
+
+  if (tool === 'get_deadline_risk') {
+    const summary = data.summary || {};
+    const critical = Number(summary.critical || 0);
+    const high = Number(summary.high || 0);
+    if (critical > 0) chips.push({ label: `Critical ${critical}`, tone: 'critical', command: 'task urgent saya apa' });
+    if (high > 0) chips.push({ label: `High ${high}`, tone: 'warning', command: 'risk deadline 48 jam ke depan' });
+  }
+
+  if (tool === 'get_memory_graph') {
+    const nodes = Array.isArray(data.nodes) ? data.nodes.length : 0;
+    const edges = Array.isArray(data.edges) ? data.edges.length : 0;
+    chips.push({ label: `Graph ${nodes}/${edges}`, tone: 'info', command: 'tampilkan memory graph hari ini' });
+  }
+
+  if (tool === 'get_couple_coordination') {
+    const me = data.me || {};
+    const partner = data.partner || {};
+    const reco = data.recommendation || {};
+    if (Number.isFinite(Number(reco.balance_score))) {
+      chips.push({ label: `Balance ${Number(reco.balance_score)}`, tone: 'info', command: 'lihat couple pulse hari ini' });
+    }
+    chips.push({ label: `${me.user || 'Me'} ${Number(me.load_index || 0)}`, tone: 'warning', command: 'task pending saya apa' });
+    chips.push({ label: `${partner.user || 'Partner'} ${Number(partner.load_index || 0)}`, tone: 'info', command: 'ingatkan pasangan check-in malam ini' });
   }
 
   if (explain && explain.confidence) {
@@ -402,8 +456,15 @@ function contextualCommandSuggestions(payload) {
   const data = payload?.data || {};
   const mode = payload?.mode || '';
 
-  if (mode === 'confirmation_required' || pendingConfirmationToken) {
-    suggestions.push({ label: 'Konfirmasi Aksi', command: '/confirm', tone: 'confirm' });
+  if (mode === 'clarification_required') {
+    const quick = Array.isArray(payload?.suggested_commands) ? payload.suggested_commands : [];
+    quick.slice(0, 4).forEach((cmd) => {
+      if (!cmd) return;
+      const clean = String(cmd).trim();
+      if (!clean) return;
+      const label = clean.replace(/^\/ai\s+/i, '').slice(0, 40) || clean;
+      suggestions.push({ label, command: clean, tone: 'urgent' });
+    });
   }
 
   if (tool === 'get_tasks' && Array.isArray(data.items) && data.items.length) {
@@ -431,6 +492,21 @@ function contextualCommandSuggestions(payload) {
     suggestions.push({ label: 'Check Assignment', command: 'assignment pending saya apa' });
   }
 
+  if (tool === 'get_deadline_risk') {
+    suggestions.push({ label: 'Lihat Risk 24h', command: 'risk deadline 24 jam ke depan', tone: 'urgent' });
+    suggestions.push({ label: 'Lihat Task Urgent', command: 'task urgent saya apa', tone: 'urgent' });
+  }
+
+  if (tool === 'get_memory_graph') {
+    suggestions.push({ label: 'Refresh Memory Graph', command: 'tampilkan memory graph hari ini' });
+    suggestions.push({ label: 'Lihat Memory Snapshot', command: 'tampilkan memory hari ini' });
+  }
+
+  if (tool === 'get_couple_coordination') {
+    suggestions.push({ label: 'Nudge Check-In', command: 'ingatkan pasangan check-in malam ini' });
+    suggestions.push({ label: 'Refresh Couple Pulse', command: 'lihat couple pulse hari ini' });
+  }
+
   if (mode === 'write_executed') {
     suggestions.push({ label: 'Refresh Ringkasan', command: 'ringkasan hari ini' });
   }
@@ -443,7 +519,7 @@ function buildCommandSuggestions(payload) {
     ...contextualCommandSuggestions(payload),
     ...BASE_COMMAND_SUGGESTIONS,
   ]);
-  return merged.slice(0, 7);
+  return merged.slice(0, 9);
 }
 
 async function executeSuggestedCommand(command = '') {
@@ -452,7 +528,8 @@ async function executeSuggestedCommand(command = '') {
   const input = document.querySelector('#chat-input');
   if (!input) return;
 
-  const asTyped = normalized === '/confirm' ? normalized : `/ai ${normalized}`;
+  const isAssistantCommand = /^\/(?:ai|confirm)\b/i.test(normalized) || /^@assistant\b/i.test(normalized);
+  const asTyped = isAssistantCommand ? normalized : `/ai ${normalized}`;
   input.value = asTyped;
   input.focus();
   await runAssistant(asTyped);
@@ -495,21 +572,8 @@ async function runAssistant(promptOrCommand) {
 
   try {
     if (/^\/confirm$/i.test(trimmed)) {
-      if (!pendingConfirmationToken) {
-        appendLocalSystemMessage('Assistant', 'Tidak ada aksi yang menunggu konfirmasi.');
-        renderCommandSuggestions(lastAssistantPayload);
-        return;
-      }
-      const result = await post('/assistant', {
-        confirm: true,
-        confirmation_token: pendingConfirmationToken,
-      });
-      pendingConfirmationToken = result.confirmation_token;
-      if (!result.confirmation_token) pendingConfirmationToken = '';
-      lastAssistantPayload = result;
-      const confirmEl = appendLocalSystemMessage('Assistant', formatAssistantReply(result));
-      renderAssistantEvidenceChips(confirmEl, result);
-      renderCommandSuggestions(result);
+      appendLocalSystemMessage('Assistant', 'Mode terbaru tidak butuh /confirm. Tulis langsung perintahnya.');
+      renderCommandSuggestions(lastAssistantPayload);
       return;
     }
 
