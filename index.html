@@ -20,7 +20,7 @@
 </head>
 
 <body class="dashboard-page">
-  
+
 
   <nav class="navbar">
     <div class="brand">
@@ -33,7 +33,9 @@
   </nav>
 
   <main class="container">
-    <h1 style="font-family: var(--font-head); font-size: clamp(2.8rem, 8vw, 5.6rem); text-align:center; letter-spacing: 0.06em; margin: 10px 0 0; color: var(--text);">I LOVE U</h1>
+    <h1
+      style="font-family: var(--font-head); font-size: clamp(2.8rem, 8vw, 5.6rem); text-align:center; letter-spacing: 0.06em; margin: 10px 0 0; color: var(--text);">
+      I LOVE U</h1>
 
     <!-- 🚀 HERO DASHBOARD: GROW TOGETHER -->
     <section class="hero-section">
@@ -176,6 +178,31 @@
     </footer>
   </main>
 
+  <!-- MOBILE BOTTOM NAVIGATION -->
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item active">
+      <i class="fa-solid fa-house"></i>
+      <span>Home</span>
+    </a>
+    <a href="/daily-tasks" class="nav-item">
+      <i class="fa-solid fa-list-check"></i>
+      <span>Tasks</span>
+    </a>
+    <a href="/goals" class="nav-item">
+      <i class="fa-solid fa-bullseye"></i>
+      <span>Goals</span>
+    </a>
+    <a href="/chat" class="nav-item">
+      <i class="fa-solid fa-message-heart"></i>
+      <span>Chat</span>
+    </a>
+    <a href="/menu" class="nav-item"
+      onclick="event.preventDefault(); document.querySelector('.modules-grid').scrollIntoView({behavior: 'smooth'})">
+      <i class="fa-solid fa-grid-2"></i>
+      <span>Menu</span>
+    </a>
+  </nav>
+
   <script type="module">
     import { initProtected } from './js/main.js';
     import { get } from './js/api.js';
@@ -262,7 +289,7 @@
       }
     });
 
-    
+
   </script>
 </body>
 

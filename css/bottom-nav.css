@@ -1,0 +1,85 @@
+/* BOTTOM NAVIGATION BAR (Mobile Only) */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 64px;
+    background: rgba(19, 22, 32, 0.85);
+    /* fallback */
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-top: 1px solid var(--glass-border);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: var(--z-nav);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: hsl(var(--text-secondary));
+    font-family: var(--font-body);
+    font-size: 0.7rem;
+    gap: 4px;
+    width: 100%;
+    height: 100%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.nav-item i {
+    font-size: 1.25rem;
+    color: hsl(var(--text-secondary));
+    transition: all 0.2s ease;
+    filter: drop-shadow(0 2px 4px transparent);
+}
+
+/* Active State */
+.nav-item.active {
+    color: hsl(var(--brand-cyan));
+}
+
+.nav-item.active i {
+    color: hsl(var(--brand-cyan));
+    transform: translateY(-2px);
+    filter: drop-shadow(0 0 8px hsla(var(--brand-cyan), 0.5));
+}
+
+.nav-item.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0px;
+    width: 4px;
+    height: 4px;
+    background: hsl(var(--brand-cyan));
+    border-radius: 50%;
+    box-shadow: 0 0 6px hsl(var(--brand-cyan));
+}
+
+/* Ripple/Touch Feedback */
+.nav-item:active {
+    transform: scale(0.92);
+}
+
+/* HIDE ON DESKTOP */
+@media (min-width: 769px) {
+    .bottom-nav {
+        display: none;
+    }
+}
+
+/* HIDE TOP NAV ON MOBILE */
+@media (max-width: 768px) {
+    .navbar {
+        display: none;
+        /* We will use the top context bar instead later */
+    }
+}

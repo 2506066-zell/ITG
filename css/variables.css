@@ -1,0 +1,112 @@
+/* 
+  COSMIC FLOW - DESIGN TOKENS
+  v2.0 Mobile-First Redesign
+*/
+
+:root {
+    /* 🎨 COLOR SYSTEM (Neuroscience-Based) */
+
+    /* SURFACES - Deep Void (Not Black) to reduce eye strain */
+    --surface-void: 230 25% 5%;
+    /* #0A0D11 - Main Background */
+    --surface-glass: 230 25% 10%;
+    /* #131620 - Cards/Panels */
+    --surface-raised: 230 25% 16%;
+    /* #1F2230 - Modals/Dropdowns */
+
+    /* ACCENTS - Used sparingly for focus */
+    --brand-cyan: 190 100% 50%;
+    /* #00F2FF - Primary Action / Success */
+    --brand-violet: 270 80% 65%;
+    /* #A85FFF - Creativity / Secondary */
+    --brand-rose: 330 90% 60%;
+    /* #F73D85 - Urgent / Love / Error */
+
+    /* TEXT - WCAG AAA Compliant */
+    --text-primary: 230 10% 95%;
+    /* #F0F1F5 - Main Content */
+    --text-secondary: 230 15% 70%;
+    /* #A6AAC2 - Metadata */
+    --text-tertiary: 230 20% 50%;
+    /* #666C8A - Disabled/Placeholder */
+
+    /* BORDERS & SEPARATORS */
+    --line-dim: 230 20% 50%;
+    /* Use with opacity 0.2 */
+    --line-light: 230 20% 70%;
+    /* Use with opacity 0.3 */
+
+    /* 💎 GLASSMORPHISM TOKENS */
+    --glass-bg: hsla(var(--surface-glass), 0.6);
+    --glass-border: hsla(var(--text-primary), 0.08);
+    /* Minimal border */
+    --glass-blur: 20px;
+    --glass-shadow: 0 8px 32px 0 hsla(230, 40%, 2%, 0.5);
+    /* Deep shadow */
+
+    /* 🖋️ TYPOGRAPHY */
+    --font-display: 'Space Grotesk', system-ui, sans-serif;
+    /* Headings */
+    --font-body: 'Inter', system-ui, sans-serif;
+    /* Reading */
+    --font-mono: 'Space Mono', monospace;
+    /* Data/Code */
+
+    /* TYPE SCALE (Mobile Base) */
+    --text-xs: 0.75rem;
+    /* 12px */
+    --text-sm: 0.875rem;
+    /* 14px */
+    --text-base: 1rem;
+    /* 16px */
+    --text-lg: 1.125rem;
+    /* 18px */
+    --text-xl: 1.25rem;
+    /* 20px */
+    --text-2xl: 1.5rem;
+    /* 24px */
+    --text-3xl: 2rem;
+    /* 32px */
+
+    /* 📐 SPACING & LAYOUT */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
+
+    /* Touch Targets */
+    --touch-target: 44px;
+    /* Minimum interactable size */
+
+    /* Z-INDEX LAYERS */
+    --z-back: -1;
+    --z-normal: 1;
+    --z-nav: 100;
+    --z-modal: 200;
+    --z-toast: 300;
+}
+
+/* 🌗 DARK MODE (Default) - Refined */
+@media (prefers-color-scheme: dark) {
+    :root {
+        /* Adjustments for deeper contrast if needed */
+    }
+}
+
+/* ☀️ LIGHT MODE - Optional/Future Proof */
+:root[data-theme="light"] {
+    --surface-void: 230 20% 98%;
+    /* #F9FAFB */
+    --surface-glass: 230 20% 100%;
+    /* #FFFFFF */
+    --surface-raised: 230 20% 95%;
+    /* #F2F4F7 */
+
+    --text-primary: 230 25% 10%;
+    /* #131620 */
+    --text-secondary: 230 20% 40%;
+    /* #525875 */
+
+    --glass-border: hsla(230, 25%, 10%, 0.08);
+    --glass-shadow: 0 4px 20px 0 hsla(230, 20%, 80%, 0.4);
+}
