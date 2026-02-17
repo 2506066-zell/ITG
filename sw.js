@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cf-v22';
+const CACHE_NAME = 'cf-v25';
 const ASSETS = [
   '/',
   '/login',

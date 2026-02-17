@@ -5,6 +5,9 @@ let pollingInterval;
 let pendingConfirmationToken = '';
 let assistantBusy = false;
 let lastAssistantPayload = null;
+let assistantAlwaysOn = false;
+
+const ASSISTANT_ALWAYS_ON_KEY = 'assistant_always_on_v1';
 
 const BASE_COMMAND_SUGGESTIONS = [
   { label: 'Ringkasan Hari Ini', command: 'ringkasan hari ini' },
@@ -14,6 +17,69 @@ const BASE_COMMAND_SUGGESTIONS = [
   { label: 'Assignment Pending', command: 'assignment pending' },
   { label: 'Bundle Cepat', command: 'buat task review materi deadline besok 19:00 lalu atur target belajar 180 menit' },
 ];
+
+function normalizeAssistantInput(raw = '') {
+  return String(raw || '')
+    .replace(/\uFF0F/g, '/') // fullwidth slash -> slash
+    .replace(/\u200B/g, '') // zero-width space
+    .trim();
+}
+
+function parseAssistantCommand(raw = '') {
+  const normalized = normalizeAssistantInput(raw);
+  if (!normalized) return null;
+
+  if (/^\/confirm$/i.test(normalized)) {
+    return '/confirm';
+  }
+
+  if (/^\/ai\b/i.test(normalized)) {
+    const prompt = normalized.replace(/^\/ai\b/i, '').trim();
+    return prompt ? `/ai ${prompt}` : '/ai';
+  }
+
+  if (/^@assistant\b/i.test(normalized)) {
+    const prompt = normalized.replace(/^@assistant\b/i, '').trim();
+    return prompt ? `@assistant ${prompt}` : '@assistant';
+  }
+
+  return null;
+}
+
+function parsePlainChatEscape(raw = '') {
+  const normalized = normalizeAssistantInput(raw);
+  if (!/^\/chat\b/i.test(normalized)) return null;
+  return normalized.replace(/^\/chat\b/i, '').trim();
+}
+
+function readAssistantAlwaysOnPreference() {
+  try {
+    return localStorage.getItem(ASSISTANT_ALWAYS_ON_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeAssistantAlwaysOnPreference(value) {
+  try {
+    localStorage.setItem(ASSISTANT_ALWAYS_ON_KEY, value ? '1' : '0');
+  } catch {}
+}
+
+function syncAssistantModeUI() {
+  const toggle = document.getElementById('assistant-always-on');
+  const input = document.getElementById('chat-input');
+  const indicator = document.getElementById('assistant-mode-indicator');
+  const indicatorText = document.getElementById('assistant-mode-indicator-text');
+  if (toggle) toggle.checked = assistantAlwaysOn;
+  if (indicator) indicator.classList.toggle('assistant-on', assistantAlwaysOn);
+  if (indicatorText) indicatorText.textContent = assistantAlwaysOn ? 'AI ON' : 'CHAT';
+  if (input) {
+    input.placeholder = assistantAlwaysOn
+      ? 'Assistant ON: ketik natural. Gunakan /chat ... untuk chat biasa'
+      : 'Type message, /ai ..., atau tap suggestion';
+  }
+}
 
 function escapeHtml(text = '') {
   return text
@@ -100,9 +166,11 @@ function confidenceTone(level = '') {
 }
 
 function normalizeAssistantCommand(raw = '') {
-  const cmd = String(raw || '').trim();
-  if (!cmd) return '';
-  return cmd === '/confirm' ? '/confirm' : `/ai ${cmd}`;
+  const parsed = parseAssistantCommand(raw);
+  if (parsed) return parsed;
+  const prompt = normalizeAssistantInput(raw);
+  if (!prompt) return '';
+  return `/ai ${prompt}`;
 }
 
 function summarizeDeadlineRisk(items = []) {
@@ -415,7 +483,7 @@ function renderCommandSuggestions(payload) {
 }
 
 async function runAssistant(promptOrCommand) {
-  const trimmed = (promptOrCommand || '').trim();
+  const trimmed = normalizeAssistantInput(promptOrCommand || '');
   if (!trimmed) return;
   let contentEl = null;
 
@@ -426,7 +494,7 @@ async function runAssistant(promptOrCommand) {
   assistantBusy = true;
 
   try {
-    if (trimmed === '/confirm') {
+    if (/^\/confirm$/i.test(trimmed)) {
       if (!pendingConfirmationToken) {
         appendLocalSystemMessage('Assistant', 'Tidak ada aksi yang menunggu konfirmasi.');
         renderCommandSuggestions(lastAssistantPayload);
@@ -445,7 +513,10 @@ async function runAssistant(promptOrCommand) {
       return;
     }
 
-    const prompt = trimmed.startsWith('/ai ') ? trimmed.slice(4).trim() : trimmed.replace(/^@assistant\s+/i, '').trim();
+    const prompt = trimmed
+      .replace(/^\/ai\b/i, '')
+      .replace(/^@assistant\b/i, '')
+      .trim();
     if (!prompt) {
       appendLocalSystemMessage('Assistant', 'Format: /ai <pertanyaan>');
       renderCommandSuggestions(lastAssistantPayload);
@@ -539,14 +610,33 @@ async function loadMessages() {
 async function send(e) {
   e.preventDefault();
   const input = document.querySelector('#chat-input');
-  const text = input.value.trim();
+  const text = normalizeAssistantInput(input.value || '');
   if (!text) return;
 
   input.disabled = true;
   try {
-    const isAssistantCommand = text.startsWith('/ai ') || text.toLowerCase().startsWith('@assistant ') || text === '/confirm';
-    if (isAssistantCommand) {
-      await runAssistant(text);
+    const assistantCommand = parseAssistantCommand(text);
+    const plainChat = parsePlainChatEscape(text);
+
+    if (assistantAlwaysOn) {
+      if (plainChat !== null) {
+        if (!plainChat) {
+          appendLocalSystemMessage('Assistant', 'Format chat biasa: /chat <pesan>');
+          return;
+        }
+        await post('/chat', { message: plainChat });
+        input.value = '';
+        loadMessages();
+        return;
+      }
+      const command = assistantCommand || normalizeAssistantCommand(text);
+      if (command) {
+        await runAssistant(command);
+        input.value = '';
+        return;
+      }
+    } else if (assistantCommand) {
+      await runAssistant(assistantCommand);
       input.value = '';
       return;
     }
@@ -577,6 +667,23 @@ function init() {
   initProtected();
   document.querySelector('#chat-form').addEventListener('submit', send);
   document.querySelector('#chat-clear').addEventListener('click', clearAll);
+  assistantAlwaysOn = readAssistantAlwaysOnPreference();
+  syncAssistantModeUI();
+
+  const alwaysOnToggle = document.getElementById('assistant-always-on');
+  if (alwaysOnToggle) {
+    alwaysOnToggle.addEventListener('change', (event) => {
+      assistantAlwaysOn = Boolean(event.target && event.target.checked);
+      writeAssistantAlwaysOnPreference(assistantAlwaysOn);
+      syncAssistantModeUI();
+      appendLocalSystemMessage(
+        'Assistant',
+        assistantAlwaysOn
+          ? 'Assistant Always On aktif. Ketik langsung untuk AI. Gunakan /chat ... untuk chat biasa.'
+          : 'Assistant Always On nonaktif. Gunakan /ai ... untuk panggil assistant.'
+      );
+    });
+  }
 
   renderCommandSuggestions(lastAssistantPayload);
   loadMessages();
