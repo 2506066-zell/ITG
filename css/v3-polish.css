@@ -95,6 +95,10 @@ html.perf-lite #solar-system-layer {
   display: none !important;
 }
 
+html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
+  animation: none !important;
+}
+
 /* Completion interactions */
 .v3-complete-burst {
   position: relative;
@@ -217,6 +221,133 @@ html.perf-lite #solar-system-layer {
   font-weight: 700;
 }
 
+.zai-floating-widget {
+  position: fixed;
+  right: 14px;
+  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  z-index: 3350;
+  display: grid;
+  gap: 10px;
+  justify-items: end;
+  pointer-events: none;
+}
+
+.zai-floating-trigger {
+  pointer-events: auto;
+  appearance: none;
+  border: 1px solid hsla(var(--nebula-core), 0.38);
+  border-radius: 999px;
+  background: linear-gradient(145deg, hsla(var(--space-900), 0.95), hsla(var(--space-700), 0.88));
+  color: hsl(var(--text-100));
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 8px;
+  box-shadow: 0 18px 32px -18px rgba(0, 0, 0, 0.9);
+}
+
+.zai-floating-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: hsla(var(--nebula-core), 0.2);
+  color: hsl(var(--nebula-core));
+  font-size: 0.95rem;
+}
+
+.zai-floating-label {
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.zai-floating-panel {
+  width: min(82vw, 320px);
+  pointer-events: auto;
+  border-radius: 16px;
+  border: 1px solid hsla(var(--nebula-core), 0.28);
+  background: linear-gradient(150deg, hsla(var(--space-900), 0.96), hsla(var(--space-800), 0.88));
+  padding: 10px 10px 12px;
+  box-shadow: 0 28px 50px -24px rgba(0, 0, 0, 0.85);
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  transition: opacity 180ms ease, transform 200ms var(--v3-ease);
+  visibility: hidden;
+}
+
+.zai-floating-panel.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  visibility: visible;
+}
+
+.zai-floating-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.zai-floating-tone {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsla(var(--nebula-core), 0.98);
+}
+
+.zai-floating-close {
+  appearance: none;
+  border: 1px solid hsla(var(--nebula-core), 0.26);
+  color: hsl(var(--text-200));
+  background: hsla(var(--space-700), 0.52);
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+}
+
+.zai-floating-message {
+  margin: 8px 0 10px;
+  font-size: 0.82rem;
+  line-height: 1.42;
+  color: hsl(var(--text-100));
+}
+
+.zai-floating-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.zai-floating-actions .btn.small {
+  padding: 8px 10px;
+}
+
+.zai-floating-widget.is-urgent .zai-floating-trigger {
+  border-color: hsla(var(--danger), 0.56);
+  animation: zaiPulseSoft 2200ms ease-in-out infinite;
+}
+
+.zai-floating-widget.is-urgent .zai-floating-icon {
+  color: hsl(var(--danger));
+  background: hsla(var(--danger), 0.18);
+}
+
+body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
+  animation: none !important;
+}
+
+@keyframes zaiPulseSoft {
+  0% { box-shadow: 0 0 0 0 hsla(var(--danger), 0.36); }
+  70% { box-shadow: 0 0 0 10px hsla(var(--danger), 0); }
+  100% { box-shadow: 0 0 0 0 hsla(var(--danger), 0); }
+}
+
 /* Mobile QA: 320-430 */
 @media (max-width: 430px) {
   .v2-page .navbar {
@@ -308,6 +439,15 @@ html.perf-lite #solar-system-layer {
   .chat-page .chat-input .btn {
     width: 40px;
     height: 40px;
+  }
+
+  .zai-floating-widget {
+    right: 10px;
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .zai-floating-panel {
+    width: min(88vw, 304px);
   }
 
   .goals-page .page-header {

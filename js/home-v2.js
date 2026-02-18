@@ -12,10 +12,20 @@ const STUDY_TARGET_KEY = 'study_plan_target_min_v1';
 const TASK_REMINDER_SNOOZE_KEY = 'cc_task_reminder_snooze_until_v1';
 const TASK_REMINDER_DISMISS_DAY_KEY = 'cc_task_reminder_dismiss_day_v1';
 const TASK_REMINDER_SNOOZE_MS = 60 * 60 * 1000;
+const DAY_LABEL_ID = {
+  1: 'Senin',
+  2: 'Selasa',
+  3: 'Rabu',
+  4: 'Kamis',
+  5: 'Jumat',
+  6: 'Sabtu',
+  7: 'Minggu',
+};
 
 const state = {
   tasks: [],
   assignments: [],
+  schedule: [],
   weekly: null,
   assistant: null,
   proactive: null,
@@ -27,6 +37,7 @@ let dashboardLoadInFlight = null;
 let dashboardPollTimer = null;
 let lastAssistantFetchAt = 0;
 let currentReminderItem = null;
+let currentZaiFloatPayload = null;
 
 function escapeHtml(value = '') {
   return String(value)
@@ -344,6 +355,7 @@ function applyDashboardSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== 'object') return false;
   state.tasks = Array.isArray(snapshot.tasks) ? snapshot.tasks : [];
   state.assignments = Array.isArray(snapshot.assignments) ? snapshot.assignments : [];
+  state.schedule = Array.isArray(snapshot.schedule) ? snapshot.schedule : [];
   state.weekly = snapshot.weekly && typeof snapshot.weekly === 'object' ? snapshot.weekly : null;
   state.proactive = snapshot.proactive && typeof snapshot.proactive === 'object' ? snapshot.proactive : null;
   state.assistant = snapshot.assistant && typeof snapshot.assistant === 'object' ? snapshot.assistant : null;
@@ -359,6 +371,7 @@ function snapshotFromState() {
   return {
     tasks: state.tasks,
     assignments: state.assignments,
+    schedule: state.schedule,
     weekly: state.weekly,
     proactive: state.proactive,
     assistant: state.assistant,
@@ -390,6 +403,26 @@ function todayDateText(date = new Date()) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function todayDayId(date = new Date()) {
+  const d = date.getDay();
+  return d === 0 ? 7 : d;
+}
+
+function asHmLabel(value = '') {
+  const m = String(value || '').match(/^(\d{2}):(\d{2})/);
+  if (!m) return '--:--';
+  return `${m[1]}:${m[2]}`;
+}
+
+function hoursLeftLabel(dueMs = Number.POSITIVE_INFINITY) {
+  if (!Number.isFinite(dueMs)) return '';
+  const diffHours = (dueMs - Date.now()) / 3600000;
+  if (diffHours <= 0) return 'sudah lewat deadline';
+  if (diffHours < 1) return 'kurang dari 1 jam lagi';
+  if (diffHours < 24) return `${Math.ceil(diffHours)} jam lagi`;
+  return `${Math.ceil(diffHours / 24)} hari lagi`;
 }
 
 function reminderSuppressedNow() {
@@ -456,6 +489,14 @@ function collectMissionItems() {
   return [...pendingTasks, ...pendingAssignments]
     .map((item) => ({ ...item, ...dueMeta(item.deadline) }))
     .sort((a, b) => a.dueMs - b.dueMs);
+}
+
+function todayClassItems() {
+  const dayId = todayDayId();
+  const rows = Array.isArray(state.schedule) ? state.schedule : [];
+  return rows
+    .filter((row) => Number(row?.day_id || 0) === dayId)
+    .sort((a, b) => String(a?.time_start || '').localeCompare(String(b?.time_start || '')));
 }
 
 function reminderCandidate(items = []) {
@@ -575,6 +616,110 @@ function renderTaskReminderBanner() {
   titleEl.textContent = `${candidate.type}: ${candidate.title || 'Untitled'}`;
   subEl.textContent = formatReminderSub(candidate);
   banner.hidden = false;
+}
+
+function buildZaIFloatingMessage() {
+  const user = localStorage.getItem('user') || 'Kamu';
+  const missionItems = collectMissionItems();
+  const urgent = reminderCandidate(missionItems);
+  const classesToday = todayClassItems();
+  const proactiveSignals = state.proactive && state.proactive.signals ? state.proactive.signals : {};
+  const overdueCount = Number(proactiveSignals.overdue_count || 0);
+  const predictiveCritical = Number(proactiveSignals.predicted_critical_count || 0);
+
+  if (urgent) {
+    const danger = urgent.badge === 'Overdue'
+      ? 'sudah melewati deadline'
+      : `deadline ${hoursLeftLabel(urgent.dueMs)}`;
+    return {
+      tone: urgent.urgency === 'critical' ? 'critical' : 'warning',
+      title: 'Z AI Reminder',
+      message: `Hai ${user}, ${urgent.type.toLowerCase()} "${urgent.title || 'Untitled'}" ${danger}. Prioritaskan sekarang ya.`,
+      primary: {
+        label: urgent.type === 'Assignment' ? 'Buka Tugas Kuliah' : 'Buka Daily Task',
+        route: reminderRouteForItem(urgent),
+      },
+      secondary: classesToday.length
+        ? { label: 'Lihat Jadwal', route: '/schedule' }
+        : { label: 'Buka Chat Z AI', route: '/chat?ai=rekomendasi%20task%20urgent%20saya' },
+      pulse: true,
+    };
+  }
+
+  if (classesToday.length > 0) {
+    const first = classesToday[0];
+    const firstStart = asHmLabel(first.time_start);
+    const firstSubject = String(first.subject || 'kuliah').trim();
+    const day = DAY_LABEL_ID[todayDayId()] || 'Hari ini';
+    return {
+      tone: 'info',
+      title: 'Z AI Campus Brief',
+      message: `Hai ${user}, ${day} ada ${classesToday.length} jadwal kuliah. Mulai ${firstStart} untuk ${firstSubject}.`,
+      primary: { label: 'Buka Jadwal', route: '/schedule' },
+      secondary: { label: 'Rencana Belajar', route: '/chat?ai=buatkan%20jadwal%20belajar%20di%20waktu%20kosong' },
+      pulse: false,
+    };
+  }
+
+  if (overdueCount > 0 || predictiveCritical > 0) {
+    const risky = Math.max(overdueCount, predictiveCritical);
+    return {
+      tone: 'warning',
+      title: 'Z AI Proactive',
+      message: `Hai ${user}, ada ${risky} item berisiko tinggi. Cek radar sekarang supaya gak mepet deadline.`,
+      primary: { label: 'Buka Urgent Radar', route: '/daily-tasks' },
+      secondary: { label: 'Analisis Risiko', route: '/chat?ai=risk%20deadline%2048%20jam%20ke%20depan' },
+      pulse: true,
+    };
+  }
+
+  const pending = missionItems.length;
+  if (pending > 0) {
+    return {
+      tone: 'info',
+      title: 'Z AI Focus',
+      message: `Hai ${user}, masih ada ${pending} item pending. Ambil 1 item dulu, sprint 25 menit, lalu update progres.`,
+      primary: { label: 'Buka Prioritas', route: '/daily-tasks' },
+      secondary: { label: 'Minta Rekomendasi', route: '/chat?ai=rekomendasi%20tugas%20kuliah' },
+      pulse: false,
+    };
+  }
+
+  return {
+    tone: 'good',
+    title: 'Z AI Calm Mode',
+    message: `Hai ${user}, kondisi hari ini aman. Kamu bisa lanjut goals jangka panjangmu.`,
+    primary: { label: 'Buka Goals', route: '/goals' },
+    secondary: { label: 'Chat Z AI', route: '/chat?ai=ringkasan%20hari%20ini' },
+    pulse: false,
+  };
+}
+
+function renderZaIFloatingWidget() {
+  const root = document.getElementById('zai-floating-widget');
+  const panel = document.getElementById('zai-floating-panel');
+  const toneEl = document.getElementById('zai-floating-tone');
+  const msgEl = document.getElementById('zai-floating-message');
+  const primaryBtn = document.getElementById('zai-floating-primary');
+  const secondaryBtn = document.getElementById('zai-floating-secondary');
+  const trigger = document.getElementById('zai-floating-trigger');
+  if (!root || !panel || !toneEl || !msgEl || !primaryBtn || !secondaryBtn || !trigger) return;
+
+  const payload = buildZaIFloatingMessage();
+  currentZaiFloatPayload = payload;
+
+  root.dataset.tone = String(payload.tone || 'info');
+  root.classList.toggle('is-urgent', Boolean(payload.pulse));
+  toneEl.textContent = payload.title || 'Z AI Reminder';
+  msgEl.textContent = payload.message || 'Z AI siap bantu prioritas kamu.';
+
+  primaryBtn.textContent = payload.primary?.label || 'Buka';
+  primaryBtn.dataset.route = payload.primary?.route || '/chat';
+  secondaryBtn.textContent = payload.secondary?.label || 'Chat';
+  secondaryBtn.dataset.route = payload.secondary?.route || '/chat';
+
+  const isOpen = panel.classList.contains('show');
+  trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
 }
 
 function renderCouplePulse() {
@@ -813,6 +958,7 @@ function renderUpdatedTimestamp() {
 
 function renderAll() {
   renderTaskReminderBanner();
+  renderZaIFloatingWidget();
   renderTodayMission();
   renderCouplePulse();
   renderUrgentRadar();
@@ -879,16 +1025,18 @@ async function loadDashboardData({ silent = false, includeAssistant = true, forc
     const requests = await Promise.allSettled([
       get('/tasks'),
       get('/assignments'),
+      get('/schedule'),
       get('/weekly'),
       get('/proactive?limit=12'),
       get(`/study_plan?target_minutes=${getStudyTargetMinutes()}`),
       shouldFetchAssistant ? post('/assistant', { message: 'ringkasan hari ini' }) : Promise.resolve(state.assistant),
     ]);
 
-    const [tasksRes, assignmentsRes, weeklyRes, proactiveRes, studyPlanRes, assistantRes] = requests;
+    const [tasksRes, assignmentsRes, scheduleRes, weeklyRes, proactiveRes, studyPlanRes, assistantRes] = requests;
 
     state.tasks = tasksRes.status === 'fulfilled' && Array.isArray(tasksRes.value) ? tasksRes.value : [];
     state.assignments = assignmentsRes.status === 'fulfilled' && Array.isArray(assignmentsRes.value) ? assignmentsRes.value : [];
+    state.schedule = scheduleRes.status === 'fulfilled' && Array.isArray(scheduleRes.value) ? scheduleRes.value : [];
     state.weekly = weeklyRes.status === 'fulfilled' ? weeklyRes.value : null;
     state.proactive = proactiveRes.status === 'fulfilled' ? proactiveRes.value : null;
     state.studyPlan = studyPlanRes.status === 'fulfilled' ? studyPlanRes.value : null;
@@ -920,6 +1068,11 @@ function initActions() {
   const reminderOpen = document.getElementById('task-reminder-open');
   const reminderSnooze = document.getElementById('task-reminder-snooze');
   const reminderDismiss = document.getElementById('task-reminder-dismiss');
+  const zaiTrigger = document.getElementById('zai-floating-trigger');
+  const zaiClose = document.getElementById('zai-floating-close');
+  const zaiPanel = document.getElementById('zai-floating-panel');
+  const zaiPrimary = document.getElementById('zai-floating-primary');
+  const zaiSecondary = document.getElementById('zai-floating-secondary');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', async () => {
       refreshBtn.disabled = true;
@@ -962,6 +1115,46 @@ function initActions() {
       localStorage.setItem(TASK_REMINDER_DISMISS_DAY_KEY, todayDateText());
       renderTaskReminderBanner();
       showToast('Banner disembunyikan untuk hari ini.', 'success', 1800);
+    });
+  }
+
+  if (zaiTrigger && zaiPanel) {
+    zaiTrigger.addEventListener('click', () => {
+      const opened = zaiPanel.classList.toggle('show');
+      zaiTrigger.setAttribute('aria-expanded', opened ? 'true' : 'false');
+    });
+  }
+
+  if (zaiClose && zaiPanel && zaiTrigger) {
+    zaiClose.addEventListener('click', () => {
+      zaiPanel.classList.remove('show');
+      zaiTrigger.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  if (zaiPrimary) {
+    zaiPrimary.addEventListener('click', () => {
+      const route = String(zaiPrimary.dataset.route || '').trim();
+      if (!route) return;
+      window.location.href = route;
+    });
+  }
+
+  if (zaiSecondary) {
+    zaiSecondary.addEventListener('click', () => {
+      const route = String(zaiSecondary.dataset.route || '').trim();
+      if (!route) return;
+      window.location.href = route;
+    });
+  }
+
+  if (zaiPanel && zaiTrigger) {
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('#zai-floating-widget')) return;
+      zaiPanel.classList.remove('show');
+      zaiTrigger.setAttribute('aria-expanded', 'false');
     });
   }
 }

@@ -82,6 +82,9 @@ Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless
   - Action Engine reminder:
     - Perintah `ingatkan/reminder/alarm/notifikasi` bisa auto `set_reminder` saat waktu jelas.
     - Jika waktu belum jelas, Z AI akan minta 1 klarifikasi waktu.
+  - Personal mode:
+    - Z AI bisa simpan panggilan user dari chat, contoh: `panggil aku Zaldy`.
+    - Balasan berikutnya akan memakai panggilan tersebut agar lebih personal.
 - Endpoint profile adaptif lintas device (auth wajib):
   - `GET /api/chatbot_profile`
   - `PUT /api/chatbot_profile`
@@ -112,6 +115,15 @@ Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless
   - `CHATBOT_LLM_AUTH_HEADER=Authorization` dan `CHATBOT_LLM_AUTH_PREFIX=Bearer ` (opsional)
   - `CHATBOT_LLM_FORCE_JSON=true|false` (default `true`, disarankan `true` agar output stabil)
   - `CHATBOT_LLM_TEMPERATURE=0.28` (default `0.28`, naikkan jika ingin gaya lebih kreatif)
+  - `CHATBOT_NEURAL_INTENT_ENABLED=true|false` (opsional, fallback intent via embedding saat rule miss)
+  - `CHATBOT_NEURAL_EMBED_MODEL=text-embedding-3-small` (opsional)
+  - `CHATBOT_NEURAL_API_BASE=https://api.openai.com` (opsional, OpenAI-compatible)
+  - `CHATBOT_NEURAL_TIMEOUT_S=0.9` (opsional)
+  - `CHATBOT_NEURAL_INTENT_THRESHOLD=0.76` (opsional)
+  - `CHATBOT_NEURAL_INTENT_MARGIN=0.02` (opsional)
+  - `CHATBOT_SEMANTIC_MEMORY_ENABLED=true|false` (default `true`, retrieval memory semantik per user)
+  - `CHATBOT_SEMANTIC_EMBED_MODEL=text-embedding-3-small` (opsional)
+  - `CHATBOT_SEMANTIC_TIMEOUT_MS=1100` (opsional)
 - Monitoring endpoint (auth wajib):
   - `GET /api/chat_metrics?days=7`
   - `GET /api/chat_metrics?days=7&scope=global` (admin `Zaldy`)

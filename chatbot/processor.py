@@ -200,31 +200,102 @@ def _has_deadline_signal(text: str) -> bool:
     return bool(re.search(r"(\bdeadline\b|\bdue\b|\bbesok\b|\blusa\b|\bhari ini\b|\btoday\b|\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2})", text, flags=re.IGNORECASE))
 
 
+def _extract_time_or_deadline_fragment(text: str) -> str:
+    source = str(text or "")
+    iso = re.search(r"\b(\d{4}-\d{2}-\d{2}(?:\s+\d{1,2}:\d{2})?)\b", source)
+    if iso:
+        return iso.group(1).strip()
+    rel = re.search(r"\b(hari ini|today|besok|tomorrow|lusa|day after tomorrow)(?:\s+\d{1,2}:\d{2})?\b", source, flags=re.IGNORECASE)
+    if rel:
+        return rel.group(0).strip()
+    hhmm = re.search(r"\b(\d{1,2}:\d{2})\b", source)
+    if hhmm:
+        return hhmm.group(1).strip()
+    return ""
+
+
+def _extract_item_title_candidate(message: str, kind: str) -> str:
+    text = str(message or "").strip()
+    if not text:
+        return ""
+
+    if kind == "assignment":
+        text = re.sub(r"^(?:tolong|please|pls|bisa|boleh|minta)\s+", "", text, flags=re.IGNORECASE)
+        text = re.sub(
+            r"^(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:assignment|tugas kuliah)\s*",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+    else:
+        text = re.sub(r"^(?:tolong|please|pls|bisa|boleh|minta)\s+", "", text, flags=re.IGNORECASE)
+        text = re.sub(
+            r"^(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:task|tugas|todo|to-do)\s*",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+
+    text = re.sub(r"\b(?:deadline|due)\b.*$", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b(?:hari ini|today|besok|tomorrow|lusa|day after tomorrow)\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", "", text)
+    text = re.sub(r"\b\d{1,2}:\d{2}\b", "", text)
+    text = re.sub(r"\s{2,}", " ", text).strip(" ,.-")
+    return text
+
+
+def _planner_missing_fields(planner: PlannerFrame) -> list[str]:
+    out: list[str] = []
+    for item in planner.get("clarifications", []):
+        field = str(item.get("field", "")).strip().lower()
+        if not field or field in out:
+            continue
+        out.append(field)
+        if len(out) >= 4:
+            break
+    return out
+
+
 def _planner_action_from_segment(segment: str, index: int) -> PlannerStep | None:
     lower = segment.lower()
     missing: list[str] = []
     kind = ""
     summary = ""
 
-    if re.search(r"(?:buat|tambah|add|create)\s+(?:assignment|tugas kuliah)\b", lower):
+    if re.search(r"(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:assignment|tugas kuliah)\b", lower):
         kind = "create_assignment"
         summary = "Buat assignment baru"
         if not _has_deadline_signal(lower):
             missing.append("deadline")
-        stripped = re.sub(r"(?:buat|tambah|add|create)\s+(?:assignment|tugas kuliah)\s*", "", segment, flags=re.IGNORECASE).strip()
+        stripped = re.sub(
+            r"(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:assignment|tugas kuliah)\s*",
+            "",
+            segment,
+            flags=re.IGNORECASE,
+        ).strip()
         if len(stripped) < 3:
             missing.append("title")
-    elif re.search(r"(?:buat|tambah|add|create)\s+(?:task|tugas)\b", lower):
+    elif re.search(r"(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:task|tugas|todo|to-do)\b", lower):
         kind = "create_task"
         summary = "Buat task baru"
         if not _has_deadline_signal(lower):
             missing.append("deadline")
-        stripped = re.sub(r"(?:buat|tambah|add|create)\s+(?:task|tugas)\s*", "", segment, flags=re.IGNORECASE).strip()
+        stripped = re.sub(
+            r"(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:task|tugas|todo|to-do)\s*",
+            "",
+            segment,
+            flags=re.IGNORECASE,
+        ).strip()
         if len(stripped) < 3:
             missing.append("title")
-    elif re.search(r"(?:ingatkan|reminder|alarm|notifikasi)", lower):
+    elif re.search(r"(?:ingatkan|reminder|alarm|notifikasi|jangan lupa)", lower):
         kind = "set_reminder"
         summary = "Atur reminder fokus"
+        if not _extract_time_or_deadline_fragment(lower):
+            missing.append("time")
+    elif re.search(r"(?:ringkasan hari ini|brief hari ini|summary hari ini|rekap hari ini)", lower):
+        kind = "daily_brief"
+        summary = "Susun ringkasan prioritas hari ini"
     elif re.search(r"(?:evaluasi|review|refleksi)", lower):
         kind = "evaluation"
         summary = "Jalankan evaluasi singkat"
@@ -294,7 +365,12 @@ def _normalize_planner_hint(raw: Any) -> PlannerFrame | None:
                 continue
             question = str(item.get("question", "")).strip()
             if not question:
-                question = "Deadline-nya kapan?" if field == "deadline" else "Detail yang kurang bisa dilengkapi?"
+                if field == "deadline":
+                    question = "Deadline-nya kapan?"
+                elif field == "time":
+                    question = "Mau diingatkan jam berapa?"
+                else:
+                    question = "Detail yang kurang bisa dilengkapi?"
             action_id = str(item.get("action_id", "memory")).strip() or "memory"
             clarifications.append({"action_id": action_id, "field": field, "question": question})
             if len(clarifications) >= 4:
@@ -303,7 +379,12 @@ def _normalize_planner_hint(raw: Any) -> PlannerFrame | None:
     if not clarifications:
         for action in actions:
             for field in action.get("missing", []):
-                question = "Deadline-nya kapan?" if field == "deadline" else "Judul/tujuannya apa?"
+                if field == "deadline":
+                    question = "Deadline-nya kapan?"
+                elif field == "time":
+                    question = "Mau diingatkan jam berapa?"
+                else:
+                    question = "Judul/tujuannya apa?"
                 clarifications.append({"action_id": action["id"], "field": field, "question": question})
                 if len(clarifications) >= 4:
                     break
@@ -385,13 +466,23 @@ def _build_planner(
     else:
         for action in actions:
             for field in action.get("missing", []):
-                question = "Deadline-nya kapan?" if field == "deadline" else "Judul/tujuannya apa?"
+                if field == "deadline":
+                    question = "Deadline-nya kapan?"
+                elif field == "time":
+                    question = "Mau diingatkan jam berapa?"
+                else:
+                    question = "Judul/tujuannya apa?"
                 clarifications.append({"action_id": action["id"], "field": field, "question": question})
 
     unresolved_fields = memory.get("unresolved_fields", [])
     if not clarifications and isinstance(unresolved_fields, list) and unresolved_fields and intent == "fallback":
         for field in unresolved_fields[:2]:
-            question = "Deadline-nya kapan?" if field == "deadline" else "Detail yang kurang bisa dilengkapi?"
+            if field == "deadline":
+                question = "Deadline-nya kapan?"
+            elif field == "time":
+                question = "Mau diingatkan jam berapa?"
+            else:
+                question = "Detail yang kurang bisa dilengkapi?"
             clarifications.append({"action_id": "memory", "field": str(field), "question": question})
 
     requires_clarification = len(clarifications) > 0
@@ -513,10 +604,69 @@ def _apply_adaptive_followup(
     reply: str,
     context: dict[str, str],
     profile: AdaptiveProfile,
+    memory: dict[str, Any],
+    planner: PlannerFrame,
 ) -> str:
     lower = message.lower()
     domain = context.get("domain", "umum")
     focus_minutes = int(profile.get("focus_minutes", 25))
+
+    if intent in {"create_task", "create_assignment"}:
+        kind = "assignment" if intent == "create_assignment" else "task"
+        title = _extract_item_title_candidate(message, kind)
+        deadline = _extract_time_or_deadline_fragment(message)
+        missing = _planner_missing_fields(planner)
+
+        if missing:
+            prompts: list[str] = []
+            if "title" in missing and "deadline" in missing:
+                prompts.append("judul + deadline")
+            else:
+                if "title" in missing:
+                    prompts.append("judul")
+                if "deadline" in missing:
+                    prompts.append("deadline")
+                if "time" in missing:
+                    prompts.append("jam")
+            needs = ", ".join(prompts) if prompts else "detail inti"
+            example = (
+                "Contoh: buat assignment Makalah AI deadline besok 21:00"
+                if intent == "create_assignment"
+                else "Contoh: buat task revisi basis data deadline besok 19:00"
+            )
+            base = f"Siap, aku bantu buat {kind}. Biar langsung akurat, kirim {needs} dulu. {example}"
+        else:
+            label = title or ("assignment baru" if kind == "assignment" else "task baru")
+            if deadline:
+                base = f"Siap. {label} sudah kebaca, deadline {deadline}. Mau langsung aku pecah jadi langkah eksekusi 25 menit?"
+            else:
+                base = f"Siap. {label} sudah kebaca. Mau sekalian aku urutin prioritas + estimasi waktunya?"
+
+        tail = _adaptive_tail(profile)
+        return f"{base} {tail}".strip() if tail else base
+
+    if intent == "set_reminder":
+        due = _extract_time_or_deadline_fragment(message)
+        if due:
+            base = f"Oke, reminder aku set untuk {due}. Supaya kejadian, mulai dengan 1 langkah kecil sekarang."
+        else:
+            base = "Siap, reminder bisa aku aktifkan. Kamu maunya jam berapa? Contoh: ingatkan aku hari ini 19:30."
+        tail = _adaptive_tail(profile)
+        return f"{base} {tail}".strip() if tail else base
+
+    if intent == "daily_brief":
+        pending_tasks = max(0, _safe_int(memory.get("pending_tasks", 0), 0))
+        pending_assignments = max(0, _safe_int(memory.get("pending_assignments", 0), 0))
+        total = pending_tasks + pending_assignments
+        if total <= 0:
+            base = "Brief hari ini bersih. Kamu bisa pakai slot fokus buat progress baru yang berdampak tinggi."
+        else:
+            base = (
+                f"Brief cepat: ada {pending_tasks} task + {pending_assignments} assignment pending. "
+                "Ambil 1 yang paling dekat deadline dulu, lalu lanjut item kedua setelah satu sesi fokus."
+            )
+        tail = _adaptive_tail(profile)
+        return f"{base} {tail}".strip() if tail else base
 
     if intent == "affirmation":
         if re.search(r"\b(evaluasi|review|refleksi)\b", lower):
@@ -574,6 +724,26 @@ def _build_quick_suggestions(
     avoid_commands = set(_normalize_string_list(hint.get("avoid_commands", []), limit=6))
 
     by_intent: dict[str, list[QuickSuggestion]] = {
+        "create_assignment": [
+            {"label": "Isi Deadline", "command": "deadline besok 21:00", "tone": "warning"},
+            {"label": "Tambah Deskripsi", "command": "deskripsi: rangkum 3 referensi utama", "tone": "info"},
+            {"label": "Pecah Step", "command": "pecah assignment ini jadi 3 langkah", "tone": "success"},
+        ],
+        "create_task": [
+            {"label": "Isi Deadline", "command": "deadline besok 19:00", "tone": "warning"},
+            {"label": "Prioritas High", "command": "set prioritas high", "tone": "critical"},
+            {"label": "Mulai 25m", "command": "mulai sekarang 25 menit", "tone": "success"},
+        ],
+        "set_reminder": [
+            {"label": "Hari Ini 19:30", "command": "ingatkan aku hari ini 19:30", "tone": "warning"},
+            {"label": "Besok 07:00", "command": "ingatkan aku besok 07:00", "tone": "info"},
+            {"label": "Check-In Malam", "command": "ingatkan check-in malam ini 21:00", "tone": "success"},
+        ],
+        "daily_brief": [
+            {"label": "Prioritas #1", "command": "task paling urgent saya apa", "tone": "warning"},
+            {"label": "Risk 24h", "command": "risk deadline 24 jam ke depan", "tone": "critical"},
+            {"label": "Rencana Besok", "command": "rencana fokus besok pagi", "tone": "info"},
+        ],
         "greeting": [
             {"label": "Cek Target", "command": "cek target harian pasangan", "tone": "info"},
             {"label": "Rekomendasi Tugas", "command": "rekomendasi tugas kuliah", "tone": "success"},
@@ -778,7 +948,7 @@ def process_message_payload(
     planner = _build_planner(message, intent, memory, planner_hint)
 
     reply = pick_response(intent, message, context)
-    reply = _apply_adaptive_followup(intent, message, reply, context, adaptive)
+    reply = _apply_adaptive_followup(intent, message, reply, context, adaptive, memory, planner)
     memory_update = _build_memory_update(intent, message, memory, planner)
 
     return {

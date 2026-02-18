@@ -4,6 +4,7 @@ const MAX_MESSAGE_LEN = 700;
 const MAX_REPLY_LEN = 420;
 const MAX_SUGGESTIONS = 4;
 const MAX_HISTORY = 8;
+const MAX_SEMANTIC_MEMORY = 4;
 
 const ALLOWED_INTENTS = new Set([
   'greeting',
@@ -43,6 +44,37 @@ function normalizeRecentStrings(list, max = MAX_HISTORY) {
   return out;
 }
 
+function normalizeSemanticMemory(raw = null, max = MAX_SEMANTIC_MEMORY) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const summary = normalizeText(item.summary || item.snippet || item.message, 180);
+    if (!summary) continue;
+    const intent = normalizeText(item.intent, 40).toLowerCase();
+    const createdAt = normalizeText(item.created_at, 40) || null;
+    const scoreNum = Number(item.score);
+    const score = Number.isFinite(scoreNum) ? Math.max(0, Math.min(1, scoreNum)) : null;
+    const topics = normalizeRecentStrings(item.topics, 4);
+    const idNum = Number(item.id);
+    const id = Number.isFinite(idNum) && idNum > 0 ? Math.round(idNum) : null;
+    const key = `${id || summary.toLowerCase()}::${intent}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      id,
+      intent: intent || null,
+      summary,
+      score,
+      created_at: createdAt,
+      topics,
+    });
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 function normalizeContext(raw = null) {
   if (!raw || typeof raw !== 'object') {
     return {
@@ -52,10 +84,16 @@ function normalizeContext(raw = null) {
       recent_intents: [],
       preferred_commands: [],
       avoid_commands: [],
+      helpful_ratio: 0.5,
+      semantic_memory: [],
     };
   }
   const tone = String(raw.tone_mode || '').trim().toLowerCase();
   const focusWindow = String(raw.focus_window || '').trim().toLowerCase();
+  const helpfulRatioRaw = Number(raw.helpful_ratio);
+  const helpfulRatio = Number.isFinite(helpfulRatioRaw)
+    ? Math.max(0, Math.min(1, helpfulRatioRaw))
+    : 0.5;
   return {
     tone_mode: ['supportive', 'strict', 'balanced'].includes(tone) ? tone : 'supportive',
     focus_minutes: Math.max(10, Math.min(180, Number(raw.focus_minutes || 25))),
@@ -63,6 +101,8 @@ function normalizeContext(raw = null) {
     recent_intents: normalizeRecentStrings(raw.recent_intents, 6),
     preferred_commands: normalizeRecentStrings(raw.preferred_commands, 6),
     avoid_commands: normalizeRecentStrings(raw.avoid_commands, 6),
+    helpful_ratio: helpfulRatio,
+    semantic_memory: normalizeSemanticMemory(raw.semantic_memory, MAX_SEMANTIC_MEMORY),
   };
 }
 
@@ -107,6 +147,10 @@ function normalizeMemory(raw = null) {
         .map((item) => String(item?.field || item || '').trim().toLowerCase())
         .filter(Boolean)
     : [];
+  const semanticMemory = normalizeSemanticMemory(
+    memory.semantic_memory ?? nested.semantic_memory ?? [],
+    MAX_SEMANTIC_MEMORY
+  );
 
   return {
     focus_topic: normalizeText(memory.focus_topic || nested.focus_topic || 'general', 48).toLowerCase(),
@@ -116,6 +160,7 @@ function normalizeMemory(raw = null) {
     pending_tasks: Math.max(0, Number(memory.pending_tasks || 0)),
     pending_assignments: Math.max(0, Number(memory.pending_assignments || 0)),
     avg_mood_7d: Number(memory.avg_mood_7d || 0),
+    semantic_memory: semanticMemory,
   };
 }
 
@@ -421,10 +466,18 @@ function buildSystemPrompt() {
     '}',
     'Suggestions wajib 2-4 item, actionable, terdengar natural.',
     'Label singkat, command siap dipakai user tanpa edit panjang.',
+    'Jika ada semantic_memory, pakai hanya sebagai konteks relevan (jangan diulang mentah).',
   ].join('\n');
 }
 
 function buildUserPrompt(message, context, planner, memory) {
+  const semanticMemory = normalizeSemanticMemory(
+    [
+      ...(Array.isArray(context?.semantic_memory) ? context.semantic_memory : []),
+      ...(Array.isArray(memory?.semantic_memory) ? memory.semantic_memory : []),
+    ],
+    MAX_SEMANTIC_MEMORY
+  );
   const compact = {
     now_iso: new Date().toISOString(),
     user_message: message,
@@ -437,6 +490,7 @@ function buildUserPrompt(message, context, planner, memory) {
       pending_tasks: memory.pending_tasks,
       pending_assignments: memory.pending_assignments,
       avg_mood_7d: memory.avg_mood_7d,
+      semantic_memory: semanticMemory,
     },
   };
   return JSON.stringify(compact);

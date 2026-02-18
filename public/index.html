@@ -190,6 +190,26 @@
     </section>
   </main>
 
+  <section class="zai-floating-widget" id="zai-floating-widget" data-tone="info" aria-label="Z AI floating reminder">
+    <button type="button" class="zai-floating-trigger" id="zai-floating-trigger" aria-label="Buka Z AI reminder" aria-expanded="false">
+      <span class="zai-floating-icon"><i class="fa-solid fa-robot"></i></span>
+      <span class="zai-floating-label">Z AI</span>
+    </button>
+    <article class="zai-floating-panel" id="zai-floating-panel" aria-live="polite">
+      <header class="zai-floating-head">
+        <span class="zai-floating-tone" id="zai-floating-tone">Z AI Reminder</span>
+        <button type="button" class="zai-floating-close" id="zai-floating-close" aria-label="Tutup">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </header>
+      <p class="zai-floating-message" id="zai-floating-message">Z AI siap bantu prioritas kamu hari ini.</p>
+      <div class="zai-floating-actions">
+        <button type="button" class="btn small" id="zai-floating-primary" data-route="/chat">Buka</button>
+        <button type="button" class="btn small secondary" id="zai-floating-secondary" data-route="/chat">Chat</button>
+      </div>
+    </article>
+  </section>
+
   <nav class="bottom-nav">
     <a href="/" class="nav-item active">
       <i class="fa-solid fa-house-chimney"></i>

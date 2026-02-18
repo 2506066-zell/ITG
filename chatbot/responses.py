@@ -7,6 +7,26 @@ from typing import Mapping
 
 
 RESPONSE_TEMPLATES = {
+    "create_assignment": [
+        "Siap, aku bantu catat tugas kuliahnya. Kasih judul dan deadline biar langsung rapi.",
+        "Oke, assignment bisa langsung aku siapin dari detailmu. Tinggal pastikan deadline-nya.",
+        "Mantap, kita buat tugas kuliah ini jadi jelas langkahnya dari sekarang.",
+    ],
+    "create_task": [
+        "Siap, aku bantu buat task-nya. Biar aman, kita pastikan deadline dan prioritasnya.",
+        "Oke, task baru bisa langsung disusun. Kirim detail inti, nanti aku rapihin.",
+        "Mantap, aku catat task ini supaya kamu bisa eksekusi tanpa bingung mulai dari mana.",
+    ],
+    "set_reminder": [
+        "Siap, aku bantu set pengingat. Kamu maunya jam berapa?",
+        "Oke, reminder bisa aku aktifkan. Kasih waktu spesifik biar tepat.",
+        "Noted, kita pasang reminder yang realistis supaya kamu konsisten.",
+    ],
+    "daily_brief": [
+        "Siap, aku rangkum dulu status hari ini biar kamu tahu fokus terdekat.",
+        "Oke, kita bikin brief cepat: mana yang urgent, mana yang bisa menyusul.",
+        "Beres, aku bantu ringkas hari ini supaya kamu langsung tahu next action.",
+    ],
     "greeting": [
         "Hai, aku standby bantu kamu. Mau mulai dari target hari ini atau tugas paling urgent dulu?",
         "Halo. Biar enak, kita beresin satu prioritas dulu terus lanjut step berikutnya.",

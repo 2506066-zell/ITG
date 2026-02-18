@@ -14,6 +14,9 @@ const FEEDBACK_HISTORY_LIMIT = 12;
 const RELIABILITY_SAFE_SCORE = 78;
 const ACTION_ENGINE_V2_MAX_WRITES = 4;
 const ACTION_EXECUTION_KINDS = new Set(['create_task', 'create_assignment', 'set_reminder']);
+const SEMANTIC_MEMORY_MAX_ITEMS = 4;
+const SEMANTIC_MEMORY_EVENT_SCAN_LIMIT = 40;
+const SEMANTIC_MEMORY_EMBED_BATCH_LIMIT = 14;
 
 function parseBooleanEnv(value = '') {
   const normalized = String(value || '').trim().toLowerCase();
@@ -64,6 +67,18 @@ function chatbotLlmEnabled() {
 
 function chatbotActionEngineEnabled() {
   const raw = process.env.CHATBOT_ACTION_ENGINE_V2;
+  if (raw == null || String(raw).trim() === '') return true;
+  return parseBooleanEnv(raw);
+}
+
+function chatbotDecisionEngineEnabled() {
+  const raw = process.env.CHATBOT_DECISION_ENGINE_V2;
+  if (raw == null || String(raw).trim() === '') return true;
+  return parseBooleanEnv(raw);
+}
+
+function semanticMemoryEnabled() {
+  const raw = process.env.CHATBOT_SEMANTIC_MEMORY_ENABLED;
   if (raw == null || String(raw).trim() === '') return true;
   return parseBooleanEnv(raw);
 }
@@ -122,6 +137,7 @@ function normalizeChatbotContext(input) {
   const helpfulRatio = Number.isFinite(helpfulRatioNum)
     ? Math.max(0, Math.min(1, helpfulRatioNum))
     : 0.5;
+  const semanticMemory = normalizeSemanticMemoryItems(input.semantic_memory, SEMANTIC_MEMORY_MAX_ITEMS);
 
   return {
     tone_mode: toneMode,
@@ -131,7 +147,233 @@ function normalizeChatbotContext(input) {
     preferred_commands: preferredCommands,
     avoid_commands: avoidCommands,
     helpful_ratio: helpfulRatio,
+    semantic_memory: semanticMemory,
   };
+}
+
+function resolveSemanticEmbeddingConfig() {
+  const apiKey = String(process.env.CHATBOT_LLM_API_KEY || process.env.OPENAI_API_KEY || '').trim();
+  const apiBase = String(process.env.CHATBOT_NEURAL_API_BASE || process.env.OPENAI_API_BASE || 'https://api.openai.com').trim();
+  const model = String(process.env.CHATBOT_SEMANTIC_EMBED_MODEL || process.env.CHATBOT_NEURAL_EMBED_MODEL || 'text-embedding-3-small').trim();
+  const timeoutMs = Math.max(350, Math.min(3500, Number(process.env.CHATBOT_SEMANTIC_TIMEOUT_MS || 1100)));
+  return { apiKey, apiBase, model, timeoutMs };
+}
+
+function getSemanticEmbeddingCache() {
+  const key = '__zaiSemanticEmbedCacheV1';
+  if (!global[key] || typeof global[key] !== 'object') {
+    global[key] = { vectors: new Map(), touched: Date.now() };
+  }
+  return global[key];
+}
+
+function buildSemanticEventText(row = {}) {
+  const msg = String(row.message || '').replace(/\s+/g, ' ').trim();
+  const reply = String(row.reply || '').replace(/\s+/g, ' ').trim();
+  const base = [msg, reply].filter(Boolean).join(' || ');
+  return base.slice(0, 420);
+}
+
+function tokenizeSemanticText(text = '') {
+  const tokens = String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\u00C0-\u024F]/gi, ' ')
+    .split(/\s+/)
+    .map((x) => x.trim())
+    .filter((x) => x.length >= 3);
+  return tokens.slice(0, 80);
+}
+
+function lexicalSemanticScore(query = '', candidate = '') {
+  const q = tokenizeSemanticText(query);
+  const c = tokenizeSemanticText(candidate);
+  if (!q.length || !c.length) return 0;
+  const cSet = new Set(c);
+  let hit = 0;
+  for (const token of q) {
+    if (cSet.has(token)) hit += 1;
+  }
+  const ratioQ = hit / q.length;
+  const ratioC = hit / Math.max(1, c.length);
+  return Math.max(0, Math.min(1, ratioQ * 0.75 + ratioC * 0.25));
+}
+
+function cosineSimilarity(a = [], b = []) {
+  if (!Array.isArray(a) || !Array.isArray(b) || !a.length || !b.length) return -1;
+  const n = Math.min(a.length, b.length);
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < n; i += 1) {
+    const x = Number(a[i] || 0);
+    const y = Number(b[i] || 0);
+    dot += x * y;
+    normA += x * x;
+    normB += y * y;
+  }
+  if (normA <= 0 || normB <= 0) return -1;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+function normalizeEmbedding(vec = []) {
+  if (!Array.isArray(vec) || !vec.length) return [];
+  let norm = 0;
+  for (const value of vec) {
+    const n = Number(value || 0);
+    norm += n * n;
+  }
+  norm = Math.sqrt(norm);
+  if (!Number.isFinite(norm) || norm <= 0) return [];
+  return vec.map((value) => Number(value || 0) / norm);
+}
+
+function recencySemanticBonus(createdAt = '') {
+  const ts = new Date(createdAt).getTime();
+  if (!Number.isFinite(ts)) return 0;
+  const hours = (Date.now() - ts) / 3600000;
+  if (hours <= 24) return 0.05;
+  if (hours <= 72) return 0.03;
+  if (hours <= 168) return 0.015;
+  return 0;
+}
+
+async function requestEmbeddingsOpenAI(inputs = [], config = null) {
+  const list = Array.isArray(inputs) ? inputs.map((x) => String(x || '').trim()).filter(Boolean) : [];
+  if (!list.length) return null;
+  if (!config?.apiKey) return null;
+
+  const endpoint = `${String(config.apiBase || 'https://api.openai.com').replace(/\/+$/, '')}/v1/embeddings`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Number(config.timeoutMs || 1100));
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: String(config.model || 'text-embedding-3-small'),
+        input: list,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null);
+    const rows = Array.isArray(json?.data) ? json.data : [];
+    if (!rows.length) return null;
+    const byIdx = new Map();
+    for (const row of rows) {
+      const idx = Number(row?.index);
+      const emb = Array.isArray(row?.embedding) ? row.embedding : null;
+      if (!Number.isFinite(idx) || !emb) continue;
+      byIdx.set(idx, normalizeEmbedding(emb));
+    }
+    const out = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const vec = byIdx.get(i);
+      if (!vec || !vec.length) return null;
+      out.push(vec);
+    }
+    return out;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchSemanticMemoryEvents(userId = '', limit = SEMANTIC_MEMORY_EVENT_SCAN_LIMIT) {
+  if (!userId) return [];
+  const safeLimit = Math.max(8, Math.min(Number(limit) || SEMANTIC_MEMORY_EVENT_SCAN_LIMIT, 80));
+  const res = await pool.query(
+    `SELECT id, intent, message, reply, topics, created_at
+     FROM z_ai_memory_events
+     WHERE user_id = $1
+     ORDER BY created_at DESC
+     LIMIT $2`,
+    [userId, safeLimit]
+  );
+  return Array.isArray(res?.rows) ? res.rows : [];
+}
+
+async function retrieveSemanticMemoryHints(userId = '', message = '', maxItems = SEMANTIC_MEMORY_MAX_ITEMS) {
+  if (!semanticMemoryEnabled() || !userId || !String(message || '').trim()) return [];
+  const events = await fetchSemanticMemoryEvents(userId, SEMANTIC_MEMORY_EVENT_SCAN_LIMIT);
+  if (!events.length) return [];
+
+  const scoredLexical = events
+    .map((row) => {
+      const text = buildSemanticEventText(row);
+      return {
+        row,
+        text,
+        lexical: lexicalSemanticScore(message, text),
+      };
+    })
+    .filter((item) => item.text)
+    .sort((a, b) => Number(b.lexical || 0) - Number(a.lexical || 0));
+
+  const shortlist = scoredLexical.slice(0, SEMANTIC_MEMORY_EMBED_BATCH_LIMIT);
+  if (!shortlist.length) return [];
+
+  const config = resolveSemanticEmbeddingConfig();
+  const canEmbed = Boolean(config.apiKey);
+  let queryVector = null;
+  const cache = getSemanticEmbeddingCache();
+  const missingTexts = [];
+  const missingMeta = [];
+  if (canEmbed) {
+    for (const item of shortlist) {
+      const cacheKey = `event:${Number(item?.row?.id || 0)}`;
+      const cached = cache.vectors.get(cacheKey);
+      if (!cached || !Array.isArray(cached) || !cached.length) {
+        missingTexts.push(item.text);
+        missingMeta.push(cacheKey);
+      }
+    }
+    const embedInput = [String(message || '').slice(0, 420), ...missingTexts];
+    const vectors = await requestEmbeddingsOpenAI(embedInput, config);
+    if (vectors && vectors.length === embedInput.length) {
+      queryVector = vectors[0];
+      for (let i = 0; i < missingMeta.length; i += 1) {
+        cache.vectors.set(missingMeta[i], vectors[i + 1] || []);
+      }
+      cache.touched = Date.now();
+    } else {
+      queryVector = null;
+    }
+  }
+
+  const ranked = shortlist
+    .map((item) => {
+      const cacheKey = `event:${Number(item?.row?.id || 0)}`;
+      const vec = canEmbed ? cache.vectors.get(cacheKey) : null;
+      let neural = null;
+      if (canEmbed && queryVector && Array.isArray(vec) && vec.length) {
+        const cos = cosineSimilarity(queryVector, vec);
+        if (Number.isFinite(cos) && cos > -1) neural = Math.max(0, Math.min(1, (cos + 1) / 2));
+      }
+      const lexical = Number(item.lexical || 0);
+      const hybrid = Number.isFinite(neural)
+        ? (lexical * 0.4 + Number(neural || 0) * 0.6)
+        : lexical;
+      const finalScore = Math.max(0, Math.min(1, hybrid + recencySemanticBonus(item?.row?.created_at)));
+      const topics = Array.isArray(item?.row?.topics) ? item.row.topics : [];
+      const summary = String(item?.row?.reply || item?.row?.message || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+      return {
+        id: Number(item?.row?.id || 0) || null,
+        intent: String(item?.row?.intent || '').trim().toLowerCase() || null,
+        summary,
+        score: Number(finalScore.toFixed(4)),
+        created_at: item?.row?.created_at || null,
+        topics: normalizeRecentStrings(topics, 4),
+      };
+    })
+    .filter((item) => item.summary && Number(item.score || 0) >= 0.18)
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+
+  return normalizeSemanticMemoryItems(ranked, maxItems);
 }
 
 function extractOptionalUser(req) {
@@ -173,6 +415,36 @@ function normalizeRecentStrings(list, max = 8) {
   return out;
 }
 
+function normalizeSemanticMemoryItems(list, max = SEMANTIC_MEMORY_MAX_ITEMS) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const id = Number(item.id || 0) || null;
+    const intent = String(item.intent || '').trim().toLowerCase().slice(0, 40);
+    const summary = String(item.summary || item.snippet || item.message || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+    const scoreNum = Number(item.score);
+    const score = Number.isFinite(scoreNum) ? Math.max(0, Math.min(1, scoreNum)) : null;
+    const createdAt = String(item.created_at || '').trim().slice(0, 40);
+    const topics = normalizeRecentStrings(item.topics, 4);
+    if (!summary) continue;
+    const key = `${id || summary.toLowerCase()}::${intent}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      id,
+      intent: intent || null,
+      summary,
+      score,
+      created_at: createdAt || null,
+      topics,
+    });
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 function extractMessageTopics(message = '') {
   const text = String(message || '').toLowerCase();
   const topics = [];
@@ -201,6 +473,24 @@ function hasReminderTimeSignal(text = '') {
   return /(\b(besok|lusa|hari ini|today|tomorrow)\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[:.]\d{2}\b|\b(?:dalam\s+)?\d{1,3}\s*(?:menit|min|jam|hours?)\s*(?:lagi)?\b)/i.test(text);
 }
 
+function isLikelyCreateShorthandSegment(segment = '', kind = 'task') {
+  const text = String(segment || '').trim();
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const headPattern = kind === 'assignment'
+    ? /^(assignment|tugas kuliah)\b/i
+    : /^(task|tugas|todo|to-do)\b/i;
+  if (!headPattern.test(text)) return false;
+
+  if (/\b(pending|list|daftar|apa|belum|show|lihat|cek|status|report|ringkasan|summary)\b/i.test(lower)) {
+    return false;
+  }
+
+  const tokens = text.split(/\s+/).filter(Boolean);
+  if (tokens.length < 3) return false;
+  return true;
+}
+
 function buildPlannerActions(message = '') {
   const normalized = String(message || '').trim();
   if (!normalized) return [];
@@ -218,17 +508,28 @@ function buildPlannerActions(message = '') {
     let kind = '';
     let summary = '';
     const missing = [];
-    if (/(?:buat|tambah|add|create)\s+(?:assignment|tugas kuliah)\b/i.test(lower)) {
+    const explicitCreateAssignment = /(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:assignment|tugas kuliah)\b/i.test(lower);
+    const shorthandCreateAssignment = isLikelyCreateShorthandSegment(segment, 'assignment');
+    const explicitCreateTask = /(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:task|tugas|todo|to-do)\b/i.test(lower);
+    const shorthandCreateTask = isLikelyCreateShorthandSegment(segment, 'task');
+
+    if (explicitCreateAssignment || shorthandCreateAssignment) {
       kind = 'create_assignment';
       summary = 'Buat assignment baru';
       if (!hasDeadlineSignal(lower)) missing.push('deadline');
-      if (segment.replace(/(?:buat|tambah|add|create)\s+(?:assignment|tugas kuliah)/ig, '').trim().length < 3) missing.push('title');
-    } else if (/(?:buat|tambah|add|create)\s+(?:task|tugas)\b/i.test(lower)) {
+      const titleProbe = explicitCreateAssignment
+        ? segment.replace(/(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:assignment|tugas kuliah)/ig, '').trim()
+        : segment.replace(/^(?:assignment|tugas kuliah)\s*/i, '').trim();
+      if (titleProbe.length < 3) missing.push('title');
+    } else if (explicitCreateTask || shorthandCreateTask) {
       kind = 'create_task';
       summary = 'Buat task baru';
       if (!hasDeadlineSignal(lower)) missing.push('deadline');
-      if (segment.replace(/(?:buat|tambah|add|create)\s+(?:task|tugas)/ig, '').trim().length < 3) missing.push('title');
-    } else if (/(?:ingatkan|reminder|alarm|notifikasi)/i.test(lower)) {
+      const titleProbe = explicitCreateTask
+        ? segment.replace(/(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:task|tugas|todo|to-do)/ig, '').trim()
+        : segment.replace(/^(?:task|tugas|todo|to-do)\s*/i, '').trim();
+      if (titleProbe.length < 3) missing.push('title');
+    } else if (/(?:ingatkan|ingetin|reminder|alarm|notifikasi|jangan lupa)/i.test(lower)) {
       kind = 'set_reminder';
       summary = 'Atur reminder fokus';
       if (!hasReminderTimeSignal(lower)) missing.push('time');
@@ -334,7 +635,8 @@ function stripActionMetaFromTitle(command = '') {
   let value = normalizeActionText(command);
   value = value.replace(/^\/ai\s+/i, '');
   value = value.replace(/^(?:tolong\s+|please\s+)?(?:z\s*ai|zai|ai)\s*/i, '');
-  value = value.replace(/^(?:buatkan|buat|tambah|add|create)\s+(?:assignment|tugas kuliah|task|tugas)\s*/i, '');
+  value = value.replace(/^(?:buatkan|buat|tambah|add|create|catat|simpan)\s+(?:assignment|tugas kuliah|task|tugas|todo|to-do)\s*/i, '');
+  value = value.replace(/^(?:assignment|tugas kuliah|task|tugas|todo|to-do)\s*/i, '');
   value = value.replace(/\bdeadline\s+(.+?)(?=\s+\b(?:priority|prioritas|deskripsi|desc|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/ig, '');
   value = value.replace(/\b(?:priority|prioritas)\s+[a-zA-Z]+\b/ig, '');
   value = value.replace(/\b(?:deskripsi|desc)\s+(.+?)(?=\s+\b(?:deadline|priority|prioritas|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/ig, '');
@@ -827,42 +1129,122 @@ async function executeActionEngineWrites(userId = '', actionPlan = null) {
   }
 }
 
-function buildActionExecutionReply(execution = null, clarifications = []) {
+function buildActionExecutionReply(execution = null, clarifications = [], options = {}) {
   const executed = Array.isArray(execution?.executed) ? execution.executed : [];
   const failed = Array.isArray(execution?.failed) ? execution.failed : [];
   const asks = Array.isArray(clarifications) ? clarifications : [];
   const lines = [];
+  const styleRaw = String(options?.style || options?.tone_mode || '').trim().toLowerCase();
+  const style = ['supportive', 'strict', 'balanced'].includes(styleRaw) ? styleRaw : 'supportive';
+  const focusMinutesRaw = Number(options?.focus_minutes);
+  const focusMinutes = Number.isFinite(focusMinutesRaw)
+    ? Math.max(10, Math.min(180, Math.round(focusMinutesRaw)))
+    : 25;
+
+  const shortTitle = (value = '') => {
+    const text = normalizeActionText(value || '');
+    if (!text) return 'item';
+    return text.length > 52 ? `${text.slice(0, 52).trim()}...` : text;
+  };
+
+  const joinLabels = (labels = []) => {
+    const list = labels.filter(Boolean);
+    if (!list.length) return '';
+    if (list.length === 1) return list[0];
+    if (list.length === 2) return `${list[0]} dan ${list[1]}`;
+    return `${list.slice(0, -1).join(', ')}, dan ${list[list.length - 1]}`;
+  };
+
+  const deadlineHoursLeft = (value = '') => {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return null;
+    return (date.getTime() - Date.now()) / 3600000;
+  };
+
+  const buildUrgencyReason = (items = []) => {
+    let nearest = null;
+    for (const item of items) {
+      const hours = deadlineHoursLeft(item?.deadline || '');
+      if (!Number.isFinite(hours)) continue;
+      if (nearest === null || hours < nearest) nearest = hours;
+    }
+    if (!Number.isFinite(nearest)) return '';
+    if (nearest <= 0) return 'karena ada yang sudah lewat deadline.';
+    if (nearest <= 12) return 'karena ada deadline kurang dari 12 jam.';
+    if (nearest <= 24) return 'karena ada deadline kurang dari 24 jam.';
+    if (nearest <= 48) return 'karena ada deadline dalam 2 hari.';
+    return '';
+  };
+
+  const styleLine = {
+    supportive: {
+      done: (count, labels) => `Beres, aku sudah masukin ${count} item: ${joinLabels(labels)}.`,
+      suggest: (title, reason) => reason
+        ? `Biar ringan, mulai dari "${title}" dulu ${reason}`
+        : `Biar konsisten, mulai dari "${title}" dulu, lanjut item kedua setelah ${focusMinutes} menit.`,
+      reminder: (count, labels) => `Reminder juga sudah aktif ${count} item: ${joinLabels(labels)}.`,
+      ask: (question) => `Biar sisanya langsung jalan, ${question}`,
+      fail: (count) => `Ada ${count} item yang belum berhasil kusimpan. Coba kirim ulang sekali lagi, nanti aku lanjutkan otomatis.`,
+      idle: 'Aku siap eksekusi otomatis. Kirim perintah task, assignment, atau reminder, nanti aku proses langsung.',
+    },
+    balanced: {
+      done: (count, labels) => `Siap, ${count} item sudah tersimpan: ${joinLabels(labels)}.`,
+      suggest: (title, reason) => reason
+        ? `Prioritas berikutnya: kerjakan "${title}" dulu ${reason}`
+        : `Prioritas berikutnya: kerjakan "${title}" dulu, lalu lanjut item kedua setelah ${focusMinutes} menit.`,
+      reminder: (count, labels) => `Reminder aktif ${count} item: ${joinLabels(labels)}.`,
+      ask: (question) => `Untuk lanjut eksekusi, ${question}`,
+      fail: (count) => `${count} item belum berhasil disimpan. Kirim ulang agar aku lanjutkan.`,
+      idle: 'Z AI siap eksekusi otomatis. Kirim perintah task, assignment, atau reminder.',
+    },
+    strict: {
+      done: (count, labels) => `Eksekusi selesai. ${count} item tersimpan: ${joinLabels(labels)}.`,
+      suggest: (title, reason) => reason
+        ? `Next: kerjakan "${title}" sekarang ${reason}`
+        : `Next: kerjakan "${title}" sekarang. Sesi fokus ${focusMinutes} menit, tanpa distraksi.`,
+      reminder: (count, labels) => `Reminder aktif ${count} item: ${joinLabels(labels)}.`,
+      ask: (question) => `Lengkapi dulu: ${question}`,
+      fail: (count) => `${count} item gagal tersimpan. Kirim ulang dengan detail yang jelas.`,
+      idle: 'Siap eksekusi. Kirim perintah langsung.',
+    },
+  }[style];
 
   if (executed.length > 0) {
     const reminderItems = executed.filter((item) => item?.entity === 'reminder');
     const createdItems = executed.filter((item) => item?.entity !== 'reminder');
+
     if (createdItems.length > 0) {
       const labels = createdItems
         .slice(0, 3)
-        .map((item) => `${item.entity === 'assignment' ? 'tugas kuliah' : 'task'} "${item.title}"`)
-        .join(', ');
-      lines.push(`Siap, aku sudah buat ${createdItems.length} item: ${labels}.`);
+        .map((item) => `${item.entity === 'assignment' ? 'tugas kuliah' : 'task'} "${shortTitle(item.title)}"`);
+      lines.push(styleLine.done(createdItems.length, labels));
+
+      const reason = buildUrgencyReason(createdItems);
+      lines.push(styleLine.suggest(shortTitle(createdItems[0]?.title || ''), reason));
     }
 
     if (reminderItems.length > 0) {
       const reminderLabel = reminderItems
         .slice(0, 2)
-        .map((item) => `"${item.title}"`)
-        .join(', ');
-      lines.push(`Reminder aktif ${reminderItems.length} item: ${reminderLabel}.`);
+        .map((item) => {
+          const label = shortTitle(item.title);
+          const due = formatReminderDueLabel(item.deadline || '');
+          return due ? `"${label}" (${due})` : `"${label}"`;
+        });
+      lines.push(styleLine.reminder(reminderItems.length, reminderLabel));
     }
   }
 
   if (asks.length > 0) {
-    lines.push(`Biar sisanya bisa aku eksekusi juga, ${asks[0].question}`);
+    lines.push(styleLine.ask(asks[0].question));
   }
 
   if (failed.length > 0) {
-    lines.push(`Ada ${failed.length} item yang belum berhasil disimpan. Coba kirim ulang setelah ini.`);
+    lines.push(styleLine.fail(failed.length));
   }
 
   if (!lines.length) {
-    return 'Aku siap eksekusi otomatis. Tinggal kirim perintah task, assignment, atau reminder.';
+    return styleLine.idle;
   }
   return lines.join(' ').slice(0, CHATBOT_MAX_REPLY);
 }
@@ -1149,10 +1531,89 @@ function normalizeFeedbackProfile(raw = {}) {
   };
 }
 
+function normalizeUserAlias(value = '') {
+  const cleaned = String(value || '')
+    .replace(/[^\p{L}\p{N}_\-\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+  return cleaned.slice(0, 24);
+}
+
+function extractPreferredNickname(message = '') {
+  const text = String(message || '').trim();
+  if (!text) return '';
+  const patterns = [
+    /\b(?:panggil|sebut)\s+aku\s+([a-zA-Z0-9_\-\s]{2,30})/i,
+    /\b(?:nama|name)\s+(?:aku|saya|gue|gw)\s+([a-zA-Z0-9_\-\s]{2,30})/i,
+    /\bmy name is\s+([a-zA-Z0-9_\-\s]{2,30})/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match || !match[1]) continue;
+    const alias = normalizeUserAlias(match[1]);
+    if (alias.length >= 2) return alias;
+  }
+  return '';
+}
+
+function escapeRegex(text = '') {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function resolvePersonalDisplayName(userId = '', memory = null) {
+  const fromMemory = normalizeUserAlias(memory?.memory?.profile?.nickname || memory?.profile?.nickname || '');
+  if (fromMemory) return fromMemory;
+  const fallback = String(userId || '').trim();
+  if (!fallback) return '';
+  return `${fallback.charAt(0).toUpperCase()}${fallback.slice(1)}`;
+}
+
+function personalizeReplyForUser(reply = '', options = {}) {
+  const base = String(reply || '').trim();
+  if (!base) return base;
+
+  const userLabel = resolvePersonalDisplayName(options.user_id, options.memory);
+  if (!userLabel) return base.slice(0, CHATBOT_MAX_REPLY);
+
+  const intent = String(options.intent || '').trim().toLowerCase();
+  const shouldPrefix = ['greeting', 'fallback', 'check_daily_target', 'recommend_task', 'daily_brief', 'study_schedule']
+    .includes(intent) || base.length < 180;
+  const hasLabel = new RegExp(`\\b${escapeRegex(userLabel)}\\b`, 'i').test(base);
+  let text = base;
+  if (shouldPrefix && !hasLabel) {
+    text = `${userLabel}, ${base.charAt(0).toLowerCase()}${base.slice(1)}`;
+  }
+
+  const focusTopic = String(options?.memory?.focus_topic || options?.memory?.memory?.recent_topics?.[0] || '')
+    .trim()
+    .toLowerCase();
+  if (
+    focusTopic
+    && ['greeting', 'fallback'].includes(intent)
+    && !new RegExp(`\\b${escapeRegex(focusTopic)}\\b`, 'i').test(text)
+  ) {
+    text = `${text} Fokus kamu lagi di ${focusTopic}.`;
+  }
+
+  return text.slice(0, CHATBOT_MAX_REPLY);
+}
+
 function normalizeZaiMemory(raw = {}) {
   const memory = raw && typeof raw === 'object' ? raw : {};
   const counters = memory.counters && typeof memory.counters === 'object' ? memory.counters : {};
   const intentsCounter = counters.intents && typeof counters.intents === 'object' ? counters.intents : {};
+  const profileRaw = memory.profile && typeof memory.profile === 'object' ? memory.profile : {};
+  const profile = {
+    nickname: normalizeUserAlias(profileRaw.nickname || profileRaw.display_name || '') || null,
+    last_tone_mode: ['supportive', 'strict', 'balanced'].includes(String(profileRaw.last_tone_mode || '').toLowerCase())
+      ? String(profileRaw.last_tone_mode || '').toLowerCase()
+      : null,
+    last_focus_window: ['any', 'morning', 'afternoon', 'evening'].includes(String(profileRaw.last_focus_window || '').toLowerCase())
+      ? String(profileRaw.last_focus_window || '').toLowerCase()
+      : null,
+    updated_at: String(profileRaw.updated_at || '').slice(0, 40) || null,
+  };
   return {
     version: 1,
     counters: {
@@ -1165,6 +1626,7 @@ function normalizeZaiMemory(raw = {}) {
     last_plan: memory.last_plan && typeof memory.last_plan === 'object' ? memory.last_plan : null,
     last_reply: String(memory.last_reply || '').slice(0, 280),
     feedback_profile: normalizeFeedbackProfile(memory.feedback_profile || {}),
+    profile,
   };
 }
 
@@ -1308,6 +1770,158 @@ function applyLearningToSuggestions(suggestions = [], learningHints = null) {
   return normalizeChatbotSuggestions(prioritized);
 }
 
+function chatbotAutoToneEnabled() {
+  const raw = process.env.CHATBOT_AUTO_TONE_MODE;
+  if (raw == null || String(raw).trim() === '') return true;
+  return parseBooleanEnv(raw);
+}
+
+function inferBehaviorAdaptiveContext(message = '', contextInput = null, memory = null, planner = null, learningHints = null) {
+  const context = normalizeChatbotContext(contextInput) || {
+    tone_mode: 'supportive',
+    focus_minutes: 25,
+    focus_window: 'any',
+    recent_intents: [],
+    preferred_commands: [],
+    avoid_commands: [],
+    helpful_ratio: 0.5,
+  };
+  const lower = String(message || '').toLowerCase();
+  const scores = { supportive: 0, balanced: 0, strict: 0 };
+  const signals = [];
+
+  const baseTone = String(context.tone_mode || 'supportive');
+  if (scores[baseTone] !== undefined) {
+    scores[baseTone] += 1;
+  }
+
+  const explicitStrict = /\b(toxic|mode tegas|gaspol|no excuse|push keras)\b/.test(lower);
+  const explicitSupportive = /\b(lembut|pelan|supportive|santai)\b/.test(lower);
+  const explicitBalanced = /\b(balanced|seimbang)\b/.test(lower);
+  if (explicitStrict) {
+    scores.strict += 5;
+    signals.push('explicit_strict');
+  }
+  if (explicitSupportive) {
+    scores.supportive += 5;
+    signals.push('explicit_supportive');
+  }
+  if (explicitBalanced) {
+    scores.balanced += 5;
+    signals.push('explicit_balanced');
+  }
+
+  const pendingTasks = Math.max(0, Number(memory?.pending_tasks || 0));
+  const pendingAssignments = Math.max(0, Number(memory?.pending_assignments || 0));
+  const pendingTotal = pendingTasks + pendingAssignments;
+  const avgMood = Number(memory?.avg_mood_7d || 0);
+  const unresolvedMemory = Array.isArray(memory?.memory?.unresolved) ? memory.memory.unresolved.length : 0;
+  const unresolvedPlanner = Array.isArray(planner?.clarifications) ? planner.clarifications.length : 0;
+  const unresolvedCount = unresolvedMemory + unresolvedPlanner;
+
+  if (pendingTotal >= 10) {
+    scores.strict += 3;
+    scores.balanced += 1;
+    signals.push('heavy_backlog');
+  } else if (pendingTotal >= 6) {
+    scores.strict += 2;
+    scores.balanced += 1;
+    signals.push('medium_backlog');
+  } else if (pendingTotal >= 3) {
+    scores.balanced += 1;
+  }
+
+  if (unresolvedCount >= 3) {
+    scores.strict += 2;
+    scores.balanced += 1;
+    signals.push('many_missing_fields');
+  } else if (unresolvedCount > 0) {
+    scores.balanced += 1;
+  }
+
+  if (avgMood > 0 && avgMood <= 2.8) {
+    scores.supportive += 3;
+    signals.push('low_mood');
+  } else if (avgMood > 0 && avgMood <= 3.5) {
+    scores.supportive += 1;
+  } else if (avgMood >= 4.2 && pendingTotal >= 6) {
+    scores.strict += 1;
+  }
+
+  if (/\b(lelah|capek|ngantuk|burnout|drop|mager|overwhelmed)\b/.test(lower)) {
+    scores.supportive += 3;
+    scores.strict -= 1;
+    signals.push('low_energy_language');
+  }
+  if (/\b(urgent|asap|deadline|telat|sekarang juga|hari ini|besok)\b/.test(lower)) {
+    scores.strict += 2;
+    signals.push('urgent_language');
+  }
+
+  const complexity = evaluateHybridComplexity(message, planner);
+  if (complexity.complex) {
+    scores.balanced += 1;
+    if (complexity.score >= 70) scores.strict += 1;
+  }
+
+  const helpfulRatio = Number(
+    learningHints?.helpful_ratio
+    ?? context.helpful_ratio
+    ?? 0.5
+  );
+  if (Number.isFinite(helpfulRatio)) {
+    if (helpfulRatio < 0.4) {
+      scores.balanced += 2;
+      scores.supportive += 1;
+      signals.push('low_helpful_ratio');
+    } else if (helpfulRatio > 0.78 && pendingTotal >= 5) {
+      scores.strict += 1;
+      signals.push('high_helpful_ratio');
+    }
+  }
+
+  const preferred = normalizeRecentStrings(learningHints?.preferred_commands || context.preferred_commands, 8);
+  const avoid = normalizeRecentStrings(learningHints?.avoid_commands || context.avoid_commands, 8);
+  const strictPattern = /(toxic|mode tegas|gaspol|no excuse|risk deadline|urgent radar)/i;
+  const softPattern = /(check-?in|evaluasi|couple pulse|mood|break|istirahat)/i;
+  if (preferred.some((cmd) => strictPattern.test(cmd))) scores.strict += 2;
+  if (preferred.some((cmd) => softPattern.test(cmd))) scores.supportive += 1;
+  if (avoid.some((cmd) => strictPattern.test(cmd))) {
+    scores.supportive += 2;
+    scores.balanced += 1;
+    signals.push('avoid_strict_commands');
+  }
+
+  const ranking = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const topTone = String(ranking[0]?.[0] || 'supportive');
+  const topScore = Number(ranking[0]?.[1] || 0);
+  const secondScore = Number(ranking[1]?.[1] || 0);
+
+  // Prevent noisy mode switching when confidence between tones is very close.
+  let toneMode = topTone;
+  if (topScore - secondScore < 2) {
+    toneMode = scores[baseTone] !== undefined ? baseTone : 'balanced';
+  }
+
+  let focusMinutes = Number(context.focus_minutes || 25);
+  if (!Number.isFinite(focusMinutes)) focusMinutes = 25;
+  if (toneMode === 'strict') {
+    focusMinutes = Math.max(focusMinutes, pendingTotal >= 8 ? 35 : 30);
+  } else if (toneMode === 'supportive') {
+    if (avgMood > 0 && avgMood <= 2.8) focusMinutes = Math.min(focusMinutes, 20);
+    if (/\b(lelah|capek|ngantuk|burnout|drop)\b/.test(lower)) focusMinutes = Math.min(focusMinutes, 20);
+  }
+  focusMinutes = clampNumber(focusMinutes, 10, 180);
+
+  return {
+    ...context,
+    tone_mode: toneMode,
+    focus_minutes: focusMinutes,
+    adaptive_source: 'behavior_auto',
+    adaptive_signals: signals.slice(0, 6),
+  };
+}
+
 function buildReliabilityAssessment(message = '', planner = null, intent = '') {
   const text = String(message || '').trim().toLowerCase();
   const plan = planner && typeof planner === 'object' ? planner : {};
@@ -1370,6 +1984,9 @@ function mergeMemoryAfterInteraction(current, interaction) {
   const safeCurrent = normalizeZaiMemory(current);
   const intent = String(interaction.intent || '').trim().toLowerCase();
   const topics = normalizeRecentStrings(interaction.topics || [], 5);
+  const detectedNickname = extractPreferredNickname(interaction.message || '');
+  const toneMode = String(interaction?.context?.tone_mode || '').trim().toLowerCase();
+  const focusWindow = String(interaction?.context?.focus_window || '').trim().toLowerCase();
   safeCurrent.counters.messages_total += 1;
 
   if (intent) {
@@ -1401,6 +2018,21 @@ function mergeMemoryAfterInteraction(current, interaction) {
   } else if (intent && intent !== 'fallback') {
     safeCurrent.unresolved = [];
   }
+
+  const profile = safeCurrent.profile && typeof safeCurrent.profile === 'object'
+    ? { ...safeCurrent.profile }
+    : { nickname: null, last_tone_mode: null, last_focus_window: null, updated_at: null };
+  if (detectedNickname) {
+    profile.nickname = detectedNickname;
+    profile.updated_at = new Date().toISOString();
+  }
+  if (['supportive', 'strict', 'balanced'].includes(toneMode)) {
+    profile.last_tone_mode = toneMode;
+  }
+  if (['any', 'morning', 'afternoon', 'evening'].includes(focusWindow)) {
+    profile.last_focus_window = focusWindow;
+  }
+  safeCurrent.profile = profile;
 
   return safeCurrent;
 }
@@ -1688,6 +2320,273 @@ function buildStatelessMemoryUpdate(memory, intent, message, extraTopics = []) {
     pending_assignments: Number(memory?.pending_assignments || 0),
     avg_mood_7d: Number(memory?.avg_mood_7d || 0),
   };
+}
+
+function shouldRunDecisionEngine(message = '', planner = null) {
+  const text = String(message || '').trim().toLowerCase();
+  if (!text) return false;
+
+  if (isStudyPlanCommand(text)) return false;
+  if (/(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:task|tugas|todo|to-do|assignment|tugas kuliah)\b/i.test(text)) return false;
+  if (/(?:ingatkan|ingetin|reminder|alarm|notifikasi|jangan lupa)\b/i.test(text)) return false;
+
+  const explicit = /(\brekomendasi\b|\bprioritas\b|\btask apa dulu\b|\btugas apa dulu\b|\blangkah berikutnya\b|\bnext step\b|\bfokus apa dulu\b|\bmulai dari mana\b|\bstuck\b|\bbingung\b|\boverwhelmed\b|\bmenunda\b|\bprokrastinasi\b|\bcek target\b|\btarget harian\b|\bapa yang harus dikerjain\b)/i.test(text);
+  if (explicit) return true;
+
+  const actions = Array.isArray(planner?.actions) ? planner.actions : [];
+  return actions.some((item) => {
+    const kind = String(item?.kind || '').trim().toLowerCase();
+    return kind === 'recommendation' || kind === 'daily_target';
+  });
+}
+
+function estimateDecisionEnergy(message = '', context = null, memory = null) {
+  const text = String(message || '').toLowerCase();
+  if (/\b(lelah|capek|ngantuk|burnout|drop|mager|overwhelmed)\b/.test(text)) return 'low';
+  if (/\b(semangat|fokus|gas|mantap|siap)\b/.test(text)) return 'high';
+  const mood = Number(memory?.avg_mood_7d || 0);
+  if (mood > 0 && mood <= 2.8) return 'low';
+  if (mood >= 4.2) return 'high';
+  const style = String(context?.tone_mode || '').toLowerCase();
+  if (style === 'strict') return 'high';
+  return 'normal';
+}
+
+function toHoursLeft(iso = '') {
+  const value = new Date(iso).getTime();
+  if (!Number.isFinite(value)) return null;
+  return (value - Date.now()) / 3600000;
+}
+
+function deadlinePriorityScore(hoursLeft = null) {
+  if (!Number.isFinite(hoursLeft)) return 8;
+  if (hoursLeft <= 0) return 52;
+  if (hoursLeft <= 6) return 47;
+  if (hoursLeft <= 12) return 42;
+  if (hoursLeft <= 24) return 36;
+  if (hoursLeft <= 48) return 28;
+  if (hoursLeft <= 72) return 22;
+  if (hoursLeft <= 168) return 14;
+  return 8;
+}
+
+function formatRelativeDeadline(hoursLeft = null) {
+  if (!Number.isFinite(hoursLeft)) return 'tanpa deadline spesifik';
+  if (hoursLeft <= 0) return 'sudah melewati deadline';
+  if (hoursLeft < 1) return 'kurang dari 1 jam lagi';
+  if (hoursLeft <= 24) return `${Math.max(1, Math.round(hoursLeft))} jam lagi`;
+  const days = Math.max(1, Math.round(hoursLeft / 24));
+  return `${days} hari lagi`;
+}
+
+function shortDecisionTitle(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return 'item prioritas';
+  return text.length > 72 ? `${text.slice(0, 72).trim()}...` : text;
+}
+
+function normalizeDecisionPriority(priority = '') {
+  const lower = String(priority || '').trim().toLowerCase();
+  if (lower === 'high' || lower === 'tinggi') return 'high';
+  if (lower === 'low' || lower === 'rendah') return 'low';
+  return 'medium';
+}
+
+function scoreDecisionCandidate(candidate = {}, input = {}) {
+  const energy = String(input.energy || 'normal');
+  const pendingTotal = Math.max(0, Number(input.pending_total || 0));
+  const entity = String(candidate.entity || 'task');
+  const priority = normalizeDecisionPriority(candidate.priority);
+  const hoursLeft = toHoursLeft(candidate.deadline);
+
+  const deadlineScore = deadlinePriorityScore(hoursLeft);
+  const academicImpactScore = entity === 'assignment'
+    ? 20
+    : (candidate.goal_id ? 16 : 12);
+  const priorityScore = priority === 'high' ? 14 : (priority === 'medium' ? 8 : 4);
+  const backlogPressureScore = pendingTotal >= 12 ? 8 : (pendingTotal >= 7 ? 6 : (pendingTotal >= 4 ? 4 : 2));
+
+  let energyFitScore = 4;
+  if (energy === 'low') {
+    if (Number.isFinite(hoursLeft) && hoursLeft <= 24) energyFitScore = 8;
+    else if (entity === 'task') energyFitScore = 6;
+    else energyFitScore = 3;
+  } else if (energy === 'high') {
+    energyFitScore = entity === 'assignment' ? 6 : 5;
+  } else {
+    energyFitScore = entity === 'assignment' ? 5 : 4;
+  }
+
+  const totalScore = deadlineScore + academicImpactScore + priorityScore + backlogPressureScore + energyFitScore;
+  return {
+    ...candidate,
+    hours_left: Number.isFinite(hoursLeft) ? Number(hoursLeft.toFixed(2)) : null,
+    score_breakdown: {
+      deadline: deadlineScore,
+      academic_impact: academicImpactScore,
+      priority: priorityScore,
+      backlog_pressure: backlogPressureScore,
+      energy_fit: energyFitScore,
+    },
+    total_score: totalScore,
+  };
+}
+
+async function fetchDecisionCandidatesForUser(userId = '', limit = 20) {
+  const safeLimit = Math.max(4, Math.min(Number(limit) || 20, 30));
+  const [tasksRes, assignmentsRes] = await Promise.all([
+    pool.query(
+      `SELECT id, title, deadline, priority, goal_id
+       FROM tasks
+       WHERE is_deleted = FALSE
+         AND completed = FALSE
+         AND (assigned_to = $1 OR created_by = $1)
+       ORDER BY deadline ASC NULLS LAST, id DESC
+       LIMIT $2`,
+      [userId, safeLimit]
+    ),
+    pool.query(
+      `SELECT id, title, deadline
+       FROM assignments
+       WHERE completed = FALSE
+         AND (assigned_to = $1 OR assigned_to IS NULL)
+       ORDER BY deadline ASC NULLS LAST, id DESC
+       LIMIT $2`,
+      [userId, safeLimit]
+    ),
+  ]);
+
+  const tasks = (tasksRes.rows || []).map((row) => ({
+    entity: 'task',
+    id: Number(row.id || 0) || null,
+    title: String(row.title || '').trim(),
+    deadline: row.deadline || null,
+    priority: String(row.priority || 'medium').toLowerCase(),
+    goal_id: row.goal_id ? Number(row.goal_id) : null,
+  }));
+  const assignments = (assignmentsRes.rows || []).map((row) => ({
+    entity: 'assignment',
+    id: Number(row.id || 0) || null,
+    title: String(row.title || '').trim(),
+    deadline: row.deadline || null,
+    priority: 'medium',
+    goal_id: null,
+  }));
+  return { tasks, assignments };
+}
+
+function buildDecisionActionLabel(candidate = {}) {
+  const kind = candidate.entity === 'assignment' ? 'tugas kuliah' : 'task';
+  return `Kerjakan ${kind} "${shortDecisionTitle(candidate.title)}"`;
+}
+
+function buildDecisionEngineV2Payload(message = '', context = null, memory = null, data = null) {
+  const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+  const assignments = Array.isArray(data?.assignments) ? data.assignments : [];
+  const candidatesRaw = [...tasks, ...assignments];
+  const pendingTotal = Number(
+    (Number(memory?.pending_tasks || 0) + Number(memory?.pending_assignments || 0))
+    || candidatesRaw.length
+  );
+  const energy = estimateDecisionEnergy(message, context, memory);
+  const focusMinutes = clampNumber(context?.focus_minutes || 25, 10, 180);
+
+  const scored = candidatesRaw
+    .map((item) => scoreDecisionCandidate(item, { energy, pending_total: pendingTotal }))
+    .sort((a, b) => {
+      const scoreDiff = Number(b.total_score || 0) - Number(a.total_score || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      const aHours = Number.isFinite(a.hours_left) ? Number(a.hours_left) : Number.POSITIVE_INFINITY;
+      const bHours = Number.isFinite(b.hours_left) ? Number(b.hours_left) : Number.POSITIVE_INFINITY;
+      if (aHours !== bHours) return aHours - bHours;
+      return String(a.title || '').localeCompare(String(b.title || ''));
+    });
+
+  const top = scored[0] || null;
+  if (!top) {
+    return {
+      primary_action: {
+        label: `Mulai sesi fokus ${focusMinutes} menit untuk backlog kuliah`,
+        entity: 'focus_session',
+        id: null,
+        title: 'Sesi fokus backlog',
+        hours_left: null,
+        score: 0,
+      },
+      reason: 'Belum ada item pending yang terbaca, jadi aksi terbaik adalah menjaga ritme eksekusi harian dulu.',
+      next_step: `Mulai timer ${focusMinutes} menit, pilih 1 target kecil, lalu kirim update progres.`,
+      confidence: 'low',
+      energy,
+      pending_total: 0,
+      due_24h: 0,
+      scored_candidates: [],
+    };
+  }
+
+  const due24h = scored.filter((item) => Number.isFinite(item.hours_left) && item.hours_left <= 24).length;
+  const reason = `Dipilih karena ${formatRelativeDeadline(top.hours_left)}, skor prioritas ${top.total_score}, dan cocok untuk energi ${energy}.`;
+  const nextFocus = energy === 'low' ? Math.min(20, focusMinutes) : focusMinutes;
+  const nextStep = `Mulai sekarang ${nextFocus} menit pada "${shortDecisionTitle(top.title)}", lalu update progres 1 kalimat.`;
+
+  let confidence = 'high';
+  if (!Number.isFinite(top.hours_left)) confidence = 'medium';
+  if (scored.length < 2) confidence = 'medium';
+
+  return {
+    primary_action: {
+      label: buildDecisionActionLabel(top),
+      entity: top.entity,
+      id: top.id,
+      title: top.title,
+      hours_left: top.hours_left,
+      score: top.total_score,
+      deadline: top.deadline || null,
+    },
+    reason,
+    next_step: nextStep,
+    confidence,
+    energy,
+    pending_total: pendingTotal,
+    due_24h: due24h,
+    scored_candidates: scored.slice(0, 5),
+  };
+}
+
+function buildDecisionEngineReply(decision = null, context = null) {
+  if (!decision || typeof decision !== 'object') {
+    return 'Aksi utama sekarang: mulai 1 sesi fokus 25 menit, lalu kirim update progres.';
+  }
+  const tone = String(context?.tone_mode || 'supportive').toLowerCase();
+  const action = String(decision?.primary_action?.label || 'Mulai 1 prioritas utama').trim();
+  const reason = String(decision?.reason || '').trim();
+  const next = String(decision?.next_step || '').trim();
+
+  if (tone === 'strict') {
+    return `Aksi utama: ${action}. Alasan: ${reason} Next: ${next}`.slice(0, CHATBOT_MAX_REPLY);
+  }
+  if (tone === 'balanced') {
+    return `Fokus utama kamu: ${action}. Kenapa: ${reason} Langkah berikutnya: ${next}`.slice(0, CHATBOT_MAX_REPLY);
+  }
+  return `Biar ringan tapi tetap maju, fokus utama sekarang: ${action}. Kenapa: ${reason} Next step: ${next}`.slice(0, CHATBOT_MAX_REPLY);
+}
+
+function buildDecisionEngineSuggestions(decision = null, context = null) {
+  const focusMinutes = clampNumber(context?.focus_minutes || 25, 10, 180);
+  const title = shortDecisionTitle(decision?.primary_action?.title || 'prioritas utama');
+  const actionEntity = String(decision?.primary_action?.entity || '').toLowerCase();
+  const actionId = Number(decision?.primary_action?.id || 0) || null;
+  const suggestions = [
+    { label: `Mulai ${focusMinutes}m`, command: `mulai fokus ${focusMinutes} menit untuk ${title}`, tone: 'success' },
+    { label: 'Reminder Follow-Up', command: `ingatkan aku ${focusMinutes} menit lagi untuk update progres ${title}`, tone: 'warning' },
+    { label: 'Evaluasi Cepat', command: 'evaluasi singkat progres hari ini', tone: 'info' },
+    { label: 'Prioritas Berikutnya', command: 'rekomendasi tugas berikutnya', tone: 'info' },
+  ];
+  if (actionEntity === 'task' && actionId) {
+    suggestions[3] = { label: `Selesai Task #${actionId}`, command: `selesaikan task ${actionId}`, tone: 'success' };
+  } else if (actionEntity === 'assignment' && actionId) {
+    suggestions[3] = { label: `Selesai Assignment #${actionId}`, command: `selesaikan assignment ${actionId}`, tone: 'success' };
+  }
+  return normalizeChatbotSuggestions(suggestions);
 }
 
 function localFallbackPayload(message = '') {
@@ -2139,10 +3038,27 @@ export default withErrorHandling(async function handler(req, res) {
       const routeStartedAt = Date.now();
       const optionalUser = extractOptionalUser(req);
       const planner = buildPlannerFrame(message);
-      const memory = optionalUser ? await getZaiMemoryBundle(optionalUser).catch(() => null) : null;
+      const [memory, semanticMemory, dueReminderState] = optionalUser
+        ? await Promise.all([
+            getZaiMemoryBundle(optionalUser).catch(() => null),
+            retrieveSemanticMemoryHints(optionalUser, message, SEMANTIC_MEMORY_MAX_ITEMS).catch(() => []),
+            flushDueRemindersForUser(optionalUser, 4).catch(() => ({ reminders: [], pushed_count: 0 })),
+          ])
+        : [null, [], { reminders: [], pushed_count: 0 }];
       const learningHints = buildLearningHints(memory);
+      const normalizedContext = normalizeChatbotContext(b.context) || {};
+      const mergedSemanticMemory = normalizeSemanticMemoryItems(
+        [
+          ...(Array.isArray(semanticMemory) ? semanticMemory : []),
+          ...(Array.isArray(normalizedContext.semantic_memory) ? normalizedContext.semantic_memory : []),
+        ],
+        SEMANTIC_MEMORY_MAX_ITEMS
+      );
+      const adaptiveContext = chatbotAutoToneEnabled()
+        ? inferBehaviorAdaptiveContext(message, normalizedContext, memory, planner, learningHints)
+        : normalizedContext;
       const contextWithMemory = {
-        ...(normalizeChatbotContext(b.context) || {}),
+        ...adaptiveContext,
         memory_topics: Array.isArray(memory?.memory?.recent_topics) ? memory.memory.recent_topics.slice(0, 5) : [],
         unresolved_fields: Array.isArray(memory?.memory?.unresolved)
           ? memory.memory.unresolved.map((item) => String(item?.field || '')).filter(Boolean).slice(0, 6)
@@ -2150,10 +3066,8 @@ export default withErrorHandling(async function handler(req, res) {
         preferred_commands: learningHints.preferred_commands,
         avoid_commands: learningHints.avoid_commands,
         helpful_ratio: learningHints.helpful_ratio,
+        semantic_memory: mergedSemanticMemory,
       };
-      const dueReminderState = optionalUser
-        ? await flushDueRemindersForUser(optionalUser, 4).catch(() => ({ reminders: [], pushed_count: 0 }))
-        : { reminders: [], pushed_count: 0 };
       const dueReminderTail = buildDueReminderFollowup(dueReminderState.reminders);
 
       const actionPlan = buildActionEnginePlan(planner, optionalUser);
@@ -2223,9 +3137,17 @@ export default withErrorHandling(async function handler(req, res) {
         const plannerOut = buildActionPlannerResult(planner, actionPlan, execution);
         const clarifications = Array.isArray(plannerOut.clarifications) ? plannerOut.clarifications : [];
         const reliability = buildReliabilityAssessment(message, plannerOut, intent);
-        const rawReply = buildActionExecutionReply(execution, clarifications);
+        const rawReply = buildActionExecutionReply(execution, clarifications, {
+          style: String(contextWithMemory?.tone_mode || 'supportive'),
+          focus_minutes: Number(contextWithMemory?.focus_minutes || 25),
+        });
         const replyWithReminder = [rawReply, dueReminderTail].filter(Boolean).join('\n\n').slice(0, CHATBOT_MAX_REPLY);
-        const reply = applyReliabilityFollowup(replyWithReminder, reliability).slice(0, CHATBOT_MAX_REPLY);
+        const reliableReply = applyReliabilityFollowup(replyWithReminder, reliability).slice(0, CHATBOT_MAX_REPLY);
+        const reply = personalizeReplyForUser(reliableReply, {
+          user_id: optionalUser,
+          memory,
+          intent,
+        }).slice(0, CHATBOT_MAX_REPLY);
         const suggestions = applyLearningToSuggestions(
           buildActionExecutionSuggestions(execution, clarifications),
           learningHints
@@ -2299,6 +3221,186 @@ export default withErrorHandling(async function handler(req, res) {
         return;
       }
 
+      if (chatbotDecisionEngineEnabled() && shouldRunDecisionEngine(message, planner)) {
+        const complexity = evaluateHybridComplexity(message, planner);
+        const responseId = randomUUID();
+        const intent = 'recommend_task';
+
+        if (!optionalUser) {
+          const decision = buildDecisionEngineV2Payload(message, contextWithMemory, memory, { tasks: [], assignments: [] });
+          const decisionReply = `${buildDecisionEngineReply(decision, contextWithMemory)} Login dulu biar Z AI bisa baca data tugasmu dan kasih prioritas personal.`;
+          const plannerOut = {
+            ...planner,
+            mode: 'single',
+            confidence: 'low',
+            requires_clarification: false,
+            clarifications: [],
+            summary: `1. ${decision.primary_action.label}`,
+            next_best_action: decision.next_step,
+            actions: [
+              {
+                id: 'decision_1',
+                kind: 'recommendation',
+                summary: decision.primary_action.label,
+                status: 'ready',
+                command: decision.next_step,
+                missing: [],
+              },
+            ],
+          };
+          const reliability = buildReliabilityAssessment(message, plannerOut, intent);
+          const router = {
+            mode: 'native',
+            selected_engine: 'decision-engine-v2',
+            engine_final: 'decision-engine-v2',
+            fallback_used: false,
+            complexity_score: complexity.score,
+            complexity_level: complexity.level,
+            complexity_threshold: complexity.threshold,
+            reasons: complexity.reasons,
+          };
+          writeRouterMetricEvent({
+            user_id: null,
+            response_id: responseId,
+            status: 'ok',
+            engine: 'decision-engine-v2',
+            intent,
+            latency_ms: Date.now() - routeStartedAt,
+            router,
+          }).catch(() => {});
+
+          sendJson(res, 200, {
+            reply: decisionReply.slice(0, CHATBOT_MAX_REPLY),
+            intent,
+            response_id: responseId,
+            engine: 'decision-engine-v2',
+            router,
+            adaptive: {
+              style: String(contextWithMemory?.tone_mode || 'supportive'),
+              focus_minutes: Number(contextWithMemory?.focus_minutes || 25),
+              urgency: 'medium',
+              energy: String(decision.energy || 'normal'),
+              domain: 'kuliah',
+            },
+            planner: plannerOut,
+            reliability,
+            unified_memory: null,
+            memory_update: null,
+            decision,
+            suggestions: normalizeChatbotSuggestions([
+              { label: 'Login Dulu', command: 'login', tone: 'warning' },
+              { label: 'Template Prioritas', command: 'rekomendasi tugas kuliah paling urgent', tone: 'info' },
+              { label: 'Cek Target', command: 'cek target harian pasangan', tone: 'info' },
+            ]),
+            due_reminders: [],
+          });
+          return;
+        }
+
+        const candidates = await fetchDecisionCandidatesForUser(optionalUser, 20).catch(() => ({ tasks: [], assignments: [] }));
+        const decision = buildDecisionEngineV2Payload(message, contextWithMemory, memory, candidates);
+        const plannerOut = {
+          ...planner,
+          mode: 'single',
+          confidence: String(decision.confidence || 'medium'),
+          requires_clarification: false,
+          clarifications: [],
+          summary: `1. ${decision.primary_action.label}`,
+          next_best_action: decision.next_step,
+          actions: [
+            {
+              id: 'decision_1',
+              kind: 'recommendation',
+              summary: decision.primary_action.label,
+              status: 'ready',
+              command: decision.next_step,
+              missing: [],
+            },
+          ],
+        };
+
+        const reliability = buildReliabilityAssessment(message, plannerOut, intent);
+        const rawReply = buildDecisionEngineReply(decision, contextWithMemory);
+        const replyWithReminder = [rawReply, dueReminderTail].filter(Boolean).join('\n\n').slice(0, CHATBOT_MAX_REPLY);
+        const reliableReply = applyReliabilityFollowup(replyWithReminder, reliability).slice(0, CHATBOT_MAX_REPLY);
+        const reply = personalizeReplyForUser(reliableReply, {
+          user_id: optionalUser,
+          memory,
+          intent,
+        }).slice(0, CHATBOT_MAX_REPLY);
+        const suggestions = applyLearningToSuggestions(
+          buildDecisionEngineSuggestions(decision, contextWithMemory),
+          learningHints
+        );
+        const memoryUpdate = buildStatelessMemoryUpdate(memory, intent, message, ['target', 'kuliah']);
+        const router = {
+          mode: 'native',
+          selected_engine: 'decision-engine-v2',
+          engine_final: 'decision-engine-v2',
+          fallback_used: false,
+          complexity_score: complexity.score,
+          complexity_level: complexity.level,
+          complexity_threshold: complexity.threshold,
+          reasons: complexity.reasons,
+        };
+
+        const topics = normalizeRecentStrings([
+          ...extractMessageTopics(message),
+          'target',
+          String(decision?.primary_action?.entity || ''),
+        ], 5);
+
+        writeZaiMemoryBundle(optionalUser, {
+          message,
+          intent,
+          reply,
+          planner: plannerOut,
+          context: {
+            ...contextWithMemory,
+            response_id: responseId,
+            decision: {
+              label: String(decision?.primary_action?.label || ''),
+              confidence: String(decision?.confidence || 'medium'),
+              score: Number(decision?.primary_action?.score || 0),
+            },
+          },
+          topics,
+        }).catch(() => {});
+        writeRouterMetricEvent({
+          user_id: optionalUser || null,
+          response_id: responseId,
+          status: 'ok',
+          engine: 'decision-engine-v2',
+          intent,
+          latency_ms: Date.now() - routeStartedAt,
+          router,
+        }).catch(() => {});
+
+        sendJson(res, 200, {
+          reply,
+          intent,
+          response_id: responseId,
+          engine: 'decision-engine-v2',
+          router,
+          adaptive: {
+            style: String(contextWithMemory?.tone_mode || 'supportive'),
+            focus_minutes: Number(contextWithMemory?.focus_minutes || 25),
+            urgency: Number(decision?.due_24h || 0) > 0 ? 'high' : 'medium',
+            energy: String(decision.energy || 'normal'),
+            domain: 'kuliah',
+          },
+          planner: plannerOut,
+          reliability,
+          unified_memory: memory,
+          memory_update: memoryUpdate,
+          feedback_profile: normalizeFeedbackProfile(memory?.memory?.feedback_profile || {}),
+          decision,
+          suggestions: normalizeChatbotSuggestions(suggestions),
+          due_reminders: Array.isArray(dueReminderState.reminders) ? dueReminderState.reminders : [],
+        });
+        return;
+      }
+
       const studyPlanRequest = parseStudyPlanRequest(message);
       if (studyPlanRequest) {
         if (!optionalUser) {
@@ -2349,7 +3451,12 @@ export default withErrorHandling(async function handler(req, res) {
           const reliability = buildReliabilityAssessment(message, planner, intent);
           const rawReply = buildStudyPlanNaturalReply(studyPlan).slice(0, CHATBOT_MAX_REPLY);
           const replyWithReminder = [rawReply, dueReminderTail].filter(Boolean).join('\n\n').slice(0, CHATBOT_MAX_REPLY);
-          const reply = applyReliabilityFollowup(replyWithReminder, reliability).slice(0, CHATBOT_MAX_REPLY);
+          const reliableReply = applyReliabilityFollowup(replyWithReminder, reliability).slice(0, CHATBOT_MAX_REPLY);
+          const reply = personalizeReplyForUser(reliableReply, {
+            user_id: optionalUser,
+            memory,
+            intent,
+          }).slice(0, CHATBOT_MAX_REPLY);
           const memoryUpdate = buildStatelessMemoryUpdate(memory, intent, message, ['study']);
           const suggestions = applyLearningToSuggestions(buildStudyPlanSuggestions(studyPlan), learningHints);
           const responseId = randomUUID();
@@ -2420,7 +3527,12 @@ export default withErrorHandling(async function handler(req, res) {
         ? payload.memory_update
         : buildStatelessMemoryUpdate(memoryOut, intentOut, message);
       const rawReplyCore = String(payload?.reply || '').slice(0, CHATBOT_MAX_REPLY);
-      const replyCore = applyReliabilityFollowup(rawReplyCore, reliability).slice(0, CHATBOT_MAX_REPLY);
+      const reliableReplyCore = applyReliabilityFollowup(rawReplyCore, reliability).slice(0, CHATBOT_MAX_REPLY);
+      const replyCore = personalizeReplyForUser(reliableReplyCore, {
+        user_id: optionalUser,
+        memory: memoryOut,
+        intent: intentOut,
+      }).slice(0, CHATBOT_MAX_REPLY);
       const replyParts = [replyCore];
       const plannerInfo = plannerTextBlock(plannerOut);
       if (plannerInfo) replyParts.push(plannerInfo);
