@@ -174,15 +174,26 @@ function createTaskEl(task) {
   content.style.position = 'relative';
 
   // Checkbox
-  const check = document.createElement('div');
+  const check = document.createElement('input');
+  check.type = 'checkbox';
   check.className = 'task-check';
+  check.setAttribute('aria-label', task.title || 'Toggle complete');
+  check.checked = !!task.completed;
+  // Visual indicator when multi-select mode: use checked state for selection
   if (isMultiSelectMode) {
-    check.innerHTML = selectedIds.has(String(task.id)) ? '<i class="fa-solid fa-check" style="font-size:10px"></i>' : '';
-    if (selectedIds.has(String(task.id))) check.style.background = 'var(--primary)';
-  } else {
-    check.innerHTML = task.completed ? '<i class="fa-solid fa-check" style="font-size:10px"></i>' : '';
+    check.checked = selectedIds.has(String(task.id));
   }
-  // Prevent click propagation for checkbox specific logic if needed, but tap on item handles it usually.
+
+  // Clicking the checkbox should not open the edit sheet
+  check.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    if (isMultiSelectMode) {
+      toggleSelection(task.id);
+    } else {
+      toggleComplete(task);
+    }
+  });
+
   content.appendChild(check);
 
   // Text Info

@@ -216,16 +216,40 @@ body {
 }
 
 .task-check {
-    width: 24px;
-    height: 24px;
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
     border: 2px solid hsla(var(--text-500), 0.5);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    border-radius: 6px;
+    display: inline-block;
     flex-shrink: 0;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.18s cubic-bezier(0.2, 0.9, 0.2, 1);
+    background-color: transparent;
+    box-sizing: border-box;
+}
+
+.task-check:hover {
+    transform: scale(1.05);
+    border-color: hsla(var(--nebula-core), 0.45);
+}
+
+.task-check:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 4px hsla(var(--nebula-core), 0.12);
+}
+
+/* checked state: use inline SVG checkmark as background-image */
+.task-check:checked {
+    background-color: hsl(var(--nebula-core));
+    border-color: hsl(var(--nebula-core));
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M20 6L9 17l-5-5' stroke='%23ffffff' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 12px 12px;
+    color: hsl(var(--space-950));
+    box-shadow: 0 0 10px hsla(var(--nebula-core), 0.45);
 }
 
 .task-item.completed .task-check {
