@@ -82,7 +82,7 @@ function proactiveExplainability(item) {
       why: [Number.isFinite(minutesLeft) ? `Deadline tinggal ${minutesLeft} menit.` : 'Deadline item sangat dekat.'],
       impact: 'Eksekusi sekarang mencegah keterlambatan langsung pada item kritis.',
       risk: Number.isFinite(minutesLeft) && minutesLeft <= 0
-        ? 'Item sudah overdue.'
+        ? 'Item sudah terlambat.'
         : 'Jika ditunda, risiko telat meningkat signifikan.',
     };
   }
@@ -93,7 +93,7 @@ function proactiveExplainability(item) {
     const hoursLeft = Number(payload.hours_left || 0);
     return {
       why: [riskScore > 0 ? `Model prediktif memberi skor ${riskScore} (${riskBand}).` : `Item terdeteksi berisiko ${riskBand}.`],
-      impact: 'Kamu bisa replan lebih awal sebelum masuk zona urgent.',
+      impact: 'Kamu bisa atur ulang lebih awal sebelum masuk zona mendesak.',
       risk: Number.isFinite(hoursLeft) && hoursLeft > 0
         ? `Tanpa eksekusi dini, item ini bisa jadi kritis dalam ~${Math.max(1, Math.round(hoursLeft))} jam.`
         : 'Risiko deadline meningkat jika ditunda.',
@@ -114,7 +114,7 @@ function proactiveExplainability(item) {
     const gap = Number(payload.gap_hours || 0);
     return {
       why: [gap > 0 ? `Sudah sekitar ${Math.floor(gap)} jam tanpa check-in.` : 'Ritme check-in menurun.'],
-      impact: 'Sync singkat membantu distribusi beban couple lebih seimbang.',
+      impact: 'Sinkronisasi singkat membantu distribusi beban couple lebih seimbang.',
       risk: 'Miskomunikasi dapat menaikkan friksi dan menurunkan produktivitas.',
     };
   }
@@ -122,9 +122,9 @@ function proactiveExplainability(item) {
   if (eventType === 'predictive_support_ping') {
     const target = String(payload.target || 'partner');
     return {
-      why: [`Sistem mendeteksi ${target} butuh support untuk item berisiko tinggi.`],
-      impact: 'Intervensi lebih awal membantu mencegah eskalasi ke overdue.',
-      risk: 'Tanpa support/check-in, risiko miss deadline meningkat.',
+      why: [`Sistem mendeteksi ${target} butuh dukungan untuk item berisiko tinggi.`],
+      impact: 'Intervensi lebih awal membantu mencegah eskalasi jadi keterlambatan.',
+      risk: 'Tanpa dukungan/check-in, risiko telat deadline meningkat.',
     };
   }
 
@@ -133,8 +133,8 @@ function proactiveExplainability(item) {
     const assignments = Array.isArray(payload.assignments) ? payload.assignments.length : 0;
     const classes = Array.isArray(payload.classes) ? payload.classes.length : 0;
     return {
-      why: [`Brief pagi menghitung ${tasks} task, ${assignments} assignment, ${classes} kelas.`],
-      impact: 'Rencana lebih jelas dari pagi menurunkan context switching seharian.',
+      why: [`Brief pagi menghitung ${tasks} tugas, ${assignments} tugas kuliah, ${classes} kelas.`],
+      impact: 'Rencana lebih jelas dari pagi menurunkan perpindahan fokus seharian.',
       risk: 'Tanpa prioritas awal, backlog mudah menumpuk di malam hari.',
     };
   }
@@ -217,19 +217,19 @@ function buildAssistantEvidenceChips(payload) {
   if (tool === 'get_daily_brief') {
     const taskCount = Array.isArray(data.tasks) ? data.tasks.length : 0;
     const assignmentCount = Array.isArray(data.assignments) ? data.assignments.length : 0;
-    chips.push({ label: `Task ${taskCount}`, tone: 'info', command: 'task pending saya apa' });
-    chips.push({ label: `Assignment ${assignmentCount}`, tone: 'info', command: 'assignment pending saya apa' });
+    chips.push({ label: `Tugas ${taskCount}`, tone: 'info', command: 'tugas pending saya apa' });
+    chips.push({ label: `Tugas Kuliah ${assignmentCount}`, tone: 'info', command: 'tugas kuliah pending saya apa' });
   }
 
   if (tool === 'get_tasks' || tool === 'get_assignments') {
     const items = Array.isArray(data.items) ? data.items : [];
     const risk = summarizeDeadlineRisk(items);
-    if (risk.overdue > 0) chips.push({ label: `${risk.overdue} Overdue`, tone: 'critical', command: 'task urgent saya apa' });
-    else if (risk.due24h > 0) chips.push({ label: `${risk.due24h} Due <24h`, tone: 'warning', command: 'task urgent saya apa' });
+    if (risk.overdue > 0) chips.push({ label: `${risk.overdue} Terlambat`, tone: 'critical', command: 'tugas paling mendesak saya apa' });
+    else if (risk.due24h > 0) chips.push({ label: `${risk.due24h} Deadline <24j`, tone: 'warning', command: 'tugas paling mendesak saya apa' });
     if (items.length > 0) chips.push({
-      label: `${items.length} Pending`,
+      label: `${items.length} Tertunda`,
       tone: 'info',
-      command: tool === 'get_tasks' ? 'task pending saya apa' : 'assignment pending saya apa',
+      command: tool === 'get_tasks' ? 'tugas pending saya apa' : 'tugas kuliah pending saya apa',
     });
   }
 
@@ -238,23 +238,23 @@ function buildAssistantEvidenceChips(payload) {
     const streak = data.streak || {};
     const urgent = Number(counters.urgent_items || 0);
     const streakDays = Number(streak.current_days || 0);
-    if (urgent > 0) chips.push({ label: `Urgent ${urgent}`, tone: 'critical', command: 'task urgent saya apa' });
-    if (streakDays > 0) chips.push({ label: `Streak ${streakDays}d`, tone: 'success', command: 'jadwal belajar besok pagi' });
+    if (urgent > 0) chips.push({ label: `Mendesak ${urgent}`, tone: 'critical', command: 'tugas paling mendesak saya apa' });
+    if (streakDays > 0) chips.push({ label: `Runtun ${streakDays}h`, tone: 'success', command: 'jadwal belajar besok pagi' });
   }
 
   if (tool === 'get_study_plan') {
     const summary = data.summary || {};
     const criticalSessions = Number(summary.critical_sessions || 0);
     const sessions = Number(summary.sessions || 0);
-    if (sessions > 0) chips.push({ label: `${sessions} Sessions`, tone: 'info', command: 'jadwal belajar besok pagi' });
-    if (criticalSessions > 0) chips.push({ label: `${criticalSessions} Critical`, tone: 'warning', command: 'geser sesi belajar ke besok pagi' });
+    if (sessions > 0) chips.push({ label: `${sessions} Sesi`, tone: 'info', command: 'jadwal belajar besok pagi' });
+    if (criticalSessions > 0) chips.push({ label: `${criticalSessions} Kritis`, tone: 'warning', command: 'geser sesi belajar ke besok pagi' });
   }
 
   if (explain.confidence) {
     chips.push({
       label: `Z AI ${String(explain.confidence).toUpperCase()}`,
       tone: confidenceTone(explain.confidence),
-      command: 'tampilkan memory hari ini',
+      command: 'tampilkan memori hari ini',
     });
   }
 
@@ -270,9 +270,9 @@ function buildProactiveEvidenceChips(item) {
     const minutesLeft = Number(payload.minutes_left);
     if (Number.isFinite(minutesLeft)) {
       chips.push({
-        label: minutesLeft <= 0 ? 'Overdue' : `Due ${minutesLeft}m`,
+        label: minutesLeft <= 0 ? 'Terlambat' : `Sisa ${minutesLeft}m`,
         tone: minutesLeft <= 0 ? 'critical' : 'warning',
-        command: payload.source === 'assignment' ? 'assignment pending saya apa' : 'task urgent saya apa',
+        command: payload.source === 'assignment' ? 'tugas kuliah pending saya apa' : 'tugas paling mendesak saya apa',
       });
     }
   }
@@ -281,15 +281,15 @@ function buildProactiveEvidenceChips(item) {
     const band = String(payload.risk_band || '').toLowerCase() || eventType.replace('predictive_risk_', '');
     const score = Number(payload.risk_score || 0);
     chips.push({
-      label: `Predictive ${band}`,
+      label: `Prediksi ${band}`,
       tone: band === 'critical' ? 'critical' : 'warning',
-      command: 'risk deadline 48 jam ke depan',
+      command: 'risiko deadline 48 jam ke depan',
     });
     if (score > 0) {
       chips.push({
-        label: `Score ${score}`,
+        label: `Skor ${score}`,
         tone: band === 'critical' ? 'critical' : 'warning',
-        command: 'risk deadline 48 jam ke depan',
+        command: 'risiko deadline 48 jam ke depan',
       });
     }
   }
@@ -301,18 +301,18 @@ function buildProactiveEvidenceChips(item) {
 
   if (eventType === 'checkin_suggestion') {
     const gap = Number(payload.gap_hours || 0);
-    if (gap > 0) chips.push({ label: `No Check-In ${Math.floor(gap)}h`, tone: 'warning', command: 'bantu buat pesan check-in pasangan sekarang' });
+    if (gap > 0) chips.push({ label: `Tanpa Check-In ${Math.floor(gap)}j`, tone: 'warning', command: 'bantu buat pesan check-in pasangan sekarang' });
   }
 
   if (eventType === 'predictive_support_ping') {
-    chips.push({ label: 'Support Needed', tone: 'warning', command: 'ingatkan pasangan check-in malam ini' });
+    chips.push({ label: 'Butuh Dukungan', tone: 'warning', command: 'ingatkan pasangan check-in malam ini' });
   }
 
   if (eventType === 'morning_brief') {
     const taskCount = Array.isArray(payload.tasks) ? payload.tasks.length : 0;
     const assignmentCount = Array.isArray(payload.assignments) ? payload.assignments.length : 0;
-    chips.push({ label: `Task ${taskCount}`, tone: 'info', command: 'task pending saya apa' });
-    chips.push({ label: `Assignment ${assignmentCount}`, tone: 'info', command: 'assignment pending saya apa' });
+    chips.push({ label: `Tugas ${taskCount}`, tone: 'info', command: 'tugas pending saya apa' });
+    chips.push({ label: `Tugas Kuliah ${assignmentCount}`, tone: 'info', command: 'tugas kuliah pending saya apa' });
   }
 
   return dedupeEvidenceChips(chips);
@@ -455,21 +455,21 @@ function isToday(isoDate) {
 }
 
 function dueMeta(deadline) {
-  if (!deadline) return { dueMs: Number.POSITIVE_INFINITY, badge: 'No deadline', urgency: 'good' };
+  if (!deadline) return { dueMs: Number.POSITIVE_INFINITY, badge: 'Tanpa Deadline', urgency: 'good' };
   const due = new Date(deadline).getTime();
-  if (!Number.isFinite(due)) return { dueMs: Number.POSITIVE_INFINITY, badge: 'No deadline', urgency: 'good' };
+  if (!Number.isFinite(due)) return { dueMs: Number.POSITIVE_INFINITY, badge: 'Tanpa Deadline', urgency: 'good' };
 
   const diffMin = Math.round((due - Date.now()) / 60000);
-  if (diffMin <= 0) return { dueMs: due, badge: 'Overdue', urgency: 'critical' };
+  if (diffMin <= 0) return { dueMs: due, badge: 'Terlambat', urgency: 'critical' };
   if (diffMin <= 180) return { dueMs: due, badge: '<3h', urgency: 'critical' };
   if (diffMin <= 720) return { dueMs: due, badge: '<12h', urgency: 'warning' };
-  if (diffMin <= 1440) return { dueMs: due, badge: 'Today', urgency: 'warning' };
+  if (diffMin <= 1440) return { dueMs: due, badge: 'Hari Ini', urgency: 'warning' };
   return { dueMs: due, badge: `${Math.ceil(diffMin / 1440)}d`, urgency: 'good' };
 }
 
 function collectMissionItems() {
   const pendingTasks = (state.tasks || []).filter((t) => !t.completed && !t.is_deleted).map((t) => ({
-    type: 'Task',
+    type: 'Tugas',
     icon: 'fa-list-check',
     title: t.title,
     priority: t.priority || 'medium',
@@ -478,7 +478,7 @@ function collectMissionItems() {
   }));
 
   const pendingAssignments = (state.assignments || []).filter((a) => !a.completed).map((a) => ({
-    type: 'Assignment',
+    type: 'Tugas Kuliah',
     icon: 'fa-graduation-cap',
     title: a.title,
     priority: 'medium',
@@ -505,14 +505,14 @@ function reminderCandidate(items = []) {
 
 function reminderRouteForItem(item) {
   if (!item) return '/daily-tasks';
-  return item.type === 'Assignment' ? '/college-assignments' : '/daily-tasks';
+  return item.type === 'Tugas Kuliah' ? '/college-assignments' : '/daily-tasks';
 }
 
 function formatReminderSub(item) {
-  if (!item) return 'Buka planner untuk cek prioritas terbaru.';
-  if (item.badge === 'Overdue') return `${item.type} ini sudah lewat deadline. Tangani sekarang.`;
-  if (item.badge === '<3h' || item.badge === '<12h') return `${item.type} ini due sangat dekat (${item.badge}).`;
-  if (item.badge === 'Today') return `${item.type} ini jatuh tempo hari ini.`;
+  if (!item) return 'Buka rencana untuk cek prioritas terbaru.';
+  if (item.badge === 'Terlambat') return `${item.type} ini sudah lewat deadline. Tangani sekarang.`;
+  if (item.badge === '<3h' || item.badge === '<12h') return `${item.type} ini deadline-nya sangat dekat (${item.badge}).`;
+  if (item.badge === 'Hari Ini') return `${item.type} ini jatuh tempo hari ini.`;
   return `${item.type} ini perlu progres hari ini.`;
 }
 
@@ -578,7 +578,7 @@ function renderTodayMission() {
 
   const html = items.slice(0, 5).map((item) => {
     const subtitle = item.assigned_to ? `${item.type} - ${item.assigned_to}` : item.type;
-    const safeTitle = escapeHtml(item.title || 'Untitled');
+    const safeTitle = escapeHtml(item.title || 'Tanpa Judul');
     const safeSub = escapeHtml(subtitle);
     return `
       <article class="cc-item ${item.urgency}">
@@ -613,7 +613,7 @@ function renderTaskReminderBanner() {
   }
 
   currentReminderItem = candidate;
-  titleEl.textContent = `${candidate.type}: ${candidate.title || 'Untitled'}`;
+  titleEl.textContent = `${candidate.type}: ${candidate.title || 'Tanpa Judul'}`;
   subEl.textContent = formatReminderSub(candidate);
   banner.hidden = false;
 }
@@ -628,20 +628,20 @@ function buildZaIFloatingMessage() {
   const predictiveCritical = Number(proactiveSignals.predicted_critical_count || 0);
 
   if (urgent) {
-    const danger = urgent.badge === 'Overdue'
+    const danger = urgent.badge === 'Terlambat'
       ? 'sudah melewati deadline'
       : `deadline ${hoursLeftLabel(urgent.dueMs)}`;
     return {
       tone: urgent.urgency === 'critical' ? 'critical' : 'warning',
-      title: 'Z AI Reminder',
-      message: `Hai ${user}, ${urgent.type.toLowerCase()} "${urgent.title || 'Untitled'}" ${danger}. Prioritaskan sekarang ya.`,
+      title: 'Pengingat Z AI',
+      message: `Hai ${user}, ${urgent.type.toLowerCase()} "${urgent.title || 'Tanpa Judul'}" ${danger}. Prioritaskan sekarang ya.`,
       primary: {
-        label: urgent.type === 'Assignment' ? 'Buka Tugas Kuliah' : 'Buka Daily Task',
+        label: urgent.type === 'Tugas Kuliah' ? 'Buka Tugas Kuliah' : 'Buka Tugas Harian',
         route: reminderRouteForItem(urgent),
       },
       secondary: classesToday.length
         ? { label: 'Lihat Jadwal', route: '/schedule' }
-        : { label: 'Buka Chat Z AI', route: '/chat?ai=rekomendasi%20task%20urgent%20saya' },
+        : { label: 'Buka Obrolan Z AI', route: '/chat?ai=rekomendasi%20tugas%20paling%20mendesak%20saya' },
       pulse: true,
     };
   }
@@ -653,7 +653,7 @@ function buildZaIFloatingMessage() {
     const day = DAY_LABEL_ID[todayDayId()] || 'Hari ini';
     return {
       tone: 'info',
-      title: 'Z AI Campus Brief',
+      title: 'Brief Kampus Z AI',
       message: `Hai ${user}, ${day} ada ${classesToday.length} jadwal kuliah. Mulai ${firstStart} untuk ${firstSubject}.`,
       primary: { label: 'Buka Jadwal', route: '/schedule' },
       secondary: { label: 'Rencana Belajar', route: '/chat?ai=buatkan%20jadwal%20belajar%20di%20waktu%20kosong' },
@@ -665,10 +665,10 @@ function buildZaIFloatingMessage() {
     const risky = Math.max(overdueCount, predictiveCritical);
     return {
       tone: 'warning',
-      title: 'Z AI Proactive',
+      title: 'Z AI Proaktif',
       message: `Hai ${user}, ada ${risky} item berisiko tinggi. Cek radar sekarang supaya gak mepet deadline.`,
-      primary: { label: 'Buka Urgent Radar', route: '/daily-tasks' },
-      secondary: { label: 'Analisis Risiko', route: '/chat?ai=risk%20deadline%2048%20jam%20ke%20depan' },
+      primary: { label: 'Buka Radar Mendesak', route: '/daily-tasks' },
+      secondary: { label: 'Analisis Risiko', route: '/chat?ai=risiko%20deadline%2048%20jam%20ke%20depan' },
       pulse: true,
     };
   }
@@ -677,8 +677,8 @@ function buildZaIFloatingMessage() {
   if (pending > 0) {
     return {
       tone: 'info',
-      title: 'Z AI Focus',
-      message: `Hai ${user}, masih ada ${pending} item pending. Ambil 1 item dulu, sprint 25 menit, lalu update progres.`,
+      title: 'Z AI Fokus',
+      message: `Hai ${user}, masih ada ${pending} item tertunda. Ambil 1 item dulu, fokus 25 menit, lalu update progres.`,
       primary: { label: 'Buka Prioritas', route: '/daily-tasks' },
       secondary: { label: 'Minta Rekomendasi', route: '/chat?ai=rekomendasi%20tugas%20kuliah' },
       pulse: false,
@@ -687,10 +687,10 @@ function buildZaIFloatingMessage() {
 
   return {
     tone: 'good',
-    title: 'Z AI Calm Mode',
+    title: 'Z AI Mode Tenang',
     message: `Hai ${user}, kondisi hari ini aman. Kamu bisa lanjut goals jangka panjangmu.`,
-    primary: { label: 'Buka Goals', route: '/goals' },
-    secondary: { label: 'Chat Z AI', route: '/chat?ai=ringkasan%20hari%20ini' },
+    primary: { label: 'Buka Tujuan', route: '/goals' },
+    secondary: { label: 'Obrolan Z AI', route: '/chat?ai=ringkasan%20hari%20ini' },
     pulse: false,
   };
 }
@@ -710,12 +710,12 @@ function renderZaIFloatingWidget() {
 
   root.dataset.tone = String(payload.tone || 'info');
   root.classList.toggle('is-urgent', Boolean(payload.pulse));
-  toneEl.textContent = payload.title || 'Z AI Reminder';
+  toneEl.textContent = payload.title || 'Pengingat Z AI';
   msgEl.textContent = payload.message || 'Z AI siap bantu prioritas kamu.';
 
   primaryBtn.textContent = payload.primary?.label || 'Buka';
   primaryBtn.dataset.route = payload.primary?.route || '/chat';
-  secondaryBtn.textContent = payload.secondary?.label || 'Chat';
+  secondaryBtn.textContent = payload.secondary?.label || 'Obrolan';
   secondaryBtn.dataset.route = payload.secondary?.route || '/chat';
 
   const isOpen = panel.classList.contains('show');
@@ -747,10 +747,10 @@ function renderCouplePulse() {
   const sync = state.weekly && state.weekly.combined ? state.weekly.combined.correlation : null;
   if (syncEl) {
     if (sync === null || sync === undefined) {
-      syncEl.textContent = 'Sync --';
+      syncEl.textContent = 'Sinkron --';
     } else {
       const pct = Math.round((Number(sync) + 1) * 50);
-      syncEl.textContent = `Sync ${pct}%`;
+      syncEl.textContent = `Sinkron ${pct}%`;
     }
   }
 }
@@ -788,14 +788,14 @@ function renderStudyMission() {
   const sessions = plan && Array.isArray(plan.sessions) ? plan.sessions : [];
 
   if (!sessions.length) {
-    container.innerHTML = '<div class="cc-empty">Belum ada jadwal belajar hari ini. Buka Schedule untuk generate Smart Study Plan.</div>';
+    container.innerHTML = '<div class="cc-empty">Belum ada jadwal belajar hari ini. Buka Jadwal untuk bikin rencana belajar pintar.</div>';
     return;
   }
 
   container.innerHTML = sessions.slice(0, 4).map((session) => {
     const urgency = (session.urgency || 'good').toLowerCase();
-    const title = escapeHtml(session.title || 'Study Block');
-    const reason = escapeHtml(session.reason || 'Progress session');
+    const title = escapeHtml(session.title || 'Sesi Belajar');
+    const reason = escapeHtml(session.reason || 'Sesi progres');
     const badge = `${escapeHtml(session.start || '--:--')}-${escapeHtml(session.end || '--:--')}`;
     return `
       <article class="cc-item ${urgency}">
@@ -818,14 +818,14 @@ function buildAssistantFeedItems() {
 
   proactiveItems.slice(0, 3).forEach((item) => {
     const eventType = (item.event_type || '').toString();
-    let tag = 'Proactive';
-    if (eventType === 'morning_brief') tag = 'Morning Brief';
-    if (eventType === 'urgent_radar' || eventType.startsWith('urgent_radar_')) tag = 'Urgent Radar';
-    if (eventType.startsWith('predictive_risk_')) tag = 'Predictive Risk';
-    if (eventType === 'predictive_support_ping') tag = 'Support Ping';
-    if (eventType === 'mood_drop_alert' || eventType === 'mood_drop_self') tag = 'Mood Alert';
+    let tag = 'Proaktif';
+    if (eventType === 'morning_brief') tag = 'Brief Pagi';
+    if (eventType === 'urgent_radar' || eventType.startsWith('urgent_radar_')) tag = 'Radar Mendesak';
+    if (eventType.startsWith('predictive_risk_')) tag = 'Risiko Prediktif';
+    if (eventType === 'predictive_support_ping') tag = 'Sinyal Dukungan';
+    if (eventType === 'mood_drop_alert' || eventType === 'mood_drop_self') tag = 'Mood Menurun';
     if (eventType === 'checkin_suggestion') tag = 'Check-In';
-    const base = item.body || item.title || 'New proactive update.';
+    const base = item.body || item.title || 'Ada update proaktif terbaru.';
     feed.push({
       tag,
       text: mergeFeedTextWithExplain(base, proactiveExplainability(item)),
@@ -836,7 +836,7 @@ function buildAssistantFeedItems() {
 
   if (state.assistant && state.assistant.reply) {
     feed.push({
-      tag: 'Z AI Brief',
+      tag: 'Ringkasan Z AI',
       text: mergeFeedTextWithExplain(state.assistant.reply, state.assistant.explainability),
       chips: buildAssistantEvidenceChips(state.assistant),
       at: null,
@@ -845,9 +845,9 @@ function buildAssistantFeedItems() {
 
   if (urgentCount > 0) {
     feed.push({
-      tag: 'Focus',
-      text: `Ada ${urgentCount} item kritis. Ambil satu item paling atas lalu sprint 25 menit sekarang.`,
-      chips: [{ label: `Critical ${urgentCount}`, tone: 'critical', command: 'task urgent saya apa' }],
+      tag: 'Fokus',
+      text: `Ada ${urgentCount} item kritis. Ambil satu item paling atas lalu fokus 25 menit sekarang.`,
+      chips: [{ label: `Kritis ${urgentCount}`, tone: 'critical', command: 'tugas paling mendesak saya apa' }],
       at: null,
     });
   }
@@ -857,20 +857,20 @@ function buildAssistantFeedItems() {
     const mood = Number((usersData[u] && usersData[u].avg_mood) || 0);
     if (mood > 0 && mood < 3) {
       feed.push({
-        tag: 'Support',
-        text: `${u} lagi drop. Switch ke task ringan dan kirim check-in singkat di chat.`,
-        chips: [{ label: `${u} Mood ${mood.toFixed(1)}`, tone: 'warning', command: 'buat pesan check-in support pasangan' }],
+        tag: 'Dukungan',
+        text: `${u} lagi drop. Ganti ke tugas ringan dulu lalu kirim check-in singkat di chat.`,
+        chips: [{ label: `${u} Mood ${mood.toFixed(1)}`, tone: 'warning', command: 'buat pesan check-in dukungan pasangan' }],
         at: null,
       });
     }
   });
 
-  const upcoming = missionItems.filter((i) => i.badge === 'Today' || i.badge === '<12h').length;
+  const upcoming = missionItems.filter((i) => i.badge === 'Hari Ini' || i.badge === '<12h').length;
   if (upcoming > 2) {
     feed.push({
-      tag: 'Execution',
-      text: 'Gunakan pola 1-1-1: 1 tugas besar, 1 tugas menengah, 1 quick win.',
-      chips: [{ label: `Due Soon ${upcoming}`, tone: 'warning', command: 'task urgent saya apa' }],
+      tag: 'Eksekusi',
+      text: 'Gunakan pola 1-1-1: 1 tugas besar, 1 tugas menengah, 1 kemenangan cepat.',
+      chips: [{ label: `Jatuh Tempo ${upcoming}`, tone: 'warning', command: 'tugas paling mendesak saya apa' }],
       at: null,
     });
   }
@@ -883,27 +883,27 @@ function buildAssistantFeedItems() {
   const predictiveCritical = Number(proactiveSignals.predicted_critical_count || 0);
   if (proactiveUrgent > 0) {
     const riskLabel = proactiveOverdue > 0
-      ? `${proactiveOverdue} overdue`
-      : (proactiveCritical > 0 ? `${proactiveCritical} critical` : `${proactiveUrgent} warning`);
+      ? `${proactiveOverdue} terlambat`
+      : (proactiveCritical > 0 ? `${proactiveCritical} kritis` : `${proactiveUrgent} peringatan`);
     feed.push({
       tag: 'Radar',
-      text: `Proactive Engine mendeteksi ${proactiveUrgent} item urgent (${riskLabel}). Reprioritize sekarang.`,
-      chips: [{ label: `Urgent ${proactiveUrgent}`, tone: proactiveOverdue > 0 ? 'critical' : 'warning', command: 'task urgent saya apa' }],
+      text: `Mesin proaktif mendeteksi ${proactiveUrgent} item mendesak (${riskLabel}). Atur ulang prioritas sekarang.`,
+      chips: [{ label: `Mendesak ${proactiveUrgent}`, tone: proactiveOverdue > 0 ? 'critical' : 'warning', command: 'tugas paling mendesak saya apa' }],
       at: null,
     });
   }
 
   if (predictiveHigh + predictiveCritical > 0) {
     const riskLabel = predictiveCritical > 0
-      ? `${predictiveCritical} critical forecast`
-      : `${predictiveHigh} high forecast`;
+      ? `${predictiveCritical} prediksi kritis`
+      : `${predictiveHigh} prediksi tinggi`;
     feed.push({
-      tag: 'Predictive',
+      tag: 'Prediktif',
       text: `Model prediktif membaca ${predictiveHigh + predictiveCritical} item berisiko dalam 72 jam (${riskLabel}).`,
       chips: [{
-        label: `Risk ${predictiveHigh + predictiveCritical}`,
+        label: `Risiko ${predictiveHigh + predictiveCritical}`,
         tone: predictiveCritical > 0 ? 'critical' : 'warning',
-        command: 'risk deadline 48 jam ke depan',
+        command: 'risiko deadline 48 jam ke depan',
       }],
       at: null,
     });
@@ -911,9 +911,9 @@ function buildAssistantFeedItems() {
 
   if (feed.length === 0) {
     feed.push({
-      tag: 'Calm Mode',
-      text: 'Sistem stabil. Pakai momentum ini buat progress goals jangka panjang.',
-      chips: [{ label: 'Low Risk', tone: 'success', command: 'ringkasan hari ini' }],
+      tag: 'Mode Tenang',
+      text: 'Sistem stabil. Pakai momentum ini buat progres tujuan jangka panjang.',
+      chips: [{ label: 'Risiko Rendah', tone: 'success', command: 'ringkasan hari ini' }],
       at: null,
     });
   }
@@ -998,9 +998,9 @@ function renderHeaderMeta() {
   const dateEl = document.getElementById('cc-date');
   const now = new Date();
   const hour = now.getHours();
-  let greet = 'Good Morning';
-  if (hour >= 12 && hour < 17) greet = 'Good Afternoon';
-  if (hour >= 17 || hour < 4) greet = 'Good Evening';
+  let greet = 'Selamat pagi';
+  if (hour >= 12 && hour < 17) greet = 'Selamat siang';
+  if (hour >= 17 || hour < 4) greet = 'Selamat malam';
 
   if (greetingEl) greetingEl.textContent = `${greet}, ${user}`;
   if (dateEl) {

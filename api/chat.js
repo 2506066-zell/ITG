@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+﻿import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import { pool, readBody, verifyToken, withErrorHandling, sendJson, logActivity } from './_lib.js';
 import { sendNotificationToUser } from './notifications.js';
@@ -466,11 +466,17 @@ function extractMessageTopics(message = '') {
 }
 
 function hasDeadlineSignal(text = '') {
-  return /(\bdeadline\b|\bdue\b|\bbesok\b|\blusa\b|\btoday\b|\bhari ini\b|\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2})/i.test(text);
+  if (/(\bdeadline\b|\bdue\b|\bbesok\b|\blusa\b|\btoday\b|\bhari ini\b|\btanggal\b|\d{1,2}[:.]\d{2}|\d{4}-\d{2}-\d{2})/i.test(text)) {
+    return true;
+  }
+  return Boolean(parseNaturalDeadlineIso(text));
 }
 
 function hasReminderTimeSignal(text = '') {
-  return /(\b(besok|lusa|hari ini|today|tomorrow)\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[:.]\d{2}\b|\b(?:dalam\s+)?\d{1,3}\s*(?:menit|min|jam|hours?)\s*(?:lagi)?\b)/i.test(text);
+  if (/(\b(besok|lusa|hari ini|today|tomorrow)\b|\btanggal\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[:.]\d{2}\b|\b(?:dalam\s+)?\d{1,3}\s*(?:menit|min|jam|hours?)\s*(?:lagi)?\b)/i.test(text)) {
+    return true;
+  }
+  return Boolean(parseNaturalDeadlineIso(text));
 }
 
 function isLikelyCreateShorthandSegment(segment = '', kind = 'task') {
@@ -515,7 +521,7 @@ function buildPlannerActions(message = '') {
 
     if (explicitCreateAssignment || shorthandCreateAssignment) {
       kind = 'create_assignment';
-      summary = 'Buat assignment baru';
+      summary = 'Buat tugas kuliah baru';
       if (!hasDeadlineSignal(lower)) missing.push('deadline');
       const titleProbe = explicitCreateAssignment
         ? segment.replace(/(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:assignment|tugas kuliah)/ig, '').trim()
@@ -523,7 +529,7 @@ function buildPlannerActions(message = '') {
       if (titleProbe.length < 3) missing.push('title');
     } else if (explicitCreateTask || shorthandCreateTask) {
       kind = 'create_task';
-      summary = 'Buat task baru';
+      summary = 'Buat tugas baru';
       if (!hasDeadlineSignal(lower)) missing.push('deadline');
       const titleProbe = explicitCreateTask
         ? segment.replace(/(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:task|tugas|todo|to-do)/ig, '').trim()
@@ -580,7 +586,7 @@ function buildPlannerFrame(message = '') {
         question: field === 'deadline'
           ? 'Deadline-nya kapan?'
           : (field === 'time'
-            ? 'Remindernya mau kapan? Contoh: besok 19:00 atau 30 menit lagi.'
+            ? 'Pengingatnya mau kapan? Contoh: besok 19:00 atau 30 menit lagi.'
             : 'Judul/tujuannya apa?'),
       });
     });
@@ -637,11 +643,89 @@ function stripActionMetaFromTitle(command = '') {
   value = value.replace(/^(?:tolong\s+|please\s+)?(?:z\s*ai|zai|ai)\s*/i, '');
   value = value.replace(/^(?:buatkan|buat|tambah|add|create|catat|simpan)\s+(?:assignment|tugas kuliah|task|tugas|todo|to-do)\s*/i, '');
   value = value.replace(/^(?:assignment|tugas kuliah|task|tugas|todo|to-do)\s*/i, '');
-  value = value.replace(/\bdeadline\s+(.+?)(?=\s+\b(?:priority|prioritas|deskripsi|desc|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/ig, '');
+  value = value.replace(/\bdeadline(?:[\s-]*nya)?\b\s*:?\s+(.+?)(?=\s+\b(?:priority|prioritas|deskripsi|desc|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/ig, '');
   value = value.replace(/\b(?:priority|prioritas)\s+[a-zA-Z]+\b/ig, '');
   value = value.replace(/\b(?:deskripsi|desc)\s+(.+?)(?=\s+\b(?:deadline|priority|prioritas|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/ig, '');
   value = value.replace(/\b(?:assign(?:ed)?(?:\s*to)?|untuk)\s+[a-zA-Z0-9_.-]+\b/ig, '');
   return normalizeActionText(value).replace(/^[\s,:\-]+|[\s,:\-]+$/g, '');
+}
+
+function parseNaturalMonthIndex(raw = '') {
+  const token = String(raw || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (!token) return null;
+  const map = {
+    jan: 0, januari: 0, january: 0,
+    feb: 1, februari: 1, february: 1, febuari: 1, pebruari: 1,
+    mar: 2, maret: 2, march: 2,
+    apr: 3, april: 3,
+    mei: 4, may: 4,
+    jun: 5, juni: 5, june: 5,
+    jul: 6, juli: 6, july: 6,
+    agu: 7, ags: 7, agt: 7, agustus: 7, aug: 7, august: 7,
+    sep: 8, sept: 8, september: 8,
+    okt: 9, october: 9, oktober: 9, oct: 9,
+    nov: 10, november: 10,
+    des: 11, desember: 11, december: 11, dec: 11,
+  };
+  return Object.prototype.hasOwnProperty.call(map, token) ? map[token] : null;
+}
+
+function normalizeYearCandidate(raw = '', fallbackYear = null) {
+  if (raw === null || raw === undefined || raw === '') return fallbackYear;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallbackYear;
+  if (n < 100) return 2000 + n;
+  return n;
+}
+
+function buildNaturalDateWithYear(day, monthIndex, explicitYear, now) {
+  const d = Number(day);
+  const m = Number(monthIndex);
+  if (!Number.isFinite(d) || !Number.isFinite(m)) return null;
+  if (d < 1 || d > 31 || m < 0 || m > 11) return null;
+
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+
+  let year = Number.isFinite(explicitYear) ? Number(explicitYear) : now.getFullYear();
+  let parsed = new Date(year, m, d);
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== m || parsed.getDate() !== d) return null;
+
+  if (!Number.isFinite(explicitYear)) {
+    const parsedDay = new Date(parsed);
+    parsedDay.setHours(0, 0, 0, 0);
+    if (parsedDay.getTime() < today.getTime()) {
+      year += 1;
+      parsed = new Date(year, m, d);
+      if (parsed.getFullYear() !== year || parsed.getMonth() !== m || parsed.getDate() !== d) return null;
+    }
+  }
+
+  return parsed;
+}
+
+function parseExplicitTimeParts(lower = '') {
+  const text = String(lower || '').toLowerCase();
+  const colon = text.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
+  const word = text.match(/\b(?:jam|pukul)\s*([01]?\d|2[0-3])(?:[:.]([0-5]\d))?\b/);
+  const picked = colon || word;
+  if (!picked) return null;
+
+  let hour = Number(picked[1]);
+  let minute = Number(picked[2] || 0);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  const hasPagi = /\bpagi\b/.test(text);
+  const hasSiang = /\bsiang\b/.test(text);
+  const hasSore = /\b(sore|petang)\b/.test(text);
+  const hasMalam = /\bmalam\b/.test(text);
+
+  if (hasPagi && hour === 12) hour = 0;
+  if ((hasSore || hasMalam) && hour < 12) hour += 12;
+  if (hasSiang && hour >= 1 && hour <= 6) hour += 12;
+
+  return { hour, minute };
 }
 
 function parseNaturalDeadlineIso(raw = '') {
@@ -650,6 +734,11 @@ function parseNaturalDeadlineIso(raw = '') {
   const lower = text.toLowerCase();
   const now = new Date();
   now.setSeconds(0, 0);
+  const taggedYearHint = lower.match(/\b(?:tahun|thn|taun|tahunnya|taunya|year)\s*(20\d{2})\b/);
+  const genericYearHint = lower.match(/\b(20\d{2})\b/);
+  const yearHint = taggedYearHint
+    ? Number(taggedYearHint[1])
+    : (genericYearHint ? Number(genericYearHint[1]) : null);
 
   let base = null;
   const iso = lower.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
@@ -662,15 +751,47 @@ function parseNaturalDeadlineIso(raw = '') {
   }
 
   if (!base) {
-    const dmy = lower.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+    const dmy = lower.match(/\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/);
     if (dmy) {
-      const d = Number(dmy[1]);
-      const m = Number(dmy[2]) - 1;
-      const currentYear = now.getFullYear();
-      const y = dmy[3] ? Number(dmy[3]) : currentYear;
-      const year = y < 100 ? (2000 + y) : y;
-      const parsed = new Date(year, m, d);
-      if (!Number.isNaN(parsed.getTime())) base = parsed;
+      const parsed = buildNaturalDateWithYear(
+        Number(dmy[1]),
+        Number(dmy[2]) - 1,
+        normalizeYearCandidate(dmy[3], yearHint),
+        now
+      );
+      if (parsed && !Number.isNaN(parsed.getTime())) base = parsed;
+    }
+  }
+
+  if (!base) {
+    const dayMonthWord = lower.match(/\b(?:tanggal\s*)?(\d{1,2})\s*(?:[\/.,-]\s*)?([a-z]{3,12})\.?(?:\s*(?:tahun\s*)?(\d{4}))?\b/);
+    if (dayMonthWord) {
+      const monthIndex = parseNaturalMonthIndex(dayMonthWord[2]);
+      if (monthIndex !== null) {
+        const parsed = buildNaturalDateWithYear(
+          Number(dayMonthWord[1]),
+          monthIndex,
+          normalizeYearCandidate(dayMonthWord[3], yearHint),
+          now
+        );
+        if (parsed && !Number.isNaN(parsed.getTime())) base = parsed;
+      }
+    }
+  }
+
+  if (!base) {
+    const monthDayWord = lower.match(/\b([a-z]{3,12})\.?\s+(\d{1,2})(?:\s*,?\s*(?:tahun\s*)?(\d{4}))?\b/);
+    if (monthDayWord) {
+      const monthIndex = parseNaturalMonthIndex(monthDayWord[1]);
+      if (monthIndex !== null) {
+        const parsed = buildNaturalDateWithYear(
+          Number(monthDayWord[2]),
+          monthIndex,
+          normalizeYearCandidate(monthDayWord[3], yearHint),
+          now
+        );
+        if (parsed && !Number.isNaN(parsed.getTime())) base = parsed;
+      }
     }
   }
 
@@ -686,24 +807,27 @@ function parseNaturalDeadlineIso(raw = '') {
     }
   }
 
-  const timeMatch = lower.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
+  const explicitTime = parseExplicitTimeParts(lower);
   if (!base) {
-    const parsed = new Date(text);
-    if (!Number.isNaN(parsed.getTime())) {
-      parsed.setSeconds(0, 0);
-      return parsed.toISOString();
+    const hasCalendarToken = /(\b(?:hari ini|today|besok|tomorrow|lusa|day after tomorrow)\b|\d{4}-\d{2}-\d{2}|\d{1,2}[\/.-]\d{1,2}|\b(?:jan|januari|january|feb|februari|february|febuari|pebruari|mar|maret|march|apr|april|mei|may|jun|juni|june|jul|juli|july|agu|ags|agt|agustus|aug|august|sep|sept|september|okt|oktober|oct|october|nov|november|des|desember|dec|december)\b)/i.test(lower);
+    if (hasCalendarToken) {
+      const parsed = new Date(text);
+      if (!Number.isNaN(parsed.getTime())) {
+        parsed.setSeconds(0, 0);
+        return parsed.toISOString();
+      }
     }
-    if (timeMatch) {
+    if (explicitTime) {
       base = new Date(now);
-      base.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+      base.setHours(explicitTime.hour, explicitTime.minute, 0, 0);
       if (base.getTime() <= now.getTime()) base.setDate(base.getDate() + 1);
       return base.toISOString();
     }
     return null;
   }
 
-  if (timeMatch) {
-    base.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+  if (explicitTime) {
+    base.setHours(explicitTime.hour, explicitTime.minute, 0, 0);
   } else {
     base.setHours(21, 0, 0, 0);
   }
@@ -716,17 +840,17 @@ function buildActionClarificationQuestion(kind = '', field = '') {
   const actionKind = String(kind || '').toLowerCase();
   const key = String(field || '').toLowerCase();
   if (key === 'time') {
-    return 'Remindernya mau kapan? Contoh: besok 19:00 atau 30 menit lagi.';
+    return 'Pengingatnya mau kapan? Contoh: besok 19:00 atau 30 menit lagi.';
   }
   if (key === 'deadline') {
     return actionKind === 'create_assignment'
       ? 'Deadline tugas kuliah ini kapan? Contoh: besok 19:00.'
-      : 'Deadline task ini kapan? Contoh: besok 19:00.';
+      : 'Deadline tugas ini kapan? Contoh: besok 19:00.';
   }
   if (key === 'title') {
     return actionKind === 'create_assignment'
       ? 'Judul tugas kuliahnya apa?'
-      : 'Judul task-nya apa?';
+      : 'Judul tugasnya apa?';
   }
   return 'Boleh lengkapi detail yang kurang dulu?';
 }
@@ -736,7 +860,7 @@ function parseCreateActionDraft(action = {}, fallbackUser = '') {
   const command = normalizeActionText(action?.command || '');
   const deadlineChunk = extractActionField(
     command,
-    /\bdeadline\s+(.+?)(?=\s+\b(?:priority|prioritas|deskripsi|desc|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/i
+    /\bdeadline(?:[\s-]*nya)?\b\s*:?\s+(.+?)(?=\s+\b(?:priority|prioritas|deskripsi|desc|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/i
   );
   const description = extractActionField(
     command,
@@ -799,8 +923,9 @@ function parseReminderAtIso(command = '') {
 
   const parsed = parseNaturalDeadlineIso(text);
   if (!parsed) return null;
-  const hasExactTime = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/.test(lower);
-  if (hasExactTime) return parsed;
+  const hasExplicitTime = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/.test(lower)
+    || /\b(?:jam|pukul)\s*([01]?\d|2[0-3])(?:[:.]([0-5]\d))?\b/.test(lower);
+  if (hasExplicitTime) return parsed;
 
   const byWindow = /\bpagi\b/.test(lower)
     ? [8, 0]
@@ -951,11 +1076,11 @@ function buildActionPlannerResult(basePlanner = null, actionPlan = null, executi
   const blockedCount = drafts.filter((item) => Array.isArray(item.missing) && item.missing.length).length;
   const requiresClarification = clarifications.length > 0;
 
-  let summary = safePlanner.summary || 'Action plan siap.';
+  let summary = safePlanner.summary || 'Rencana aksi siap.';
   if (executedCount > 0) {
-    summary = `Action Engine mengeksekusi ${executedCount} item.`;
+    summary = `Mesin aksi mengeksekusi ${executedCount} item.`;
   } else if (requiresClarification) {
-    summary = 'Action Engine butuh detail tambahan sebelum eksekusi.';
+    summary = 'Mesin aksi butuh detail tambahan sebelum eksekusi.';
   }
   if (failedCount > 0) {
     summary = `${summary} ${failedCount} item gagal disimpan.`;
@@ -970,7 +1095,7 @@ function buildActionPlannerResult(basePlanner = null, actionPlan = null, executi
     summary,
     next_best_action: requiresClarification
       ? (clarifications[0]?.question || 'Lengkapi detail yang kurang.')
-      : (failedCount > 0 ? 'Ulangi item yang gagal.' : 'Lanjut ke evaluasi atau urgent radar.'),
+      : (failedCount > 0 ? 'Ulangi item yang gagal.' : 'Lanjut ke evaluasi atau radar mendesak.'),
     action_execution: {
       executed_count: executedCount,
       blocked_count: blockedCount,
@@ -1104,7 +1229,7 @@ async function executeActionEngineWrites(userId = '', actionPlan = null) {
             kind: draft.kind,
             entity: 'reminder',
             id: row.id,
-            title: row.reminder_text || draft.reminder_text || 'Reminder',
+            title: row.reminder_text || draft.reminder_text || 'Pengingat',
             deadline: row.remind_at || draft.remind_at || null,
             target_user: row.target_user || draft.target_user || userId,
           });
@@ -1115,7 +1240,7 @@ async function executeActionEngineWrites(userId = '', actionPlan = null) {
         failed.push({
           action_id: draft.action_id,
           kind: draft.kind,
-          reason: normalizeActionText(err?.message || 'failed').slice(0, 180),
+          reason: normalizeActionText(err?.message || 'gagal').slice(0, 180),
         });
       }
     }
@@ -1182,27 +1307,27 @@ function buildActionExecutionReply(execution = null, clarifications = [], option
       suggest: (title, reason) => reason
         ? `Biar ringan, mulai dari "${title}" dulu ${reason}`
         : `Biar konsisten, mulai dari "${title}" dulu, lanjut item kedua setelah ${focusMinutes} menit.`,
-      reminder: (count, labels) => `Reminder juga sudah aktif ${count} item: ${joinLabels(labels)}.`,
+      reminder: (count, labels) => `Pengingat juga sudah aktif ${count} item: ${joinLabels(labels)}.`,
       ask: (question) => `Biar sisanya langsung jalan, ${question}`,
       fail: (count) => `Ada ${count} item yang belum berhasil kusimpan. Coba kirim ulang sekali lagi, nanti aku lanjutkan otomatis.`,
-      idle: 'Aku siap eksekusi otomatis. Kirim perintah task, assignment, atau reminder, nanti aku proses langsung.',
+      idle: 'Aku siap eksekusi otomatis. Kirim perintah tugas, tugas kuliah, atau pengingat, nanti aku proses langsung.',
     },
     balanced: {
       done: (count, labels) => `Siap, ${count} item sudah tersimpan: ${joinLabels(labels)}.`,
       suggest: (title, reason) => reason
         ? `Prioritas berikutnya: kerjakan "${title}" dulu ${reason}`
         : `Prioritas berikutnya: kerjakan "${title}" dulu, lalu lanjut item kedua setelah ${focusMinutes} menit.`,
-      reminder: (count, labels) => `Reminder aktif ${count} item: ${joinLabels(labels)}.`,
+      reminder: (count, labels) => `Pengingat aktif ${count} item: ${joinLabels(labels)}.`,
       ask: (question) => `Untuk lanjut eksekusi, ${question}`,
       fail: (count) => `${count} item belum berhasil disimpan. Kirim ulang agar aku lanjutkan.`,
-      idle: 'Z AI siap eksekusi otomatis. Kirim perintah task, assignment, atau reminder.',
+      idle: 'Z AI siap eksekusi otomatis. Kirim perintah tugas, tugas kuliah, atau pengingat.',
     },
     strict: {
       done: (count, labels) => `Eksekusi selesai. ${count} item tersimpan: ${joinLabels(labels)}.`,
       suggest: (title, reason) => reason
-        ? `Next: kerjakan "${title}" sekarang ${reason}`
-        : `Next: kerjakan "${title}" sekarang. Sesi fokus ${focusMinutes} menit, tanpa distraksi.`,
-      reminder: (count, labels) => `Reminder aktif ${count} item: ${joinLabels(labels)}.`,
+        ? `Langkah berikutnya: kerjakan "${title}" sekarang ${reason}`
+        : `Langkah berikutnya: kerjakan "${title}" sekarang. Sesi fokus ${focusMinutes} menit, tanpa distraksi.`,
+      reminder: (count, labels) => `Pengingat aktif ${count} item: ${joinLabels(labels)}.`,
       ask: (question) => `Lengkapi dulu: ${question}`,
       fail: (count) => `${count} item gagal tersimpan. Kirim ulang dengan detail yang jelas.`,
       idle: 'Siap eksekusi. Kirim perintah langsung.',
@@ -1216,7 +1341,7 @@ function buildActionExecutionReply(execution = null, clarifications = [], option
     if (createdItems.length > 0) {
       const labels = createdItems
         .slice(0, 3)
-        .map((item) => `${item.entity === 'assignment' ? 'tugas kuliah' : 'task'} "${shortTitle(item.title)}"`);
+        .map((item) => `${item.entity === 'assignment' ? 'tugas kuliah' : 'tugas'} "${shortTitle(item.title)}"`);
       lines.push(styleLine.done(createdItems.length, labels));
 
       const reason = buildUrgencyReason(createdItems);
@@ -1287,15 +1412,15 @@ function buildActionExecutionSuggestions(execution = null, clarifications = []) 
   const hasReminder = executed.some((item) => item?.entity === 'reminder');
 
   if (hasTask) {
-    suggestions.push({ label: 'Task Pending', command: 'task pending saya apa', tone: 'info' });
+    suggestions.push({ label: 'Tugas Tertunda', command: 'tugas pending saya apa', tone: 'info' });
   }
   if (hasAssignment) {
-    suggestions.push({ label: 'Assignment Pending', command: 'assignment pending saya apa', tone: 'info' });
+    suggestions.push({ label: 'Tugas Kuliah Tertunda', command: 'tugas kuliah pending saya apa', tone: 'info' });
   }
   if (hasReminder) {
-    suggestions.push({ label: 'Set Reminder Lagi', command: 'ingatkan aku 30 menit lagi untuk cek progres', tone: 'success' });
+    suggestions.push({ label: 'Setel Pengingat Lagi', command: 'ingatkan aku 30 menit lagi untuk cek progres', tone: 'success' });
   }
-  suggestions.push({ label: 'Urgent Radar', command: 'risk deadline 48 jam ke depan', tone: 'warning' });
+  suggestions.push({ label: 'Radar Mendesak', command: 'risiko deadline 48 jam ke depan', tone: 'warning' });
 
   const asks = Array.isArray(clarifications) ? clarifications : [];
   for (const item of asks) {
@@ -1358,7 +1483,7 @@ async function flushDueRemindersForUser(userId = '', maxItems = 4) {
       const targetUser = String(item.target_user || item.user_id || userId).trim() || userId;
       try {
         const sent = await sendNotificationToUser(targetUser, {
-          title: 'Z AI Reminder',
+          title: 'Pengingat Z AI',
           body: String(item.reminder_text || 'Waktunya lanjut fokus.'),
           url: '/chat',
           data: { url: '/chat', reminder_id: item.id },
@@ -1882,7 +2007,7 @@ function inferBehaviorAdaptiveContext(message = '', contextInput = null, memory 
 
   const preferred = normalizeRecentStrings(learningHints?.preferred_commands || context.preferred_commands, 8);
   const avoid = normalizeRecentStrings(learningHints?.avoid_commands || context.avoid_commands, 8);
-  const strictPattern = /(toxic|mode tegas|gaspol|no excuse|risk deadline|urgent radar)/i;
+  const strictPattern = /(toxic|mode tegas|gaspol|no excuse|risk deadline|risiko deadline|urgent radar|radar mendesak)/i;
   const softPattern = /(check-?in|evaluasi|couple pulse|mood|break|istirahat)/i;
   if (preferred.some((cmd) => strictPattern.test(cmd))) scores.strict += 2;
   if (preferred.some((cmd) => softPattern.test(cmd))) scores.supportive += 1;
@@ -2158,8 +2283,9 @@ function memoryTextBlock(memory) {
   const tasks = Number(memory.pending_tasks || 0);
   const assignments = Number(memory.pending_assignments || 0);
   const mood = Number(memory.avg_mood_7d || 0).toFixed(1);
-  const topic = String(memory.focus_topic || 'general');
-  return `Memory: task ${tasks}, assignment ${assignments}, mood7d ${mood}, fokus ${topic}.`;
+  const topicRaw = String(memory.focus_topic || 'umum');
+  const topic = topicRaw === 'general' ? 'umum' : topicRaw;
+  return `Memori: tugas ${tasks}, tugas kuliah ${assignments}, mood 7 hari ${mood}, fokus ${topic}.`;
 }
 
 function clampNumber(value, min, max) {
@@ -2303,6 +2429,189 @@ function buildStudyPlanSuggestions(plan = {}) {
   }
 
   suggestions.push({ label: 'Rekomendasi Tugas', command: 'rekomendasi tugas kuliah', tone: 'success' });
+  return normalizeChatbotSuggestions(suggestions);
+}
+
+const DAY_ID_LABEL_ID = {
+  1: 'Senin',
+  2: 'Selasa',
+  3: 'Rabu',
+  4: 'Kamis',
+  5: 'Jumat',
+  6: 'Sabtu',
+  7: 'Minggu',
+};
+
+function toScheduleDayId(dateObj = null) {
+  if (!dateObj || Number.isNaN(new Date(dateObj).getTime())) return 1;
+  const jsDay = new Date(dateObj).getDay();
+  return jsDay === 0 ? 7 : jsDay;
+}
+
+function parseScheduleDayIdByName(message = '') {
+  const text = String(message || '').toLowerCase();
+  if (/\b(senin|monday)\b/.test(text)) return 1;
+  if (/\b(selasa|tuesday)\b/.test(text)) return 2;
+  if (/\b(rabu|wednesday)\b/.test(text)) return 3;
+  if (/\b(kamis|thursday)\b/.test(text)) return 4;
+  if (/\b(jumat|jumat|friday)\b/.test(text)) return 5;
+  if (/\b(sabtu|saturday)\b/.test(text)) return 6;
+  if (/\b(minggu|ahad|sunday)\b/.test(text)) return 7;
+  return null;
+}
+
+function isCollegeScheduleQuery(message = '') {
+  const text = String(message || '').trim().toLowerCase();
+  if (!text) return false;
+  if (isStudyPlanCommand(text)) return false;
+  if (/(jadwal belajar|study plan|rencana belajar|sesi belajar)/i.test(text)) return false;
+
+  const hasScheduleToken = /(jadwal|schedule|kelas|matkul|mata kuliah|perkuliahan)/i.test(text);
+  if (!hasScheduleToken) return false;
+
+  const hasAskToken = /(apa|ada|berapa|cek|lihat|show|daftar|kapan)/i.test(text);
+  const hasDayToken = /(\bhari ini\b|\bbesok\b|\blusa\b|\btoday\b|\btomorrow\b|\bday after tomorrow\b|\bsenin\b|\bselasa\b|\brabu\b|\bkamis\b|\bjumat\b|\bsabtu\b|\bminggu\b|\bmonday\b|\btuesday\b|\bwednesday\b|\bthursday\b|\bfriday\b|\bsaturday\b|\bsunday\b)/i.test(text);
+  const startsWithSchedule = /^\/?ai?\s*jadwal\b/i.test(text) || /^jadwal\b/i.test(text);
+  const forcedCreate = /\b(buat|buatkan|susun|atur|generate|rancang)\b/i.test(text) && !hasAskToken && !hasDayToken;
+  if (forcedCreate) return false;
+  return hasAskToken || hasDayToken || startsWithSchedule || /\bjadwal\s+kuliah\b/i.test(text);
+}
+
+function parseCollegeScheduleRequest(message = '') {
+  if (!isCollegeScheduleQuery(message)) return null;
+
+  const dayByName = parseScheduleDayIdByName(message);
+  const dateLabel = parseStudyDateLabel(message);
+  if (dateLabel) {
+    const parsed = parseIsoDateLabel(dateLabel);
+    if (parsed) {
+      return {
+        day_id: toScheduleDayId(parsed),
+        date: toDateLabel(parsed),
+        phrase: humanizeDateLabel(dateLabel),
+      };
+    }
+  }
+
+  if (dayByName) {
+    return {
+      day_id: dayByName,
+      date: null,
+      phrase: `hari ${DAY_ID_LABEL_ID[dayByName] || 'itu'}`,
+    };
+  }
+
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return {
+    day_id: toScheduleDayId(now),
+    date: toDateLabel(now),
+    phrase: 'hari ini',
+  };
+}
+
+async function fetchScheduleByDayId(dayId = 1) {
+  const safeDay = Math.max(1, Math.min(7, Number(dayId) || 1));
+  const res = await pool.query(
+    `SELECT id, day_id, subject, room, time_start, time_end, lecturer
+     FROM schedule
+     WHERE day_id = $1
+     ORDER BY time_start ASC`,
+    [safeDay]
+  );
+  return Array.isArray(res.rows) ? res.rows : [];
+}
+
+function parseHmToMinutes(value = '') {
+  const text = String(value || '').trim();
+  const match = text.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+  return hh * 60 + mm;
+}
+
+function minutesToHm(totalMinutes = 0) {
+  const mins = Math.max(0, Number(totalMinutes) || 0);
+  const hh = String(Math.floor(mins / 60)).padStart(2, '0');
+  const mm = String(mins % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+function buildBetweenClassGaps(rows = []) {
+  const list = Array.isArray(rows) ? rows : [];
+  const gaps = [];
+  for (let i = 0; i < list.length - 1; i += 1) {
+    const current = list[i] || {};
+    const next = list[i + 1] || {};
+    const endMin = parseHmToMinutes(current.time_end);
+    const nextStartMin = parseHmToMinutes(next.time_start);
+    if (!Number.isFinite(endMin) || !Number.isFinite(nextStartMin)) continue;
+    const diff = nextStartMin - endMin;
+    if (diff <= 0) continue;
+    gaps.push({
+      start: minutesToHm(endMin),
+      end: minutesToHm(nextStartMin),
+      minutes: diff,
+    });
+  }
+  return gaps;
+}
+
+function buildCollegeScheduleNaturalReply(request = null, rows = []) {
+  const list = Array.isArray(rows) ? rows : [];
+  const phrase = String(request?.phrase || '').trim() || `hari ${DAY_ID_LABEL_ID[Number(request?.day_id) || 1] || 'ini'}`;
+
+  if (!list.length) {
+    if (phrase === 'hari ini' || phrase === 'besok' || phrase === 'lusa') {
+      return `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} kamu nggak ada jadwal kuliah. Bisa pakai slot ini buat fokus tugas prioritas atau istirahat sebentar.`;
+    }
+    return `Untuk ${phrase}, kamu nggak ada jadwal kuliah. Cocok buat nyicil tugas atau bikin sesi belajar ringan.`;
+  }
+
+  const lines = list.slice(0, 6).map((item, idx) => {
+    const start = String(item.time_start || '--:--').slice(0, 5);
+    const end = String(item.time_end || '--:--').slice(0, 5);
+    const subject = String(item.subject || 'Mata kuliah').trim();
+    const room = String(item.room || '').trim();
+    const lecturer = String(item.lecturer || '').trim();
+    const meta = [room, lecturer].filter(Boolean).join(' - ');
+    return `${idx + 1}) ${start}-${end} ${subject}${meta ? ` (${meta})` : ''}`;
+  });
+
+  const gaps = buildBetweenClassGaps(list);
+  const usefulGaps = gaps.filter((item) => Number(item.minutes) >= 20);
+  const gapLine = usefulGaps.length
+    ? `\nSlot kosong antar kelas: ${usefulGaps.slice(0, 3).map((item) => `${item.start}-${item.end} (${item.minutes} menit)`).join(', ')}.`
+    : '\nSlot kosong antar kelas belum kebaca cukup panjang.';
+
+  const first = list[0] || {};
+  const firstStart = String(first.time_start || '--:--').slice(0, 5);
+  const firstSubject = String(first.subject || 'mata kuliah pertama').trim();
+  const extra = list.length > 6 ? `\n...dan ${list.length - 6} jadwal lainnya.` : '';
+  return `Untuk ${phrase}, kamu ada ${list.length} jadwal kuliah.\n${lines.join('\n')}${extra}${gapLine}\nMulai dari ${firstStart} untuk ${firstSubject}.`;
+}
+function buildCollegeScheduleSuggestions(request = null, rows = []) {
+  const list = Array.isArray(rows) ? rows : [];
+  const phrase = String(request?.phrase || '').toLowerCase();
+  const suggestions = [];
+
+  if (phrase !== 'hari ini') {
+    suggestions.push({ label: 'Jadwal Hari Ini', command: 'hari ini ada jadwal kuliah apa', tone: 'info' });
+  }
+  if (phrase !== 'besok') {
+    suggestions.push({ label: 'Jadwal Besok', command: 'besok ada jadwal kuliah apa', tone: 'info' });
+  }
+  if (list.length) {
+    suggestions.push({ label: 'Rencana Belajar', command: 'jadwal belajar besok pagi 120 menit', tone: 'success' });
+    suggestions.push({ label: 'Tugas Mendesak', command: 'rekomendasi tugas kuliah paling mendesak', tone: 'warning' });
+  } else {
+    suggestions.push({ label: 'Isi Fokus Hari Ini', command: 'rekomendasi tugas kuliah', tone: 'success' });
+    suggestions.push({ label: 'Buat Jadwal Belajar', command: 'jadwal belajar besok pagi 120 menit', tone: 'info' });
+  }
+
   return normalizeChatbotSuggestions(suggestions);
 }
 
@@ -2476,7 +2785,7 @@ async function fetchDecisionCandidatesForUser(userId = '', limit = 20) {
 }
 
 function buildDecisionActionLabel(candidate = {}) {
-  const kind = candidate.entity === 'assignment' ? 'tugas kuliah' : 'task';
+  const kind = candidate.entity === 'assignment' ? 'tugas kuliah' : 'tugas';
   return `Kerjakan ${kind} "${shortDecisionTitle(candidate.title)}"`;
 }
 
@@ -2562,12 +2871,12 @@ function buildDecisionEngineReply(decision = null, context = null) {
   const next = String(decision?.next_step || '').trim();
 
   if (tone === 'strict') {
-    return `Aksi utama: ${action}. Alasan: ${reason} Next: ${next}`.slice(0, CHATBOT_MAX_REPLY);
+    return `Aksi utama: ${action}. Alasan: ${reason}. Langkah berikutnya: ${next}`.slice(0, CHATBOT_MAX_REPLY);
   }
   if (tone === 'balanced') {
     return `Fokus utama kamu: ${action}. Kenapa: ${reason} Langkah berikutnya: ${next}`.slice(0, CHATBOT_MAX_REPLY);
   }
-  return `Biar ringan tapi tetap maju, fokus utama sekarang: ${action}. Kenapa: ${reason} Next step: ${next}`.slice(0, CHATBOT_MAX_REPLY);
+  return `Biar ringan tapi tetap maju, fokus utama sekarang: ${action}. Kenapa: ${reason}. Langkah berikutnya: ${next}`.slice(0, CHATBOT_MAX_REPLY);
 }
 
 function buildDecisionEngineSuggestions(decision = null, context = null) {
@@ -2577,14 +2886,14 @@ function buildDecisionEngineSuggestions(decision = null, context = null) {
   const actionId = Number(decision?.primary_action?.id || 0) || null;
   const suggestions = [
     { label: `Mulai ${focusMinutes}m`, command: `mulai fokus ${focusMinutes} menit untuk ${title}`, tone: 'success' },
-    { label: 'Reminder Follow-Up', command: `ingatkan aku ${focusMinutes} menit lagi untuk update progres ${title}`, tone: 'warning' },
+    { label: 'Pengingat Lanjutan', command: `ingatkan aku ${focusMinutes} menit lagi untuk update progres ${title}`, tone: 'warning' },
     { label: 'Evaluasi Cepat', command: 'evaluasi singkat progres hari ini', tone: 'info' },
     { label: 'Prioritas Berikutnya', command: 'rekomendasi tugas berikutnya', tone: 'info' },
   ];
   if (actionEntity === 'task' && actionId) {
-    suggestions[3] = { label: `Selesai Task #${actionId}`, command: `selesaikan task ${actionId}`, tone: 'success' };
+    suggestions[3] = { label: `Selesai Tugas #${actionId}`, command: `selesaikan tugas ${actionId}`, tone: 'success' };
   } else if (actionEntity === 'assignment' && actionId) {
-    suggestions[3] = { label: `Selesai Assignment #${actionId}`, command: `selesaikan assignment ${actionId}`, tone: 'success' };
+    suggestions[3] = { label: `Selesai Tugas Kuliah #${actionId}`, command: `selesaikan tugas kuliah ${actionId}`, tone: 'success' };
   }
   return normalizeChatbotSuggestions(suggestions);
 }
@@ -2604,17 +2913,17 @@ function localFallbackPayload(message = '') {
   }
   if (/\b(target|goal)\b/.test(lower)) {
     return {
-      reply: 'Target harian couple: tuntaskan 1 tugas paling urgent, 1 sesi fokus 30-45 menit, lalu check-in malam.',
+      reply: 'Target harian kalian: tuntaskan 1 tugas paling mendesak, 1 sesi fokus 30-45 menit, lalu check-in malam.',
       intent: 'check_daily_target',
       suggestions: normalizeChatbotSuggestions([
-        { label: 'Check-In', command: 'check-in progres hari ini', tone: 'info' },
-        { label: 'Reminder 25m', command: 'ingatkan aku fokus 25 menit', tone: 'warning' },
+        { label: 'Check-in', command: 'check-in progres hari ini', tone: 'info' },
+        { label: 'Pengingat 25m', command: 'ingatkan aku fokus 25 menit', tone: 'warning' },
       ]),
     };
   }
   if (/\b(reminder|ingatkan|ingetin|jangan lupa|alarm|notifikasi)\b/.test(lower)) {
     return {
-      reply: 'Siap, reminder tercatat. Mulai langkah kecil dulu sekarang, lalu update progres.',
+      reply: 'Siap, pengingat tercatat. Mulai langkah kecil dulu sekarang, lalu update progres.',
       intent: 'reminder_ack',
       suggestions: normalizeChatbotSuggestions([
         { label: 'Mulai 25m', command: 'oke mulai fokus 25 menit', tone: 'success' },
@@ -2628,7 +2937,7 @@ function localFallbackPayload(message = '') {
       intent: 'recommend_task',
       suggestions: normalizeChatbotSuggestions([
         { label: 'Gas Sekarang', command: 'oke gas sekarang', tone: 'success' },
-        { label: 'Check-In', command: 'check-in progres tugas', tone: 'info' },
+        { label: 'Check-in', command: 'check-in progres tugas', tone: 'info' },
       ]),
     };
   }
@@ -2647,14 +2956,14 @@ function localFallbackPayload(message = '') {
       reply: 'Evaluasi cepat 3 poin: apa yang selesai, apa hambatannya, dan aksi utama berikutnya.',
       intent: 'evaluation',
       suggestions: normalizeChatbotSuggestions([
-        { label: 'Check-In', command: 'check-in progres hari ini', tone: 'info' },
+        { label: 'Check-in', command: 'check-in progres hari ini', tone: 'info' },
         { label: 'Rencana Besok', command: 'cek target harian besok', tone: 'success' },
       ]),
     };
   }
   if (/\b(check-?in|progress|progres|update)\b/.test(lower)) {
     return {
-      reply: 'Check-in singkat dulu: 1) selesai apa, 2) lagi ngerjain apa, 3) blocker terbesar sekarang.',
+      reply: 'Check-in singkat dulu: 1) selesai apa, 2) lagi ngerjain apa, 3) hambatan terbesar sekarang.',
       intent: 'checkin_progress',
       suggestions: normalizeChatbotSuggestions([
         { label: 'Rekomendasi', command: 'rekomendasi tugas kuliah', tone: 'success' },
@@ -2668,7 +2977,7 @@ function localFallbackPayload(message = '') {
       intent: 'affirmation',
       suggestions: normalizeChatbotSuggestions([
         { label: 'Mulai 25m', command: 'ingatkan aku fokus 25 menit', tone: 'warning' },
-        { label: 'Check-In', command: 'check-in progres hari ini', tone: 'info' },
+        { label: 'Check-in', command: 'check-in progres hari ini', tone: 'info' },
       ]),
     };
   }
@@ -2683,7 +2992,7 @@ function localFallbackPayload(message = '') {
     };
   }
   return {
-    reply: "Aku siap bantu produktivitas couple. Coba: 'cek target harian', 'rekomendasi tugas', atau 'check-in progres'.",
+    reply: "Aku siap bantu produktivitas kalian. Coba: 'cek target harian', 'rekomendasi tugas', atau 'check-in progres'.",
     intent: 'fallback',
     suggestions: normalizeChatbotSuggestions([
       { label: 'Cek Target', command: 'cek target harian pasangan', tone: 'info' },
@@ -3017,7 +3326,7 @@ export default withErrorHandling(async function handler(req, res) {
     if (feedback) {
       const optionalUser = extractOptionalUser(req);
       if (!optionalUser) {
-        res.status(401).json({ error: 'Login required to store feedback' });
+        res.status(401).json({ error: 'Perlu login untuk menyimpan feedback' });
         return;
       }
       const feedbackProfile = await writeZaiFeedback(optionalUser, feedback);
@@ -3030,7 +3339,7 @@ export default withErrorHandling(async function handler(req, res) {
 
     const message = typeof b.message === 'string' ? b.message.trim() : '';
     if (!message) {
-      res.status(400).json({ error: 'Message required' });
+      res.status(400).json({ error: 'Pesan wajib diisi' });
       return;
     }
 
@@ -3070,6 +3379,121 @@ export default withErrorHandling(async function handler(req, res) {
       };
       const dueReminderTail = buildDueReminderFollowup(dueReminderState.reminders);
 
+      const scheduleQuery = parseCollegeScheduleRequest(message);
+      if (scheduleQuery) {
+        const complexity = evaluateHybridComplexity(message, planner);
+        const responseId = randomUUID();
+        const intent = 'schedule_query';
+        let scheduleItems = [];
+        try {
+          scheduleItems = await fetchScheduleByDayId(scheduleQuery.day_id);
+        } catch {
+          scheduleItems = [];
+        }
+
+        const phrase = String(scheduleQuery.phrase || 'hari ini');
+        const plannerOut = {
+          ...planner,
+          mode: 'single',
+          confidence: 'high',
+          requires_clarification: false,
+          clarifications: [],
+          summary: `1. Cek jadwal kuliah ${phrase}`,
+          next_best_action: scheduleItems.length
+            ? 'Siapkan fokus sebelum kelas pertama.'
+            : 'Pakai slot kosong untuk tugas prioritas.',
+          actions: [
+            {
+              id: 'schedule_1',
+              kind: 'schedule_query',
+              summary: `Cek jadwal kuliah ${phrase}`,
+              status: 'ready',
+              command: message,
+              missing: [],
+            },
+          ],
+        };
+
+        const reliability = buildReliabilityAssessment(message, plannerOut, intent);
+        const rawReply = buildCollegeScheduleNaturalReply(scheduleQuery, scheduleItems).slice(0, CHATBOT_MAX_REPLY);
+        const replyWithReminder = [rawReply, dueReminderTail].filter(Boolean).join('\n\n').slice(0, CHATBOT_MAX_REPLY);
+        const reliableReply = applyReliabilityFollowup(replyWithReminder, reliability).slice(0, CHATBOT_MAX_REPLY);
+        const reply = optionalUser
+          ? personalizeReplyForUser(reliableReply, { user_id: optionalUser, memory, intent }).slice(0, CHATBOT_MAX_REPLY)
+          : reliableReply;
+        const suggestions = applyLearningToSuggestions(
+          buildCollegeScheduleSuggestions(scheduleQuery, scheduleItems),
+          learningHints
+        );
+        const memoryUpdate = buildStatelessMemoryUpdate(memory, intent, message, ['kuliah', 'schedule']);
+        const router = {
+          mode: 'native',
+          selected_engine: 'schedule-native',
+          engine_final: 'schedule-native',
+          fallback_used: false,
+          complexity_score: complexity.score,
+          complexity_level: complexity.level,
+          complexity_threshold: complexity.threshold,
+          reasons: complexity.reasons,
+        };
+
+        if (optionalUser) {
+          const topics = normalizeRecentStrings([...extractMessageTopics(message), 'kuliah', 'schedule'], 5);
+          writeZaiMemoryBundle(optionalUser, {
+            message,
+            intent,
+            reply,
+            planner: plannerOut,
+            context: {
+              ...contextWithMemory,
+              response_id: responseId,
+              schedule_day_id: scheduleQuery.day_id,
+              schedule_date: scheduleQuery.date,
+            },
+            topics,
+          }).catch(() => {});
+        }
+
+        writeRouterMetricEvent({
+          user_id: optionalUser || null,
+          response_id: responseId,
+          status: 'ok',
+          engine: 'schedule-native',
+          intent,
+          latency_ms: Date.now() - routeStartedAt,
+          router,
+        }).catch(() => {});
+
+        sendJson(res, 200, {
+          reply,
+          intent,
+          response_id: responseId,
+          engine: 'schedule-native',
+          router,
+          adaptive: {
+            style: String(contextWithMemory?.tone_mode || 'supportive'),
+            focus_minutes: Number(contextWithMemory?.focus_minutes || 25),
+            urgency: scheduleItems.length > 0 ? 'medium' : 'low',
+            energy: 'normal',
+            domain: 'kuliah',
+          },
+          planner: plannerOut,
+          reliability,
+          unified_memory: optionalUser ? memory : null,
+          memory_update: memoryUpdate,
+          feedback_profile: normalizeFeedbackProfile(memory?.memory?.feedback_profile || {}),
+          suggestions: normalizeChatbotSuggestions(suggestions),
+          schedule: {
+            day_id: scheduleQuery.day_id,
+            date: scheduleQuery.date || null,
+            phrase,
+            items: scheduleItems,
+          },
+          due_reminders: Array.isArray(dueReminderState.reminders) ? dueReminderState.reminders : [],
+        });
+        return;
+      }
+
       const actionPlan = buildActionEnginePlan(planner, optionalUser);
       if (chatbotActionEngineEnabled() && actionPlan.has_actions) {
         const complexity = evaluateHybridComplexity(message, planner);
@@ -3103,7 +3527,7 @@ export default withErrorHandling(async function handler(req, res) {
           sendJson(res, 200, {
             reply: reminderOnly
               ? 'Aku bisa set reminder otomatis, tapi kamu perlu login dulu supaya pengingatnya bisa kusimpan dan dikirim.'
-              : 'Aku bisa eksekusi task/assignment/reminder otomatis, tapi kamu perlu login dulu supaya datanya bisa kusimpan.',
+              : 'Aku bisa eksekusi tugas/tugas kuliah/reminder otomatis, tapi kamu perlu login dulu supaya datanya bisa kusimpan.',
             intent,
             response_id: responseId,
             engine: 'action-engine-v2',
@@ -3122,8 +3546,8 @@ export default withErrorHandling(async function handler(req, res) {
             suggestions: normalizeChatbotSuggestions([
               { label: 'Login Dulu', command: 'login', tone: 'warning' },
               reminderOnly
-                ? { label: 'Template Reminder', command: 'ingatkan aku besok 19:00 untuk cek deadline kuliah', tone: 'info' }
-                : { label: 'Template Tugas', command: 'buat assignment [judul] deadline [besok 19:00]', tone: 'info' },
+                ? { label: 'Template Pengingat', command: 'ingatkan aku besok 19:00 untuk cek deadline kuliah', tone: 'info' }
+                : { label: 'Template Tugas Kuliah', command: 'buat tugas kuliah [judul] deadline [besok 19:00]', tone: 'info' },
             ]),
             execution: {
               executed: [],
@@ -3289,7 +3713,7 @@ export default withErrorHandling(async function handler(req, res) {
             decision,
             suggestions: normalizeChatbotSuggestions([
               { label: 'Login Dulu', command: 'login', tone: 'warning' },
-              { label: 'Template Prioritas', command: 'rekomendasi tugas kuliah paling urgent', tone: 'info' },
+              { label: 'Template Prioritas', command: 'rekomendasi tugas kuliah paling mendesak', tone: 'info' },
               { label: 'Cek Target', command: 'cek target harian pasangan', tone: 'info' },
             ]),
             due_reminders: [],
@@ -3610,7 +4034,7 @@ export default withErrorHandling(async function handler(req, res) {
 
   if (req.method === 'DELETE') {
     if (user !== 'Zaldy') {
-      res.status(403).json({ error: 'Only admin can clear chat' });
+      res.status(403).json({ error: 'Hanya admin yang bisa menghapus chat' });
       return;
     }
     await pool.query('DELETE FROM chat_messages');
@@ -3618,5 +4042,6 @@ export default withErrorHandling(async function handler(req, res) {
     return;
   }
 
-  res.status(405).json({ error: 'Method not allowed' });
+  res.status(405).json({ error: 'Metode tidak diizinkan' });
 });
+

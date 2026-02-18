@@ -44,19 +44,19 @@
       <div class="brand-text">NZ <span>COMMAND CENTER</span></div>
     </div>
     <div class="nav-actions">
-      <a class="btn small secondary" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
+      <a class="btn small secondary" href="/settings"><i class="fa-solid fa-gear"></i> Pengaturan</a>
     </div>
   </nav>
 
   <section class="cc-reminder-banner" id="task-reminder-banner" hidden>
     <div class="cc-reminder-copy">
-      <p class="cc-reminder-kicker">Task Reminder</p>
+      <p class="cc-reminder-kicker">Pengingat Tugas</p>
       <p class="cc-reminder-title" id="task-reminder-title">Ada tugas penting yang perlu kamu cek.</p>
       <p class="cc-reminder-sub" id="task-reminder-sub">Buka sekarang agar tidak telat.</p>
     </div>
     <div class="cc-reminder-actions">
       <button type="button" class="btn small" id="task-reminder-open"><i class="fa-solid fa-bolt"></i> Buka</button>
-      <button type="button" class="btn small secondary" id="task-reminder-snooze">Snooze 1h</button>
+      <button type="button" class="btn small secondary" id="task-reminder-snooze">Tunda 1 jam</button>
       <button type="button" class="btn small secondary" id="task-reminder-dismiss">Tutup</button>
     </div>
   </section>
@@ -65,50 +65,50 @@
     <section class="card cc-card cc-card-alpha cc-reveal" id="today-mission-card">
       <div class="cc-hero-top">
         <div class="cc-copy">
-          <p class="cc-kicker">Today Mission</p>
-          <h1 class="cc-heading" id="cc-greeting">Ready to focus</h1>
+          <p class="cc-kicker">Misi Hari Ini</p>
+          <h1 class="cc-heading" id="cc-greeting">Siap fokus</h1>
           <p class="cc-sub" id="cc-date">Loading mission clock...</p>
         </div>
-        <a href="/daily-tasks" class="btn small"><i class="fa-solid fa-bolt"></i> Planner</a>
+        <a href="/daily-tasks" class="btn small"><i class="fa-solid fa-bolt"></i> Rencana</a>
       </div>
 
       <div id="countdown" class="cc-countdown">
         <div class="time-box">
           <span id="t-days">00</span>
-          <label>Days</label>
+          <label>Hari</label>
         </div>
         <div class="time-box">
           <span id="t-hours">00</span>
-          <label>Hours</label>
+          <label>Jam</label>
         </div>
         <div class="time-box">
           <span id="t-minutes">00</span>
-          <label>Minutes</label>
+          <label>Menit</label>
         </div>
         <div class="time-box">
           <span id="t-seconds">00</span>
-          <label>Seconds</label>
+          <label>Detik</label>
         </div>
       </div>
 
       <div class="cc-metric-row">
         <div class="cc-metric">
-          <span class="cc-metric-label">Open</span>
+          <span class="cc-metric-label">Terbuka</span>
           <strong id="mission-open-count">0</strong>
         </div>
         <div class="cc-metric status-warning">
-          <span class="cc-metric-label">Urgent</span>
+          <span class="cc-metric-label">Mendesak</span>
           <strong id="mission-urgent-count">0</strong>
         </div>
         <div class="cc-metric status-good">
-          <span class="cc-metric-label">Done Today</span>
+          <span class="cc-metric-label">Selesai Hari Ini</span>
           <strong id="mission-completed-count">0</strong>
         </div>
       </div>
 
       <div class="cc-progress-wrap">
         <div class="cc-progress-head">
-          <span>Execution Rate</span>
+          <span>Rasio Eksekusi</span>
           <span id="today-progress-value">0%</span>
         </div>
         <div class="cc-progress-track">
@@ -121,8 +121,8 @@
 
     <section class="card cc-card cc-card-beta cc-reveal" id="couple-pulse-card">
       <div class="cc-section-head">
-        <h2><i class="fa-solid fa-heart-pulse"></i> Couple Pulse</h2>
-        <span class="cc-chip" id="pulse-sync-badge">Sync --</span>
+        <h2><i class="fa-solid fa-heart-pulse"></i> Pulse Pasangan</h2>
+        <span class="cc-chip" id="pulse-sync-badge">Sinkron --</span>
       </div>
 
       <div class="cc-pulse-grid">
@@ -131,7 +131,7 @@
             <span class="cc-user-tag">Zaldy</span>
             <span class="cc-mood-value" id="pulse-z-mood">--</span>
           </header>
-          <p class="cc-user-meta">Activities: <strong id="pulse-z-activity">0</strong></p>
+          <p class="cc-user-meta">Aktivitas: <strong id="pulse-z-activity">0</strong></p>
           <div class="cc-bar-track"><div class="cc-bar-fill" id="pulse-z-bar"></div></div>
         </article>
 
@@ -140,7 +140,7 @@
             <span class="cc-user-tag">Nesya</span>
             <span class="cc-mood-value" id="pulse-n-mood">--</span>
           </header>
-          <p class="cc-user-meta">Activities: <strong id="pulse-n-activity">0</strong></p>
+          <p class="cc-user-meta">Aktivitas: <strong id="pulse-n-activity">0</strong></p>
           <div class="cc-bar-track"><div class="cc-bar-fill" id="pulse-n-bar"></div></div>
         </article>
       </div>
@@ -148,7 +148,7 @@
 
     <section class="card cc-card cc-card-beta cc-reveal" id="urgent-radar-card">
       <div class="cc-section-head">
-        <h2><i class="fa-solid fa-radar"></i> Urgent Radar</h2>
+        <h2><i class="fa-solid fa-radar"></i> Radar Mendesak</h2>
         <span class="cc-chip status-critical" id="urgent-count">0 item</span>
       </div>
       <div class="cc-list" id="urgent-radar-list"></div>
@@ -156,48 +156,48 @@
 
     <section class="card cc-card cc-card-beta cc-reveal" id="study-mission-card">
       <div class="cc-section-head">
-        <h2><i class="fa-solid fa-brain"></i> Study Mission</h2>
-        <a class="btn small secondary" href="/schedule"><i class="fa-solid fa-up-right-from-square"></i> Open</a>
+        <h2><i class="fa-solid fa-brain"></i> Misi Belajar</h2>
+        <a class="btn small secondary" href="/schedule"><i class="fa-solid fa-up-right-from-square"></i> Buka</a>
       </div>
       <div class="cc-list" id="study-mission-list"></div>
     </section>
 
     <section class="card cc-card cc-card-gamma cc-reveal" id="assistant-feed-card">
       <div class="cc-section-head">
-        <h2><i class="fa-solid fa-wand-magic-sparkles"></i> Z AI Feed</h2>
-        <button class="btn small secondary" id="assistant-refresh"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
+        <h2><i class="fa-solid fa-wand-magic-sparkles"></i> Feed Z AI</h2>
+        <button class="btn small secondary" id="assistant-refresh"><i class="fa-solid fa-rotate-right"></i> Muat Ulang</button>
       </div>
       <div class="cc-feed" id="assistant-feed-list"></div>
     </section>
 
     <section class="card cc-card cc-card-gamma cc-reveal" id="quick-dock-card">
       <div class="cc-section-head">
-        <h2><i class="fa-solid fa-compass-drafting"></i> Quick Dock</h2>
+        <h2><i class="fa-solid fa-compass-drafting"></i> Akses Cepat</h2>
         <span class="cc-chip" id="cc-updated-at">--</span>
       </div>
       <div class="cc-module-grid">
-        <a href="/daily-tasks" class="cc-module"><i class="fa-solid fa-list-check"></i><span>Tasks</span></a>
-        <a href="/college-assignments" class="cc-module"><i class="fa-solid fa-graduation-cap"></i><span>College</span></a>
+        <a href="/daily-tasks" class="cc-module"><i class="fa-solid fa-list-check"></i><span>Tugas</span></a>
+        <a href="/college-assignments" class="cc-module"><i class="fa-solid fa-graduation-cap"></i><span>Kuliah</span></a>
         <a href="/college-widget" class="cc-module"><i class="fa-solid fa-table-cells"></i><span>Widget</span></a>
-        <a href="/schedule" class="cc-module"><i class="fa-regular fa-calendar-days"></i><span>Schedule</span></a>
-        <a href="/monthly-todos" class="cc-module"><i class="fa-solid fa-calendar-check"></i><span>Habits</span></a>
-        <a href="/goals" class="cc-module"><i class="fa-solid fa-bullseye"></i><span>Goals</span></a>
-        <a href="/chat" class="cc-module"><i class="fa-solid fa-message-heart"></i><span>Chat</span></a>
-        <a href="/report" class="cc-module"><i class="fa-solid fa-chart-line"></i><span>Report</span></a>
-        <a href="/memories" class="cc-module"><i class="fa-solid fa-sparkles"></i><span>Memories</span></a>
-        <a href="/anniversary" class="cc-module"><i class="fa-solid fa-calendar-heart"></i><span>Special</span></a>
+        <a href="/schedule" class="cc-module"><i class="fa-regular fa-calendar-days"></i><span>Jadwal</span></a>
+        <a href="/monthly-todos" class="cc-module"><i class="fa-solid fa-calendar-check"></i><span>Kebiasaan</span></a>
+        <a href="/goals" class="cc-module"><i class="fa-solid fa-bullseye"></i><span>Tujuan</span></a>
+        <a href="/chat" class="cc-module"><i class="fa-solid fa-message-heart"></i><span>Obrolan</span></a>
+        <a href="/report" class="cc-module"><i class="fa-solid fa-chart-line"></i><span>Laporan</span></a>
+        <a href="/memories" class="cc-module"><i class="fa-solid fa-sparkles"></i><span>Memori</span></a>
+        <a href="/anniversary" class="cc-module"><i class="fa-solid fa-calendar-heart"></i><span>Spesial</span></a>
       </div>
     </section>
   </main>
 
-  <section class="zai-floating-widget" id="zai-floating-widget" data-tone="info" aria-label="Z AI floating reminder">
-    <button type="button" class="zai-floating-trigger" id="zai-floating-trigger" aria-label="Buka Z AI reminder" aria-expanded="false">
+  <section class="zai-floating-widget" id="zai-floating-widget" data-tone="info" aria-label="Pengingat melayang Z AI">
+    <button type="button" class="zai-floating-trigger" id="zai-floating-trigger" aria-label="Buka pengingat Z AI" aria-expanded="false">
       <span class="zai-floating-icon"><i class="fa-solid fa-robot"></i></span>
       <span class="zai-floating-label">Z AI</span>
     </button>
     <article class="zai-floating-panel" id="zai-floating-panel" aria-live="polite">
       <header class="zai-floating-head">
-        <span class="zai-floating-tone" id="zai-floating-tone">Z AI Reminder</span>
+        <span class="zai-floating-tone" id="zai-floating-tone">Pengingat Z AI</span>
         <button type="button" class="zai-floating-close" id="zai-floating-close" aria-label="Tutup">
           <i class="fa-solid fa-xmark"></i>
         </button>
@@ -205,7 +205,7 @@
       <p class="zai-floating-message" id="zai-floating-message">Z AI siap bantu prioritas kamu hari ini.</p>
       <div class="zai-floating-actions">
         <button type="button" class="btn small" id="zai-floating-primary" data-route="/chat">Buka</button>
-        <button type="button" class="btn small secondary" id="zai-floating-secondary" data-route="/chat">Chat</button>
+        <button type="button" class="btn small secondary" id="zai-floating-secondary" data-route="/chat">Obrolan</button>
       </div>
     </article>
   </section>
@@ -213,23 +213,23 @@
   <nav class="bottom-nav">
     <a href="/" class="nav-item active">
       <i class="fa-solid fa-house-chimney"></i>
-      <span>Home</span>
+      <span>Beranda</span>
     </a>
     <a href="/daily-tasks" class="nav-item">
       <i class="fa-solid fa-list-check"></i>
-      <span>Tasks</span>
+      <span>Tugas</span>
     </a>
     <a href="/goals" class="nav-item">
       <i class="fa-solid fa-bullseye"></i>
-      <span>Goals</span>
+      <span>Tujuan</span>
     </a>
     <a href="/chat" class="nav-item">
       <i class="fa-solid fa-message-heart"></i>
-      <span>Chat</span>
+      <span>Obrolan</span>
     </a>
     <a href="/settings" class="nav-item">
       <i class="fa-solid fa-gear"></i>
-      <span>Settings</span>
+      <span>Pengaturan</span>
     </a>
   </nav>
 

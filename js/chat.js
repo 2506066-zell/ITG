@@ -18,17 +18,17 @@ const CHATBOT_STATELESS_MODE_KEY = 'chatbot_stateless_mode_v1';
 const CHATBOT_ADAPTIVE_PROFILE_KEY = 'chatbot_adaptive_profile_v1';
 
 const BASE_COMMAND_SUGGESTIONS = [
-  { label: 'Template Daily Task', command: 'buat task [judul tugas] deadline [besok 19:00] priority [high/medium/low]' },
-  { label: 'Template Tugas Kuliah', command: 'buat assignment [judul tugas kuliah] deskripsi [opsional] deadline [besok 21:00]' },
-  { label: 'Risk Deadline 48h', command: 'risk deadline 48 jam ke depan' },
-  { label: 'Memory Graph', command: 'tampilkan memory graph hari ini' },
+  { label: 'Template Tugas Harian', command: 'buat tugas [judul tugas] deadline [besok 19:00] prioritas [tinggi/sedang/rendah]' },
+  { label: 'Template Tugas Kuliah', command: 'buat tugas kuliah [judul tugas kuliah] deskripsi [opsional] deadline [besok 21:00]' },
+  { label: 'Risiko Deadline 48j', command: 'risiko deadline 48 jam ke depan' },
+  { label: 'Grafik Memori', command: 'tampilkan grafik memori hari ini' },
   { label: 'Ringkasan Hari Ini', command: 'ringkasan hari ini' },
-  { label: 'Urgent Radar', command: 'task urgent saya hari ini apa', tone: 'urgent' },
+  { label: 'Radar Mendesak', command: 'tugas paling mendesak saya hari ini apa', tone: 'urgent' },
   { label: 'Couple Pulse', command: 'lihat couple pulse hari ini' },
-  { label: 'Memory Snapshot', command: 'tampilkan memory hari ini' },
+  { label: 'Snapshot Memori', command: 'tampilkan memori hari ini' },
   { label: 'Study Plan Besok', command: 'jadwal belajar besok pagi' },
-  { label: 'Assignment Pending', command: 'assignment pending' },
-  { label: 'Bundle Cepat', command: 'buat task review materi deadline besok 19:00 lalu atur target belajar 180 menit' },
+  { label: 'Tugas Kuliah Tertunda', command: 'tugas kuliah pending saya apa' },
+  { label: 'Bundle Cepat', command: 'buat tugas review materi deadline besok 19:00 lalu atur target belajar 180 menit' },
 ];
 
 function trackZaiActivity(eventName, payload = {}, options = {}) {
@@ -248,10 +248,10 @@ function syncAssistantModeUI() {
   if (indicatorText) indicatorText.textContent = assistantAlwaysOn ? 'AI ON' : (chatbotStatelessMode ? 'BOT' : 'CHAT');
   if (input) {
     input.placeholder = assistantAlwaysOn
-      ? 'Assistant ON: ketik natural. Gunakan /chat ... untuk chat biasa'
+      ? 'Z AI aktif: ketik natural. Gunakan /chat ... untuk chat biasa'
       : (chatbotStatelessMode
-          ? 'Bot Mode ON: chat ke chatbot stateless'
-          : 'Type message, /ai ..., atau tap suggestion');
+          ? 'Mode Bot aktif: chat ke bot stateless'
+          : 'Ketik pesan, /ai ..., atau tap saran');
   }
 }
 
@@ -300,7 +300,7 @@ function appendLocalChatMessage(author, message, options = {}) {
   el.className = `chat-msg ${isMe ? 'me' : ''} ${isSystem ? 'system' : ''}`.trim();
   el.innerHTML = `
     <div class="msg-meta">
-      <span>${escapeHtml(String(author || 'Unknown'))}</span>
+      <span>${escapeHtml(String(author || 'Pengguna'))}</span>
       <span>${escapeHtml(now)}</span>
     </div>
     <div class="bubble-content"></div>
@@ -352,18 +352,18 @@ function formatAssistantReply(payload) {
     if (explain.impact) lines.push(`Dampak: ${explain.impact}`);
     if (explain.risk) lines.push(`Risiko: ${explain.risk}`);
     if (explain.recommended_action) lines.push(`Saran: ${explain.recommended_action}`);
-    if (explain.confidence) lines.push(`Confidence: ${explain.confidence}`);
+    if (explain.confidence) lines.push(`Keyakinan: ${explain.confidence}`);
   }
 
   const frame = payload && payload.execution_frame && typeof payload.execution_frame === 'object'
     ? payload.execution_frame
     : null;
   if (frame && frame.planner && Array.isArray(frame.planner.steps) && frame.planner.steps.length) {
-    lines.push(`Plan: ${frame.planner.steps.join(' -> ')}`);
+    lines.push(`Rencana: ${frame.planner.steps.join(' -> ')}`);
   }
   if (frame && frame.critic) {
-    if (frame.critic.quality) lines.push(`Critic: ${String(frame.critic.quality).toUpperCase()}`);
-    if (frame.critic.next_best_action) lines.push(`Next: ${frame.critic.next_best_action}`);
+    if (frame.critic.quality) lines.push(`Kualitas: ${String(frame.critic.quality).toUpperCase()}`);
+    if (frame.critic.next_best_action) lines.push(`Langkah berikutnya: ${frame.critic.next_best_action}`);
   }
 
   return lines.join('\n');
@@ -535,65 +535,65 @@ function extractAssistantEvidenceChips(payload) {
   const explain = payload?.explainability || {};
   const data = payload?.data || {};
 
-  if (mode === 'confirmation_required') chips.push({ label: 'Needs Confirm', tone: 'warning', command: '/confirm' });
-  if (mode === 'clarification_required') chips.push({ label: 'Need Details', tone: 'warning', command: 'buat task review basis data deadline besok 19:00 priority high' });
-  if (mode === 'write_executed') chips.push({ label: 'Write Executed', tone: 'success', command: 'ringkasan hari ini' });
+  if (mode === 'confirmation_required') chips.push({ label: 'Perlu Konfirmasi', tone: 'warning', command: '/confirm' });
+  if (mode === 'clarification_required') chips.push({ label: 'Perlu Detail', tone: 'warning', command: 'buat tugas review basis data deadline besok 19:00 prioritas tinggi' });
+  if (mode === 'write_executed') chips.push({ label: 'Berhasil Dieksekusi', tone: 'success', command: 'ringkasan hari ini' });
 
   const toolCallsCount = Array.isArray(payload?.tool_calls) ? payload.tool_calls.length : 0;
-  if (toolCallsCount > 1) chips.push({ label: `Bundle x${toolCallsCount}`, tone: 'info', command: 'ringkasan hari ini' });
+  if (toolCallsCount > 1) chips.push({ label: `Bundle ${toolCallsCount} Aksi`, tone: 'info', command: 'ringkasan hari ini' });
 
   if (tool === 'get_tasks' || tool === 'get_assignments') {
     const items = Array.isArray(data.items) ? data.items : [];
     if (items.length) {
       chips.push({
-        label: `${items.length} Pending`,
+        label: `${items.length} Tertunda`,
         tone: 'info',
-        command: tool === 'get_tasks' ? 'task pending saya apa' : 'assignment pending saya apa',
+        command: tool === 'get_tasks' ? 'tugas pending saya apa' : 'tugas kuliah pending saya apa',
       });
     }
     const risk = summarizeDeadlineRisk(items);
-    if (risk.overdue > 0) chips.push({ label: `${risk.overdue} Overdue`, tone: 'critical', command: 'task urgent saya apa' });
-    else if (risk.due24h > 0) chips.push({ label: `${risk.due24h} Due <24h`, tone: 'warning', command: 'task urgent saya apa' });
+    if (risk.overdue > 0) chips.push({ label: `${risk.overdue} Terlambat`, tone: 'critical', command: 'tugas paling mendesak saya apa' });
+    else if (risk.due24h > 0) chips.push({ label: `${risk.due24h} Deadline <24j`, tone: 'warning', command: 'tugas paling mendesak saya apa' });
   }
 
   if (tool === 'get_daily_brief') {
     const taskCount = Array.isArray(data.tasks) ? data.tasks.length : 0;
     const assignmentCount = Array.isArray(data.assignments) ? data.assignments.length : 0;
     const classCount = Array.isArray(data.schedule) ? data.schedule.length : 0;
-    chips.push({ label: `Task ${taskCount}`, tone: 'info', command: 'task pending saya apa' });
-    chips.push({ label: `Assignment ${assignmentCount}`, tone: 'info', command: 'assignment pending saya apa' });
-    chips.push({ label: `Class ${classCount}`, tone: 'info', command: 'jadwal hari ini' });
+    chips.push({ label: `Tugas ${taskCount}`, tone: 'info', command: 'tugas pending saya apa' });
+    chips.push({ label: `Tugas Kuliah ${assignmentCount}`, tone: 'info', command: 'tugas kuliah pending saya apa' });
+    chips.push({ label: `Kelas ${classCount}`, tone: 'info', command: 'jadwal hari ini' });
   }
 
   if (tool === 'get_unified_memory') {
     const counters = data.counters || {};
     const streak = data.streak || {};
     const urgent = Number(counters.urgent_items || 0);
-    if (urgent > 0) chips.push({ label: `Urgent ${urgent}`, tone: 'critical', command: 'task urgent saya apa' });
+    if (urgent > 0) chips.push({ label: `Mendesak ${urgent}`, tone: 'critical', command: 'tugas paling mendesak saya apa' });
     const streakDays = Number(streak.current_days || 0);
-    if (streakDays > 0) chips.push({ label: `Streak ${streakDays}d`, tone: 'success', command: 'jadwal belajar besok pagi' });
+    if (streakDays > 0) chips.push({ label: `Konsisten ${streakDays}h`, tone: 'success', command: 'jadwal belajar besok pagi' });
   }
 
   if (tool === 'get_study_plan') {
     const summary = data.summary || {};
     const sessions = Number(summary.sessions || 0);
     const criticalSessions = Number(summary.critical_sessions || 0);
-    if (sessions > 0) chips.push({ label: `${sessions} Sessions`, tone: 'info', command: 'jadwal belajar besok pagi' });
-    if (criticalSessions > 0) chips.push({ label: `${criticalSessions} Critical`, tone: 'warning', command: 'geser sesi belajar ke besok pagi' });
+    if (sessions > 0) chips.push({ label: `${sessions} Sesi`, tone: 'info', command: 'jadwal belajar besok pagi' });
+    if (criticalSessions > 0) chips.push({ label: `${criticalSessions} Kritis`, tone: 'warning', command: 'geser sesi belajar ke besok pagi' });
   }
 
   if (tool === 'get_deadline_risk') {
     const summary = data.summary || {};
     const critical = Number(summary.critical || 0);
     const high = Number(summary.high || 0);
-    if (critical > 0) chips.push({ label: `Critical ${critical}`, tone: 'critical', command: 'task urgent saya apa' });
-    if (high > 0) chips.push({ label: `High ${high}`, tone: 'warning', command: 'risk deadline 48 jam ke depan' });
+    if (critical > 0) chips.push({ label: `Kritis ${critical}`, tone: 'critical', command: 'tugas paling mendesak saya apa' });
+    if (high > 0) chips.push({ label: `Tinggi ${high}`, tone: 'warning', command: 'risiko deadline 48 jam ke depan' });
   }
 
   if (tool === 'get_memory_graph') {
     const nodes = Array.isArray(data.nodes) ? data.nodes.length : 0;
     const edges = Array.isArray(data.edges) ? data.edges.length : 0;
-    chips.push({ label: `Graph ${nodes}/${edges}`, tone: 'info', command: 'tampilkan memory graph hari ini' });
+    chips.push({ label: `Graf ${nodes}/${edges}`, tone: 'info', command: 'tampilkan grafik memori hari ini' });
   }
 
   if (tool === 'get_couple_coordination') {
@@ -601,17 +601,17 @@ function extractAssistantEvidenceChips(payload) {
     const partner = data.partner || {};
     const reco = data.recommendation || {};
     if (Number.isFinite(Number(reco.balance_score))) {
-      chips.push({ label: `Balance ${Number(reco.balance_score)}`, tone: 'info', command: 'lihat couple pulse hari ini' });
+      chips.push({ label: `Seimbang ${Number(reco.balance_score)}`, tone: 'info', command: 'lihat couple pulse hari ini' });
     }
-    chips.push({ label: `${me.user || 'Me'} ${Number(me.load_index || 0)}`, tone: 'warning', command: 'task pending saya apa' });
-    chips.push({ label: `${partner.user || 'Partner'} ${Number(partner.load_index || 0)}`, tone: 'info', command: 'ingatkan pasangan check-in malam ini' });
+    chips.push({ label: `${me.user || 'Saya'} ${Number(me.load_index || 0)}`, tone: 'warning', command: 'tugas pending saya apa' });
+    chips.push({ label: `${partner.user || 'Pasangan'} ${Number(partner.load_index || 0)}`, tone: 'info', command: 'ingatkan pasangan check-in malam ini' });
   }
 
   if (explain && explain.confidence) {
     chips.push({
-      label: `Confidence ${String(explain.confidence).toUpperCase()}`,
+      label: `Keyakinan ${String(explain.confidence).toUpperCase()}`,
       tone: confidenceTone(explain.confidence),
-      command: 'tampilkan memory hari ini',
+      command: 'tampilkan memori hari ini',
     });
   }
 
@@ -764,7 +764,7 @@ function consumePendingAiFromUrl() {
     url.searchParams.delete('ai');
     window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
     runAssistant(command).catch((err) => {
-      appendLocalSystemMessage('Assistant', `Assistant error: ${err.message || 'unknown error'}`);
+      appendLocalSystemMessage('Z AI', `Error Z AI: ${err.message || 'kesalahan tidak diketahui'}`);
     });
   } catch {}
 }
@@ -811,7 +811,7 @@ async function readAssistantStream(prompt, onDelta) {
   const type = (res.headers.get('content-type') || '').toLowerCase();
   if (!type.includes('text/event-stream')) {
     const text = await res.text();
-    throw new Error(text || `Assistant stream failed (${res.status})`);
+    throw new Error(text || `Streaming Z AI gagal (${res.status})`);
   }
 
   if (!res.body) {
@@ -843,7 +843,7 @@ async function readAssistantStream(prompt, onDelta) {
         } else if (parsed.event === 'result') {
           finalPayload = parsed.data;
         } else if (parsed.event === 'error') {
-          throw new Error(parsed.data?.error || 'Assistant stream error');
+          throw new Error(parsed.data?.error || 'Terjadi error pada streaming Z AI');
         }
       }
 
@@ -888,15 +888,15 @@ function contextualCommandSuggestions(payload) {
   if (tool === 'get_tasks' && Array.isArray(data.items) && data.items.length) {
     const topTask = data.items.find((item) => item && item.id);
     if (topTask) {
-      suggestions.push({ label: `Selesaikan Task #${topTask.id}`, command: `selesaikan task ${topTask.id}` });
-      suggestions.push({ label: `Geser Deadline #${topTask.id}`, command: `ubah deadline task ${topTask.id} besok 20:00`, tone: 'urgent' });
+      suggestions.push({ label: `Selesaikan Tugas #${topTask.id}`, command: `selesaikan tugas ${topTask.id}` });
+      suggestions.push({ label: `Geser Deadline #${topTask.id}`, command: `ubah deadline tugas ${topTask.id} besok 20:00`, tone: 'urgent' });
     }
   }
 
   if (tool === 'get_assignments' && Array.isArray(data.items) && data.items.length) {
     const topAssignment = data.items.find((item) => item && item.id);
     if (topAssignment) {
-      suggestions.push({ label: `Selesaikan Assignment #${topAssignment.id}`, command: `selesaikan assignment ${topAssignment.id}` });
+      suggestions.push({ label: `Selesaikan Tugas Kuliah #${topAssignment.id}`, command: `selesaikan tugas kuliah ${topAssignment.id}` });
     }
   }
 
@@ -906,27 +906,27 @@ function contextualCommandSuggestions(payload) {
   }
 
   if (tool === 'get_unified_memory') {
-    suggestions.push({ label: 'Lihat Urgent Radar', command: 'task urgent saya apa', tone: 'urgent' });
-    suggestions.push({ label: 'Check Assignment', command: 'assignment pending saya apa' });
+    suggestions.push({ label: 'Lihat Radar Mendesak', command: 'tugas paling mendesak saya apa', tone: 'urgent' });
+    suggestions.push({ label: 'Cek Tugas Kuliah', command: 'tugas kuliah pending saya apa' });
   }
 
   if (tool === 'get_deadline_risk') {
-    suggestions.push({ label: 'Lihat Risk 24h', command: 'risk deadline 24 jam ke depan', tone: 'urgent' });
-    suggestions.push({ label: 'Lihat Task Urgent', command: 'task urgent saya apa', tone: 'urgent' });
+    suggestions.push({ label: 'Lihat Risiko 24j', command: 'risiko deadline 24 jam ke depan', tone: 'urgent' });
+    suggestions.push({ label: 'Lihat Tugas Mendesak', command: 'tugas paling mendesak saya apa', tone: 'urgent' });
   }
 
   if (tool === 'get_memory_graph') {
-    suggestions.push({ label: 'Refresh Memory Graph', command: 'tampilkan memory graph hari ini' });
-    suggestions.push({ label: 'Lihat Memory Snapshot', command: 'tampilkan memory hari ini' });
+    suggestions.push({ label: 'Muat Ulang Grafik', command: 'tampilkan grafik memori hari ini' });
+    suggestions.push({ label: 'Lihat Snapshot Memori', command: 'tampilkan memori hari ini' });
   }
 
   if (tool === 'get_couple_coordination') {
-    suggestions.push({ label: 'Nudge Check-In', command: 'ingatkan pasangan check-in malam ini' });
-    suggestions.push({ label: 'Refresh Couple Pulse', command: 'lihat couple pulse hari ini' });
+    suggestions.push({ label: 'Ingatkan Check-in', command: 'ingatkan pasangan check-in malam ini' });
+    suggestions.push({ label: 'Muat Ulang Couple Pulse', command: 'lihat couple pulse hari ini' });
   }
 
   if (mode === 'write_executed') {
-    suggestions.push({ label: 'Refresh Ringkasan', command: 'ringkasan hari ini' });
+    suggestions.push({ label: 'Muat Ulang Ringkasan', command: 'ringkasan hari ini' });
   }
 
   return suggestions;
@@ -982,14 +982,14 @@ async function runAssistant(promptOrCommand) {
     trackZaiActivity('zai_prompt_skipped_busy', {
       input: trimmed.slice(0, 220),
     }, { source: 'assistant' });
-    appendLocalSystemMessage('Assistant', 'Assistant masih memproses request sebelumnya.');
+    appendLocalSystemMessage('Z AI', 'Z AI masih memproses permintaan sebelumnya.');
     return;
   }
   assistantBusy = true;
 
   try {
     if (/^\/confirm$/i.test(trimmed)) {
-      appendLocalSystemMessage('Assistant', 'Mode terbaru tidak butuh /confirm. Tulis langsung perintahnya.');
+      appendLocalSystemMessage('Z AI', 'Mode terbaru tidak butuh /confirm. Tulis langsung perintahnya.');
       renderCommandSuggestions(lastAssistantPayload);
       return;
     }
@@ -999,7 +999,7 @@ async function runAssistant(promptOrCommand) {
       .replace(/^@assistant\b/i, '')
       .trim();
     if (!prompt) {
-      appendLocalSystemMessage('Assistant', 'Format: /ai <pertanyaan>');
+      appendLocalSystemMessage('Z AI', 'Format: /ai <pertanyaan>');
       renderCommandSuggestions(lastAssistantPayload);
       return;
     }
@@ -1009,7 +1009,7 @@ async function runAssistant(promptOrCommand) {
       mode: assistantAlwaysOn ? 'assistant_always_on' : 'manual_ai',
     }, { source: 'assistant' });
 
-    contentEl = appendLocalSystemMessage('Assistant', '');
+    contentEl = appendLocalSystemMessage('Z AI', '');
     if (contentEl) {
       contentEl.textContent = '...';
       contentEl.classList.add('v3-assistant-typing');
@@ -1046,13 +1046,13 @@ async function runAssistant(promptOrCommand) {
     renderCommandSuggestions(result);
   } catch (err) {
     trackZaiActivity('zai_reply_failed', {
-      error: String(err?.message || 'unknown error').slice(0, 180),
+      error: String(err?.message || 'kesalahan tidak diketahui').slice(0, 180),
     }, { source: 'assistant' });
     if (contentEl) {
       contentEl.classList.remove('v3-assistant-typing');
-      contentEl.textContent = `Assistant error: ${err.message || 'unknown error'}`;
+      contentEl.textContent = `Error Z AI: ${err.message || 'kesalahan tidak diketahui'}`;
     } else {
-      appendLocalSystemMessage('Assistant', `Assistant error: ${err.message || 'unknown error'}`);
+      appendLocalSystemMessage('Z AI', `Error Z AI: ${err.message || 'kesalahan tidak diketahui'}`);
     }
     renderCommandSuggestions(lastAssistantPayload);
   } finally {
@@ -1064,7 +1064,7 @@ async function runStatelessBot(message = '') {
   const text = normalizeAssistantInput(message || '');
   if (!text) return;
 
-  const currentUser = localStorage.getItem('user') || 'You';
+  const currentUser = localStorage.getItem('user') || 'Kamu';
   trackZaiActivity('zai_prompt', {
     message: text.slice(0, 260),
     mode: 'bot_stateless',
@@ -1111,9 +1111,9 @@ async function runStatelessBot(message = '') {
   } catch (err) {
     trackZaiActivity('zai_reply_failed', {
       mode: 'bot_stateless',
-      error: String(err?.message || 'unknown error').slice(0, 180),
+      error: String(err?.message || 'kesalahan tidak diketahui').slice(0, 180),
     }, { source: 'chatbot' });
-    const textErr = `Bot error: ${err?.message || 'unknown error'}`;
+    const textErr = `Error bot: ${err?.message || 'kesalahan tidak diketahui'}`;
     if (contentEl) {
       contentEl.classList.remove('v3-assistant-typing');
       contentEl.textContent = textErr;
@@ -1148,7 +1148,7 @@ async function loadMessages() {
 
       const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      const safeUser = escapeHtml(String(m.user_id || 'Unknown'));
+      const safeUser = escapeHtml(String(m.user_id || 'Pengguna'));
       const safeTime = escapeHtml(String(time));
       const safeMessage = escapeHtml(String(m.message || ''));
       el.innerHTML = `
@@ -1188,7 +1188,7 @@ async function send(e) {
     if (assistantAlwaysOn) {
       if (plainChat !== null) {
         if (!plainChat) {
-          appendLocalSystemMessage('Assistant', 'Format chat biasa: /chat <pesan>');
+          appendLocalSystemMessage('Z AI', 'Format chat biasa: /chat <pesan>');
           return;
         }
         await post('/chat', { message: plainChat });
@@ -1218,7 +1218,7 @@ async function send(e) {
     input.value = '';
     loadMessages(); // Immediate refresh
   } catch (err) {
-    alert('Failed to send');
+    alert('Gagal mengirim pesan');
   } finally {
     input.disabled = false;
     input.focus();
@@ -1226,13 +1226,13 @@ async function send(e) {
 }
 
 async function clearAll() {
-  if (!confirm('Clear all chat history? (Admin only)')) return;
+  if (!confirm('Hapus semua riwayat chat? (khusus admin)')) return;
   try {
     await del('/chat');
     document.querySelector('#chat-messages').innerHTML = '';
     loadMessages();
   } catch (e) {
-    alert(e.error || 'Failed to clear');
+    alert(e.error || 'Gagal menghapus');
   }
 }
 
@@ -1270,10 +1270,10 @@ function init() {
       writeAssistantAlwaysOnPreference(assistantAlwaysOn);
       syncAssistantModeUI();
       appendLocalSystemMessage(
-        'Assistant',
+        'Z AI',
         assistantAlwaysOn
-          ? 'Assistant Always On aktif. Ketik langsung untuk AI. Gunakan /chat ... untuk chat biasa.'
-          : 'Assistant Always On nonaktif. Gunakan /ai ... untuk panggil assistant.'
+          ? 'Asisten Selalu Aktif menyala. Kamu bisa langsung chat natural. Gunakan /chat ... untuk chat biasa.'
+          : 'Asisten Selalu Aktif mati. Gunakan /ai ... untuk memanggil Z AI.'
       );
     });
   }
@@ -1295,8 +1295,8 @@ function init() {
       appendLocalSystemMessage(
         'Z AI',
         chatbotStatelessMode
-          ? 'Bot Mode aktif. Pesan biasa akan dibalas chatbot stateless.'
-          : 'Bot Mode nonaktif. Pesan biasa kembali ke chat pasangan.'
+          ? 'Mode Bot aktif. Pesan biasa akan dibalas chatbot stateless.'
+          : 'Mode Bot nonaktif. Pesan biasa kembali ke chat pasangan.'
       );
     });
   }

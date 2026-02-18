@@ -141,39 +141,181 @@ function parsePriority(raw = '') {
   return 'medium';
 }
 
-function parseDateFromText(text = '') {
-  const msg = text.toLowerCase();
-  const now = new Date();
-
-  const isoDate = text.match(/\b(\d{4}-\d{2}-\d{2})(?:[ t](\d{2}:\d{2}))?\b/);
-  if (isoDate) {
-    const value = new Date(`${isoDate[1]}T${isoDate[2] || '21:00'}:00`);
-    if (!Number.isNaN(value.getTime())) return value;
-  }
-
-  const dmy = text.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}:\d{2}))?\b/);
-  if (dmy) {
-    const dd = String(Number(dmy[1])).padStart(2, '0');
-    const mm = String(Number(dmy[2])).padStart(2, '0');
-    const value = new Date(`${dmy[3]}-${mm}-${dd}T${dmy[4] || '21:00'}:00`);
-    if (!Number.isNaN(value.getTime())) return value;
-  }
-
-  const timeOnly = text.match(/\b(\d{1,2}:\d{2})\b/);
-  const setRelative = (dayDelta) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + dayDelta);
-    const hhmm = timeOnly ? timeOnly[1] : '21:00';
-    const [hh, mm] = hhmm.split(':').map(Number);
-    d.setHours(Number.isFinite(hh) ? hh : 21, Number.isFinite(mm) ? mm : 0, 0, 0);
-    return d;
+function parseNaturalMonthIndex(raw = '') {
+  const monthMap = {
+    jan: 0, januari: 0, january: 0,
+    feb: 1, febr: 1, februari: 1, february: 1, pebruari: 1, febuari: 1,
+    mar: 2, maret: 2, march: 2,
+    apr: 3, april: 3,
+    mei: 4, may: 4,
+    jun: 5, juni: 5, june: 5,
+    jul: 6, juli: 6, july: 6,
+    agu: 7, ags: 7, agt: 7, agustus: 7, august: 7, aug: 7,
+    sep: 8, sept: 8, september: 8,
+    okt: 9, oktober: 9, october: 9, oct: 9,
+    nov: 10, november: 10,
+    des: 11, desember: 11, december: 11, dec: 11,
   };
+  const key = String(raw || '').trim().toLowerCase().replace(/\.$/, '');
+  if (!key) return null;
+  return Object.prototype.hasOwnProperty.call(monthMap, key) ? monthMap[key] : null;
+}
 
-  if (/(lusa|day after tomorrow)/i.test(msg)) return setRelative(2);
-  if (/(besok|tomorrow)/i.test(msg)) return setRelative(1);
-  if (/(hari ini|today)/i.test(msg)) return setRelative(0);
+function normalizeYearCandidate(raw = '', fallbackYear = null) {
+  if (raw === null || raw === undefined || raw === '') return fallbackYear;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallbackYear;
+  if (n < 100) return 2000 + n;
+  return n;
+}
 
-  return null;
+function buildNaturalDateWithYear(day, monthIndex, explicitYear, now) {
+  const d = Number(day);
+  const m = Number(monthIndex);
+  if (!Number.isFinite(d) || !Number.isFinite(m)) return null;
+  if (d < 1 || d > 31 || m < 0 || m > 11) return null;
+
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+
+  let year = Number.isFinite(explicitYear) ? Number(explicitYear) : now.getFullYear();
+  let parsed = new Date(year, m, d);
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== m || parsed.getDate() !== d) return null;
+
+  if (!Number.isFinite(explicitYear)) {
+    const parsedDay = new Date(parsed);
+    parsedDay.setHours(0, 0, 0, 0);
+    if (parsedDay.getTime() < today.getTime()) {
+      year += 1;
+      parsed = new Date(year, m, d);
+      if (parsed.getFullYear() !== year || parsed.getMonth() !== m || parsed.getDate() !== d) return null;
+    }
+  }
+
+  return parsed;
+}
+
+function parseExplicitTimeParts(text = '') {
+  const lower = String(text || '').toLowerCase();
+  const colon = lower.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
+  const word = lower.match(/\b(?:jam|pukul)\s*([01]?\d|2[0-3])(?:[:.]([0-5]\d))?\b/);
+  const picked = word || colon;
+  if (!picked) return null;
+
+  let hour = Number(picked[1]);
+  let minute = Number(picked[2] || 0);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  const hasPagi = /\bpagi\b/.test(lower);
+  const hasSiang = /\bsiang\b/.test(lower);
+  const hasSore = /\b(sore|petang)\b/.test(lower);
+  const hasMalam = /\bmalam\b/.test(lower);
+
+  if (hasPagi && hour === 12) hour = 0;
+  if ((hasSore || hasMalam) && hour < 12) hour += 12;
+  if (hasSiang && hour >= 1 && hour <= 6) hour += 12;
+
+  return { hour, minute };
+}
+
+function parseDateFromText(text = '') {
+  const raw = String(text || '').trim();
+  if (!raw) return null;
+  const msg = raw.toLowerCase();
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const explicitTime = parseExplicitTimeParts(msg);
+  const fallbackTime = explicitTime || { hour: 21, minute: 0 };
+  let base = null;
+
+  const isoDate = msg.match(/\b(\d{4})-(\d{2})-(\d{2})(?:[ t]([01]?\d|2[0-3])[:.]([0-5]\d))?\b/);
+  if (isoDate) {
+    const y = Number(isoDate[1]);
+    const m = Number(isoDate[2]) - 1;
+    const d = Number(isoDate[3]);
+    const parsed = new Date(y, m, d);
+    if (!Number.isNaN(parsed.getTime())) {
+      const inlineHour = isoDate[4] !== undefined ? Number(isoDate[4]) : fallbackTime.hour;
+      const inlineMinute = isoDate[5] !== undefined ? Number(isoDate[5]) : fallbackTime.minute;
+      parsed.setHours(inlineHour, inlineMinute, 0, 0);
+      return parsed;
+    }
+  }
+
+  const taggedYearHint = msg.match(/\b(?:tahun|thn|taun|tahunnya|taunya|year)\s*(20\d{2})\b/);
+  const genericYearHint = msg.match(/\b(20\d{2})\b/);
+  const yearHint = taggedYearHint
+    ? Number(taggedYearHint[1])
+    : (genericYearHint ? Number(genericYearHint[1]) : null);
+
+  const dmy = msg.match(/\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?\b/);
+  if (dmy) {
+    const parsed = buildNaturalDateWithYear(
+      Number(dmy[1]),
+      Number(dmy[2]) - 1,
+      normalizeYearCandidate(dmy[3], yearHint),
+      now
+    );
+    if (parsed && !Number.isNaN(parsed.getTime())) base = parsed;
+  }
+
+  if (!base) {
+    const dayMonthWord = msg.match(/\b(?:tanggal\s*)?(\d{1,2})\s*(?:[\/.,-]\s*)?([a-z]{3,12})\.?(?:\s*(?:tahun\s*)?(\d{4}))?\b/);
+    if (dayMonthWord) {
+      const monthIndex = parseNaturalMonthIndex(dayMonthWord[2]);
+      if (monthIndex !== null) {
+        const parsed = buildNaturalDateWithYear(
+          Number(dayMonthWord[1]),
+          monthIndex,
+          normalizeYearCandidate(dayMonthWord[3], yearHint),
+          now
+        );
+        if (parsed && !Number.isNaN(parsed.getTime())) base = parsed;
+      }
+    }
+  }
+
+  if (!base) {
+    const monthDayWord = msg.match(/\b([a-z]{3,12})\.?\s+(\d{1,2})(?:\s*,?\s*(?:tahun\s*)?(\d{4}))?\b/);
+    if (monthDayWord) {
+      const monthIndex = parseNaturalMonthIndex(monthDayWord[1]);
+      if (monthIndex !== null) {
+        const parsed = buildNaturalDateWithYear(
+          Number(monthDayWord[2]),
+          monthIndex,
+          normalizeYearCandidate(monthDayWord[3], yearHint),
+          now
+        );
+        if (parsed && !Number.isNaN(parsed.getTime())) base = parsed;
+      }
+    }
+  }
+
+  if (!base) {
+    if (/(lusa|day after tomorrow)/i.test(msg)) {
+      base = new Date(now);
+      base.setDate(base.getDate() + 2);
+    } else if (/(besok|tomorrow)/i.test(msg)) {
+      base = new Date(now);
+      base.setDate(base.getDate() + 1);
+    } else if (/(hari ini|today)/i.test(msg)) {
+      base = new Date(now);
+    }
+  }
+
+  if (!base) {
+    if (!explicitTime) return null;
+    base = new Date(now);
+    base.setHours(explicitTime.hour, explicitTime.minute, 0, 0);
+    if (base.getTime() <= now.getTime()) base.setDate(base.getDate() + 1);
+    return base;
+  }
+
+  base.setHours(fallbackTime.hour, fallbackTime.minute, 0, 0);
+  if (Number.isNaN(base.getTime())) return null;
+  return base;
+
 }
 
 function parseCreateTaskPayload(message = '') {
@@ -367,6 +509,56 @@ function parseNudgePartnerPayload(message = '', user = '') {
     partner,
     topic,
     urgency,
+  };
+}
+
+function parseReminderTargetUser(message = '', user = '') {
+  const lower = String(message || '').toLowerCase();
+  if (/\bnesya\b/.test(lower)) return 'Nesya';
+  if (/\bzaldy\b/.test(lower)) return 'Zaldy';
+  if (/\b(pasangan|partner|couple)\b/.test(lower)) return getPartnerUser(user) || user;
+  if (/\b(saya|aku|gue|gw|me)\b/.test(lower)) return user;
+  return user;
+}
+
+function stripReminderMetaFromText(message = '') {
+  let value = String(message || '').trim();
+  value = value.replace(/^\/ai\s+/i, '');
+  value = value.replace(/^(?:tolong|please|pls|bisa|boleh|minta|coba)\s*/i, '');
+  value = value.replace(/^(?:z\s*ai|zai|ai)\s*/i, '');
+  value = value.replace(/^(?:(?:buat|buatkan|atur|set|tambah|create)\s+)?(?:pengingat|reminder|alarm|notifikasi|ingatkan|ingetin)\s*/i, '');
+  value = value.replace(/\b(?:untuk|ke)\s+(?:saya|aku|gue|gw|me|pasangan|partner|couple|zaldy|nesya)\b/ig, ' ');
+  value = value.replace(/\b(?:dalam\s+)?\d{1,3}\s*(?:menit|min|jam|hours?)\s*(?:lagi)?\b/ig, ' ');
+  value = value.replace(/\b(?:besok|lusa|hari ini|today|tomorrow|day after tomorrow)\b/ig, ' ');
+  value = value.replace(/\b(?:pagi|siang|sore|petang|malam)\b/ig, ' ');
+  value = value.replace(/\b(?:pukul|jam)\s*(?:\d{1,2}(?:[:.]\d{2})?)?\b/ig, ' ');
+  value = value.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ' ');
+  value = value.replace(/\b\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?\b/g, ' ');
+  value = value.replace(/\btanggal\s+\d{1,2}\s*[a-z]{3,12}\b/ig, ' ');
+  value = value.replace(/[,:-]+/g, ' ');
+  value = value.replace(/\s{2,}/g, ' ').trim();
+  value = value.replace(/^(?:untuk|soal|tentang)\s+/i, '').trim();
+  return value;
+}
+
+function parseReminderText(message = '') {
+  const direct = String(message || '').match(
+    /\b(?:untuk|soal|tentang)\s+(.+?)(?=\s+\b(?:dalam\s+\d{1,3}\s*(?:menit|min|jam)|hari ini|today|besok|tomorrow|lusa|day after tomorrow|pukul|jam|tanggal|\d{1,2}[:.]\d{2}|\d{4}-\d{2}-\d{2})\b|$)/i
+  );
+  let picked = direct ? String(direct[1] || '') : '';
+  picked = picked.replace(/\b(?:saya|aku|gue|gw|me|pasangan|partner|couple|zaldy|nesya)\b/ig, ' ').trim();
+  picked = picked.replace(/\s{2,}/g, ' ').trim();
+  if (picked) return picked;
+  const cleaned = stripReminderMetaFromText(message);
+  return cleaned || 'lanjutkan prioritas utama';
+}
+
+function parseReminderPayload(message = '', user = '') {
+  const date = parseDateFromText(message);
+  return {
+    reminder_text: parseReminderText(message),
+    remind_at: date ? date.toISOString() : null,
+    target_user: parseReminderTargetUser(message, user),
   };
 }
 

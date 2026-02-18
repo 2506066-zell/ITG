@@ -14,6 +14,17 @@ MAX_REPLY_LEN = 420
 MAX_SUGGESTIONS = 4
 MAX_PLAN_ACTIONS = 5
 MAX_HISTORY_ITEMS = 8
+MONTH_WORD_PATTERN = (
+    r"(?:jan(?:uari)?|january|"
+    r"feb(?:ruari|ruary)?|febuari|pebruari|"
+    r"mar(?:et|ch)?|apr(?:il)?|mei|may|"
+    r"jun(?:i|e)?|jul(?:i|y)?|"
+    r"agu(?:stus)?|ags|agt|aug(?:ust)?|"
+    r"sep(?:t(?:ember)?)?|"
+    r"okt(?:ober)?|oct(?:ober)?|"
+    r"nov(?:ember)?|"
+    r"des(?:ember)?|dec(?:ember)?)"
+)
 
 
 class QuickSuggestion(TypedDict):
@@ -197,7 +208,20 @@ def _normalize_memory_hint(raw: Any) -> dict[str, Any]:
 
 
 def _has_deadline_signal(text: str) -> bool:
-    return bool(re.search(r"(\bdeadline\b|\bdue\b|\bbesok\b|\blusa\b|\bhari ini\b|\btoday\b|\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2})", text, flags=re.IGNORECASE))
+    return bool(
+        re.search(
+            rf"("
+            rf"\bdeadline\b|\bdue\b|\btanggal\b|"
+            rf"\bbesok\b|\blusa\b|\bhari ini\b|\btoday\b|"
+            rf"\d{{1,2}}:\d{{2}}|\d{{4}}-\d{{2}}-\d{{2}}|"
+            rf"\d{{1,2}}[\/.-]\d{{1,2}}(?:[\/.-]\d{{2,4}})?|"
+            rf"(?:tanggal\s*)?\d{{1,2}}\s*(?:[\/.,-]\s*)?{MONTH_WORD_PATTERN}\b|"
+            rf"{MONTH_WORD_PATTERN}\s+\d{{1,2}}\b"
+            rf")",
+            text,
+            flags=re.IGNORECASE,
+        )
+    )
 
 
 def _extract_time_or_deadline_fragment(text: str) -> str:
@@ -205,6 +229,23 @@ def _extract_time_or_deadline_fragment(text: str) -> str:
     iso = re.search(r"\b(\d{4}-\d{2}-\d{2}(?:\s+\d{1,2}:\d{2})?)\b", source)
     if iso:
         return iso.group(1).strip()
+    natural_day_month = re.search(
+        rf"\b((?:tanggal\s*)?\d{{1,2}}\s*(?:[\/.,-]\s*)?{MONTH_WORD_PATTERN}(?:\s+\d{{4}})?)\b",
+        source,
+        flags=re.IGNORECASE,
+    )
+    if natural_day_month:
+        return natural_day_month.group(1).strip()
+    natural_month_day = re.search(
+        rf"\b({MONTH_WORD_PATTERN}\s+\d{{1,2}}(?:\s+\d{{4}})?)\b",
+        source,
+        flags=re.IGNORECASE,
+    )
+    if natural_month_day:
+        return natural_month_day.group(1).strip()
+    dmy = re.search(r"\b(\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?)\b", source)
+    if dmy:
+        return dmy.group(1).strip()
     rel = re.search(r"\b(hari ini|today|besok|tomorrow|lusa|day after tomorrow)(?:\s+\d{1,2}:\d{2})?\b", source, flags=re.IGNORECASE)
     if rel:
         return rel.group(0).strip()
@@ -264,7 +305,7 @@ def _planner_action_from_segment(segment: str, index: int) -> PlannerStep | None
 
     if re.search(r"(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:assignment|tugas kuliah)\b", lower):
         kind = "create_assignment"
-        summary = "Buat assignment baru"
+        summary = "Buat tugas kuliah baru"
         if not _has_deadline_signal(lower):
             missing.append("deadline")
         stripped = re.sub(
@@ -277,7 +318,7 @@ def _planner_action_from_segment(segment: str, index: int) -> PlannerStep | None
             missing.append("title")
     elif re.search(r"(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:task|tugas|todo|to-do)\b", lower):
         kind = "create_task"
-        summary = "Buat task baru"
+        summary = "Buat tugas baru"
         if not _has_deadline_signal(lower):
             missing.append("deadline")
         stripped = re.sub(
@@ -590,7 +631,7 @@ def _infer_adaptive_profile(message: str, context: dict[str, str], hint: dict[st
 def _adaptive_tail(profile: AdaptiveProfile) -> str:
     focus_minutes = int(profile.get("focus_minutes", 25))
     if profile.get("urgency") == "high" and profile.get("domain") == "kuliah":
-        return f"Mode urgent: ambil task kuliah paling dekat deadline, fokus {focus_minutes} menit tanpa distraksi."
+        return f"Mode mendesak: ambil tugas kuliah paling dekat deadline, fokus {focus_minutes} menit tanpa distraksi."
     if profile.get("energy") == "low":
         return "Kalau energi lagi turun, mulai 10 menit dulu. Yang penting bergerak dulu."
     if profile.get("style") == "strict":
@@ -612,7 +653,7 @@ def _apply_adaptive_followup(
     focus_minutes = int(profile.get("focus_minutes", 25))
 
     if intent in {"create_task", "create_assignment"}:
-        kind = "assignment" if intent == "create_assignment" else "task"
+        kind = "tugas kuliah" if intent == "create_assignment" else "tugas"
         title = _extract_item_title_candidate(message, kind)
         deadline = _extract_time_or_deadline_fragment(message)
         missing = _planner_missing_fields(planner)
@@ -630,13 +671,13 @@ def _apply_adaptive_followup(
                     prompts.append("jam")
             needs = ", ".join(prompts) if prompts else "detail inti"
             example = (
-                "Contoh: buat assignment Makalah AI deadline besok 21:00"
+                "Contoh: buat tugas kuliah Makalah AI deadline besok 21:00"
                 if intent == "create_assignment"
-                else "Contoh: buat task revisi basis data deadline besok 19:00"
+                else "Contoh: buat tugas revisi basis data deadline besok 19:00"
             )
             base = f"Siap, aku bantu buat {kind}. Biar langsung akurat, kirim {needs} dulu. {example}"
         else:
-            label = title or ("assignment baru" if kind == "assignment" else "task baru")
+            label = title or ("tugas kuliah baru" if kind == "tugas kuliah" else "tugas baru")
             if deadline:
                 base = f"Siap. {label} sudah kebaca, deadline {deadline}. Mau langsung aku pecah jadi langkah eksekusi 25 menit?"
             else:
@@ -659,10 +700,10 @@ def _apply_adaptive_followup(
         pending_assignments = max(0, _safe_int(memory.get("pending_assignments", 0), 0))
         total = pending_tasks + pending_assignments
         if total <= 0:
-            base = "Brief hari ini bersih. Kamu bisa pakai slot fokus buat progress baru yang berdampak tinggi."
+            base = "Ringkasan hari ini cukup bersih. Kamu bisa pakai slot fokus buat progres baru yang berdampak tinggi."
         else:
             base = (
-                f"Brief cepat: ada {pending_tasks} task + {pending_assignments} assignment pending. "
+                f"Ringkasan cepat: ada {pending_tasks} tugas + {pending_assignments} tugas kuliah tertunda. "
                 "Ambil 1 yang paling dekat deadline dulu, lalu lanjut item kedua setelah satu sesi fokus."
             )
         tail = _adaptive_tail(profile)
@@ -672,7 +713,7 @@ def _apply_adaptive_followup(
         if re.search(r"\b(evaluasi|review|refleksi)\b", lower):
             base = pick_response("evaluation", message, context)
         elif re.search(r"\b(reminder|ingat|notifikasi|alarm)\b", lower):
-            base = f"Sip. Reminder acknowledged. Lanjut {focus_minutes} menit fokus sekarang, lalu kirim update singkat."
+            base = f"Sip, pengingatnya kebaca. Lanjut {focus_minutes} menit fokus sekarang, lalu kirim update singkat."
         elif domain == "kuliah":
             base = f"Sip, lanjut tugas kuliah paling dekat dulu {focus_minutes} menit. Setelah itu evaluasi cepat 3 poin."
         else:
@@ -681,7 +722,7 @@ def _apply_adaptive_followup(
         return f"{base} {tail}".strip() if tail else base
 
     if intent == "reminder_ack":
-        base = f"{reply} Next step: mulai sekarang atau atur jam mulai spesifik."
+        base = f"{reply} Langkah berikutnya: mulai sekarang atau atur jam mulai yang spesifik."
         tail = _adaptive_tail(profile)
         return f"{base} {tail}".strip() if tail else base
 
@@ -727,11 +768,11 @@ def _build_quick_suggestions(
         "create_assignment": [
             {"label": "Isi Deadline", "command": "deadline besok 21:00", "tone": "warning"},
             {"label": "Tambah Deskripsi", "command": "deskripsi: rangkum 3 referensi utama", "tone": "info"},
-            {"label": "Pecah Step", "command": "pecah assignment ini jadi 3 langkah", "tone": "success"},
+            {"label": "Pecah Langkah", "command": "pecah tugas kuliah ini jadi 3 langkah", "tone": "success"},
         ],
         "create_task": [
             {"label": "Isi Deadline", "command": "deadline besok 19:00", "tone": "warning"},
-            {"label": "Prioritas High", "command": "set prioritas high", "tone": "critical"},
+            {"label": "Prioritas Tinggi", "command": "set prioritas tinggi", "tone": "critical"},
             {"label": "Mulai 25m", "command": "mulai sekarang 25 menit", "tone": "success"},
         ],
         "set_reminder": [
@@ -740,8 +781,8 @@ def _build_quick_suggestions(
             {"label": "Check-In Malam", "command": "ingatkan check-in malam ini 21:00", "tone": "success"},
         ],
         "daily_brief": [
-            {"label": "Prioritas #1", "command": "task paling urgent saya apa", "tone": "warning"},
-            {"label": "Risk 24h", "command": "risk deadline 24 jam ke depan", "tone": "critical"},
+            {"label": "Prioritas Utama", "command": "tugas paling mendesak saya apa", "tone": "warning"},
+            {"label": "Risiko 24 Jam", "command": "risiko deadline 24 jam ke depan", "tone": "critical"},
             {"label": "Rencana Besok", "command": "rencana fokus besok pagi", "tone": "info"},
         ],
         "greeting": [
@@ -776,7 +817,7 @@ def _build_quick_suggestions(
         ],
         "recommend_task": [
             {"label": "Mulai Sekarang", "command": "oke mulai sekarang", "tone": "success"},
-            {"label": "Breakdown", "command": "pecah tugas jadi langkah kecil", "tone": "info"},
+            {"label": "Pecah Langkah", "command": "pecah tugas jadi langkah kecil", "tone": "info"},
             {"label": "Check-In", "command": "check-in progres tugas", "tone": "info"},
         ],
         "study_schedule": [
@@ -786,7 +827,7 @@ def _build_quick_suggestions(
         ],
         "toxic_motivation": [
             {"label": f"Gas {focus_minutes}m", "command": f"oke gas fokus {focus_minutes} menit", "tone": "critical"},
-            {"label": "Task Prioritas", "command": "rekomendasi tugas prioritas", "tone": "warning"},
+            {"label": "Tugas Prioritas", "command": "rekomendasi tugas prioritas", "tone": "warning"},
             {"label": "Evaluasi", "command": "evaluasi cepat", "tone": "info"},
         ],
         "fallback": [
@@ -799,7 +840,7 @@ def _build_quick_suggestions(
     suggestions = list(by_intent.get(intent, by_intent["fallback"]))
 
     if domain == "kuliah":
-        suggestions.insert(0, {"label": "Prioritas Kuliah", "command": "rekomendasi tugas kuliah paling urgent", "tone": "warning"})
+        suggestions.insert(0, {"label": "Prioritas Kuliah", "command": "rekomendasi tugas kuliah paling mendesak", "tone": "warning"})
 
     if style == "strict":
         suggestions.insert(0, {"label": "Mode Tegas", "command": "toxic motivasi sekarang", "tone": "critical"})
