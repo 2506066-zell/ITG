@@ -983,6 +983,15 @@ function detectIntent(message = '', user = '') {
     };
   }
 
+  if (/(ingatkan|ingetin|reminder|alarm|notifikasi|jangan lupa)/i.test(lower)) {
+    return {
+      tool: 'set_reminder',
+      mode: 'write',
+      args: parseReminderPayload(msg, user),
+      summary: 'Atur reminder',
+    };
+  }
+
   return {
     tool: 'help',
     mode: 'read',
@@ -1060,6 +1069,17 @@ function validateWriteIntentArgs(toolName, args = {}, opts = {}) {
     const partner = normalizePersonName(args.partner || '');
     if (!partner || !ALLOWED_USERS.has(partner)) {
       issues.push(buildClarifyIssue('partner', `${prefix}Mau kirim nudge ke siapa, Zaldy atau Nesya?`, 'ingatkan pasangan Nesya check-in malam ini'));
+    }
+    return issues;
+  }
+
+  if (toolName === 'set_reminder') {
+    const text = String(args.reminder_text || '').trim();
+    if (!text) {
+      issues.push(buildClarifyIssue('reminder_text', `${prefix}Apa yang mau diingatkan?`, 'ingatkan aku bayar listrik besok 19:00'));
+    }
+    if (!args.remind_at) {
+      issues.push(buildClarifyIssue('remind_at', `${prefix}Kapan pengingatnya?`, 'ingatkan aku besok 19:00'));
     }
     return issues;
   }
@@ -2410,6 +2430,51 @@ async function toolCompleteAssignment(ctx, args = {}) {
   }
 }
 
+async function toolSetReminder(ctx, args = {}) {
+  const reminderText = String(args.reminder_text || '').trim() || 'lanjutkan prioritas utama';
+  const targetUserRaw = String(args.target_user || '').trim();
+  const targetUser = ALLOWED_USERS.has(targetUserRaw) ? targetUserRaw : ctx.user;
+  const remindAt = args.remind_at ? new Date(args.remind_at) : null;
+  if (args.remind_at && (!remindAt || Number.isNaN(remindAt.getTime()))) {
+    const err = new Error('Format waktu pengingat tidak valid');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inserted = await client.query(
+      `INSERT INTO z_ai_reminders (
+         user_id, target_user, reminder_text, remind_at, status, source_command, payload, created_at
+       ) VALUES ($1, $2, $3, $4, 'pending', $5, $6::jsonb, NOW())
+       RETURNING id, user_id, target_user, reminder_text, remind_at, status`,
+      [
+        ctx.user,
+        targetUser,
+        reminderText,
+        remindAt,
+        '',
+        JSON.stringify({ source: 'assistant_tool', kind: 'set_reminder' }),
+      ]
+    );
+    const row = inserted.rows[0] || {};
+    await logActivity(client, 'reminder', row.id, 'CREATE', ctx.user, {
+      reminder_text: row.reminder_text || reminderText,
+      remind_at: row.remind_at || (remindAt ? remindAt.toISOString() : null),
+      target_user: row.target_user || targetUser,
+      source: 'assistant_tool',
+    });
+    await client.query('COMMIT');
+    return { item: row };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 const TOOLS = {
   help: {
     mode: 'read',
@@ -2453,6 +2518,7 @@ const TOOLS = {
   execute_action_bundle: { mode: 'write', run: toolExecuteActionBundle },
   create_task: { mode: 'write', run: toolCreateTask },
   create_assignment: { mode: 'write', run: toolCreateAssignment },
+  set_reminder: { mode: 'write', run: toolSetReminder },
   update_task_deadline: { mode: 'write', run: toolUpdateTaskDeadline },
   complete_task: { mode: 'write', run: toolCompleteTask },
   complete_assignment: { mode: 'write', run: toolCompleteAssignment },
@@ -2531,6 +2597,12 @@ function writeExecutionReply(toolName, result) {
   if (toolName === 'create_assignment') {
     const item = result.item;
     return `Assignment berhasil dibuat: #${item.id} ${item.title} (deadline ${formatDeadline(item.deadline)})`;
+  }
+
+  if (toolName === 'set_reminder') {
+    const item = result.item || {};
+    const who = item.target_user || item.user_id || '';
+    return `Reminder disimpan: #${item.id} "${item.reminder_text || ''}" untuk ${who} pada ${formatDeadline(item.remind_at)}`;
   }
 
   if (toolName === 'update_task_deadline') {
