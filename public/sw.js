@@ -145,7 +145,10 @@ self.addEventListener('push', (event) => {
     icon: '/icons/192.png',
     badge: '/icons/192.png',
     vibrate: [120, 40, 120],
-    data: { url },
+    data: {
+      ...(payload.data || {}),
+      url,
+    },
     actions,
     tag,
     renotify: true,
@@ -156,9 +159,29 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const baseUrl = (event.notification && event.notification.data && event.notification.data.url) || '/';
+  const data = (event.notification && event.notification.data) || {};
+  const baseUrl = data.url || '/';
   const action = (event.action || '').trim();
   let targetUrl = baseUrl;
+
+  async function runActionApi() {
+    if (!data.action_token) return;
+    const actionId = ['start', 'snooze', 'done'].includes(action) ? action : 'open';
+    const body = {
+      action: actionId,
+      token: data.action_token,
+      route_fallback: data.route_fallback || baseUrl,
+      event_family: data.event_family || 'general',
+    };
+    if (actionId === 'snooze') body.snooze_minutes = 30;
+    try {
+      await fetch('/api/notifications/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch {}
+  }
 
   if (action === 'open-chat') targetUrl = '/chat';
   if (action === 'open-replan') targetUrl = '/schedule?replan=1';
@@ -173,17 +196,19 @@ self.addEventListener('notificationclick', (event) => {
   } catch {}
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      for (const client of windowClients) {
-        if ('focus' in client) {
-          const samePath = new URL(client.url).pathname === new URL(targetUrl, self.location.origin).pathname;
-          if (samePath) return client.focus();
+    runActionApi().then(() =>
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+        for (const client of windowClients) {
+          if ('focus' in client) {
+            const samePath = new URL(client.url).pathname === new URL(targetUrl, self.location.origin).pathname;
+            if (samePath) return client.focus();
+          }
         }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
-      return undefined;
-    })
+        if (clients.openWindow) {
+          return clients.openWindow(targetUrl);
+        }
+        return undefined;
+      })
+    )
   );
 });

@@ -1,5 +1,7 @@
 import { pool } from './_lib.js';
 import { sendNotificationToUser } from './notifications.js';
+import { createActionToken } from './action_token.js';
+import { evaluatePushPolicy, logPushEvent, pushFamilyFromEventType } from './push_policy.js';
 
 const DEFAULT_TZ_OFFSET_HOURS = Number(process.env.PROACTIVE_TZ_OFFSET_HOURS || 7);
 const COUPLE_USERS = ['Zaldy', 'Nesya'];
@@ -70,6 +72,27 @@ function actionsByUrgentStage(stage, source) {
     ];
   }
   return [{ action: 'open', title: routeAction }];
+}
+
+function inferEntityFromEvent(event = {}) {
+  const payload = event?.payload || {};
+  const source = String(payload?.source || '').toLowerCase();
+  if ((source === 'task' || source === 'assignment') && payload?.item_id) {
+    return { entityType: source, entityId: String(payload.item_id) };
+  }
+  if (payload?.entity_type && payload?.entity_id) {
+    return { entityType: String(payload.entity_type), entityId: String(payload.entity_id) };
+  }
+  return null;
+}
+
+function buildLockScreenActions(event = {}, token = '') {
+  if (!token) return Array.isArray(event.actions) ? event.actions : [];
+  return [
+    { action: 'start', title: 'Mulai' },
+    { action: 'snooze', title: 'Tunda 30m' },
+    { action: 'done', title: 'Selesai' },
+  ];
 }
 
 function clampInt(n, min, max) {
@@ -272,15 +295,59 @@ async function emitEvent(client, event, notify = true) {
 
   if (!notify) return { inserted: true, pushed: false };
 
+  const eventFamily = String(event?.push_meta?.event_family || pushFamilyFromEventType(event.eventType)).trim() || 'general';
+  const policyRes = await evaluatePushPolicy(client, {
+    userId: event.userId,
+    eventType: event.eventType,
+    eventFamily,
+    dedupKey: String(event?.push_meta?.dedup_key || `${eventFamily}:${event.eventKey}`),
+    payload: event.payload || {},
+  });
+  if (!policyRes.allowed) {
+    await logPushEvent(client, event.userId, 'push_ignored', {
+      event_type: event.eventType,
+      event_family: eventFamily,
+      dedup_key: policyRes?.policy?.dedup_key || `${eventFamily}:${event.eventKey}`,
+      reason: policyRes.reason,
+      route: event.url || '/',
+    });
+    return { inserted: true, pushed: false, blocked: policyRes.reason };
+  }
+
+  const entity = inferEntityFromEvent(event);
+  let actionToken = '';
+  if (entity) {
+    try {
+      actionToken = createActionToken({
+        user_id: event.userId,
+        entity_type: entity.entityType,
+        entity_id: entity.entityId,
+        route_fallback: event.url || '/',
+        event_family: eventFamily,
+      });
+    } catch {
+      actionToken = '';
+    }
+  }
+  const actions = buildLockScreenActions(event, actionToken);
+
   let pushed = false;
   try {
     await sendNotificationToUser(event.userId, {
       title: event.title,
       body: event.body,
-      data: { url: event.url || '/' },
+      data: {
+        url: event.url || '/',
+        route_fallback: event.url || '/',
+        event_family: eventFamily,
+        dedup_key: policyRes?.policy?.dedup_key || `${eventFamily}:${event.eventKey}`,
+        entity_type: entity?.entityType || null,
+        entity_id: entity?.entityId || null,
+        action_token: actionToken || null,
+      },
       url: event.url || '/',
       tag: event.eventType,
-      actions: event.actions || [],
+      actions,
     });
     pushed = true;
   } catch (err) {
@@ -294,6 +361,15 @@ async function emitEvent(client, event, notify = true) {
        WHERE id = $1`,
       [eventId]
     );
+    await logPushEvent(client, event.userId, 'push_sent', {
+      event_type: event.eventType,
+      event_family: eventFamily,
+      dedup_key: policyRes?.policy?.dedup_key || `${eventFamily}:${event.eventKey}`,
+      route: event.url || '/',
+      entity_type: entity?.entityType || null,
+      entity_id: entity?.entityId || null,
+      action_ids: actions.map((x) => x.action),
+    });
   }
 
   return { inserted: true, pushed };
@@ -799,6 +875,227 @@ async function pendingLoad(client, user, schema) {
   return Number(tasks.rows[0]?.cnt || 0) + Number(assignments.rows[0]?.cnt || 0);
 }
 
+async function readUserPendingStats(client, user, schema, nowIso) {
+  const in6Iso = new Date(new Date(nowIso).getTime() + 6 * 3600000).toISOString();
+  const in24Iso = new Date(new Date(nowIso).getTime() + 24 * 3600000).toISOString();
+  const in48Iso = new Date(new Date(nowIso).getTime() + 48 * 3600000).toISOString();
+
+  const taskOwner = buildTaskOwnershipClause(schema, user, 1);
+  const taskSql = `SELECT
+      COUNT(*)::int AS pending_cnt,
+      COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline <= $${taskOwner.nextParam})::int AS due_6h,
+      COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > $${taskOwner.nextParam} AND deadline <= $${taskOwner.nextParam + 1})::int AS due_24h,
+      COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > $${taskOwner.nextParam + 1} AND deadline <= $${taskOwner.nextParam + 2})::int AS due_48h
+    FROM tasks
+    WHERE is_deleted = FALSE
+      AND completed = FALSE
+      AND ${taskOwner.clause}`;
+
+  const asgOwner = buildAssignmentOwnershipClause(schema, user, 1);
+  const asgSql = `SELECT
+      COUNT(*)::int AS pending_cnt,
+      COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline <= $${asgOwner.nextParam})::int AS due_6h,
+      COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > $${asgOwner.nextParam} AND deadline <= $${asgOwner.nextParam + 1})::int AS due_24h,
+      COUNT(*) FILTER (WHERE deadline IS NOT NULL AND deadline > $${asgOwner.nextParam + 1} AND deadline <= $${asgOwner.nextParam + 2})::int AS due_48h
+    FROM assignments
+    WHERE completed = FALSE
+      AND ${asgOwner.clause}`;
+
+  const [taskRes, asgRes] = await Promise.all([
+    client.query(taskSql, [...taskOwner.params, in6Iso, in24Iso, in48Iso]),
+    client.query(asgSql, [...asgOwner.params, in6Iso, in24Iso, in48Iso]),
+  ]);
+
+  const task = taskRes.rows?.[0] || {};
+  const asg = asgRes.rows?.[0] || {};
+  return {
+    pending: Number(task.pending_cnt || 0) + Number(asg.pending_cnt || 0),
+    due_6h: Number(task.due_6h || 0) + Number(asg.due_6h || 0),
+    due_24h: Number(task.due_24h || 0) + Number(asg.due_24h || 0),
+    due_48h: Number(task.due_48h || 0) + Number(asg.due_48h || 0),
+  };
+}
+
+async function readUserActivityIntensity(client, user) {
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS cnt
+     FROM user_activity_events
+     WHERE user_id = $1
+       AND server_ts >= NOW() - INTERVAL '24 hours'`,
+    [user]
+  );
+  return Number(r.rows?.[0]?.cnt || 0);
+}
+
+async function readDailyCompletionCount(client, user, schema, nowIso) {
+  const startIso = new Date(new Date(nowIso).getTime() - 24 * 3600000).toISOString();
+  const taskCompletedBy = schema.tasksCompletedBy
+    ? client.query(
+      `SELECT COUNT(*)::int AS cnt
+       FROM tasks
+       WHERE completed = TRUE
+         AND completed_by = $1
+         AND completed_at >= $2`,
+      [user, startIso]
+    )
+    : Promise.resolve({ rows: [{ cnt: 0 }] });
+  const asgCompletedBy = schema.assignmentsAssignedTo
+    ? client.query(
+      `SELECT COUNT(*)::int AS cnt
+       FROM assignments
+       WHERE completed = TRUE
+         AND assigned_to = $1
+         AND completed_at >= $2`,
+      [user, startIso]
+    )
+    : client.query(
+      `SELECT COUNT(*)::int AS cnt
+       FROM assignments
+       WHERE completed = TRUE
+         AND completed_by = $1
+         AND completed_at >= $2`,
+      [user, startIso]
+    );
+  const [taskRes, asgRes] = await Promise.all([taskCompletedBy, asgCompletedBy]);
+  return Number(taskRes.rows?.[0]?.cnt || 0) + Number(asgRes.rows?.[0]?.cnt || 0);
+}
+
+function computeLoadIndex(stats = {}, activityIntensity = 0, completionToday = 0, ignoredPush = 0) {
+  const pending = Number(stats.pending || 0);
+  const due6 = Number(stats.due_6h || 0);
+  const due24 = Number(stats.due_24h || 0);
+  const due48 = Number(stats.due_48h || 0);
+  const intensity = Number(activityIntensity || 0);
+  const completed = Number(completionToday || 0);
+  const ignored = Number(ignoredPush || 0);
+  const score = (pending * 4) + (due48 * 6) + (due24 * 12) + (due6 * 18) - (Math.min(8, completed) * 4) - (Math.min(16, intensity) * 1.2) + (Math.min(ignored, 6) * 4);
+  return clampInt(Math.round(score), 0, 100);
+}
+
+function riskBandFromLoadIndex(loadIndex = 0) {
+  if (loadIndex >= 72) return 'critical';
+  if (loadIndex >= 40) return 'focus';
+  return 'calm';
+}
+
+async function readIgnoredPushCount(client, user) {
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS cnt
+     FROM user_activity_events
+     WHERE user_id = $1
+       AND event_name = 'push_ignored'
+       AND server_ts >= NOW() - INTERVAL '24 hours'`,
+    [user]
+  );
+  return Number(r.rows?.[0]?.cnt || 0);
+}
+
+async function readNextDueItem(client, user, schema) {
+  const taskOwner = buildTaskOwnershipClause(schema, user, 1);
+  const taskSql = `SELECT id, title, deadline, 'task'::text AS source
+    FROM tasks
+    WHERE is_deleted = FALSE
+      AND completed = FALSE
+      AND ${taskOwner.clause}
+      AND deadline IS NOT NULL
+    ORDER BY deadline ASC
+    LIMIT 1`;
+  const asgOwner = buildAssignmentOwnershipClause(schema, user, 1);
+  const asgSql = `SELECT id, title, deadline, 'assignment'::text AS source
+    FROM assignments
+    WHERE completed = FALSE
+      AND ${asgOwner.clause}
+      AND deadline IS NOT NULL
+    ORDER BY deadline ASC
+    LIMIT 1`;
+  const [taskRes, asgRes] = await Promise.all([
+    client.query(taskSql, taskOwner.params),
+    client.query(asgSql, asgOwner.params),
+  ]);
+  const task = taskRes.rows?.[0] || null;
+  const asg = asgRes.rows?.[0] || null;
+  if (!task && !asg) return null;
+  if (!task) return asg;
+  if (!asg) return task;
+  return new Date(task.deadline).getTime() <= new Date(asg.deadline).getTime() ? task : asg;
+}
+
+function buildActionSentence(nextItem, nowUtc = new Date()) {
+  if (!nextItem) return 'Lanjutkan 1 sesi fokus 25 menit agar momentum tetap jalan.';
+  const sourceLabel = String(nextItem.source || '') === 'assignment' ? 'tugas kuliah' : 'tugas';
+  const title = String(nextItem.title || sourceLabel).trim();
+  const diffH = Math.round((new Date(nextItem.deadline).getTime() - nowUtc.getTime()) / 3600000);
+  const timeText = Number.isFinite(diffH)
+    ? (diffH <= 0 ? 'sudah lewat deadline' : `deadline ${Math.max(1, diffH)} jam lagi`)
+    : 'deadline aktif';
+  return `Mulai ${title} sekarang (${sourceLabel}, ${timeText}).`;
+}
+
+export async function buildCoupleSyncSignals(client, schema, now = new Date()) {
+  const nowIso = now.toISOString();
+  const users = ['Zaldy', 'Nesya'];
+
+  const entries = await Promise.all(users.map(async (user) => {
+    const [pending, intensity, completedToday, ignoredPush, nextItem] = await Promise.all([
+      readUserPendingStats(client, user, schema, nowIso),
+      readUserActivityIntensity(client, user),
+      readDailyCompletionCount(client, user, schema, nowIso),
+      readIgnoredPushCount(client, user),
+      readNextDueItem(client, user, schema),
+    ]);
+    const loadIndex = computeLoadIndex(pending, intensity, completedToday, ignoredPush);
+    return {
+      user,
+      pending,
+      activity_intensity_24h: intensity,
+      completion_today: completedToday,
+      ignored_push_24h: ignoredPush,
+      load_index: loadIndex,
+      risk_band: riskBandFromLoadIndex(loadIndex),
+      next_best_action: buildActionSentence(nextItem, now),
+      next_item: nextItem
+        ? {
+          source: nextItem.source,
+          id: nextItem.id,
+          title: nextItem.title,
+          deadline: nextItem.deadline,
+        }
+        : null,
+    };
+  }));
+
+  const z = entries.find((x) => x.user === 'Zaldy');
+  const n = entries.find((x) => x.user === 'Nesya');
+  const diff = Math.abs(Number(z?.load_index || 0) - Number(n?.load_index || 0));
+  const overloaded = (z?.load_index || 0) >= (n?.load_index || 0) ? z : n;
+  const helper = overloaded?.user === 'Zaldy' ? n : z;
+  const assistOpportunity = Boolean(overloaded && helper && diff >= 18 && Number(overloaded?.pending?.due_24h || 0) >= 1);
+  const riskBand = riskBandFromLoadIndex(Math.max(Number(z?.load_index || 0), Number(n?.load_index || 0)));
+  return {
+    users: entries.map((item) => ({
+      user: item.user,
+      load_index: item.load_index,
+      risk_band: item.risk_band,
+      pending: item.pending,
+      activity_intensity_24h: item.activity_intensity_24h,
+      completion_today: item.completion_today,
+      ignored_push_24h: item.ignored_push_24h,
+      next_best_action: item.next_best_action,
+      next_item: item.next_item,
+    })),
+    assist_opportunity: assistOpportunity
+      ? {
+        active: true,
+        target_user: overloaded.user,
+        helper_user: helper?.user || null,
+        reason: `${overloaded.user} sedang overload. ${helper?.user || 'Partner'} bisa bantu 1 item ringan agar sinkron.`,
+      }
+      : { active: false },
+    next_best_action: overloaded?.next_best_action || 'Lanjutkan 1 sesi fokus bersama malam ini.',
+    risk_band: riskBand,
+  };
+}
+
 async function runCheckinSuggestion(client, window, notify, schema) {
   const stats = { generated: 0, pushed: 0 };
   const users = COUPLE_USERS;
@@ -845,6 +1142,58 @@ async function runCheckinSuggestion(client, window, notify, schema) {
   return stats;
 }
 
+async function runCoupleAssistSuggestions(client, window, notify, schema) {
+  const stats = { generated: 0, pushed: 0 };
+  const couple = await buildCoupleSyncSignals(client, schema, window.nowUtc);
+  if (!couple?.assist_opportunity?.active) return stats;
+  const helperUser = String(couple.assist_opportunity.helper_user || '').trim();
+  const targetUser = String(couple.assist_opportunity.target_user || '').trim();
+  if (!helperUser || !targetUser) return stats;
+
+  const helperAction = (couple.users || []).find((x) => x.user === helperUser)?.next_best_action
+    || `Bantu ${targetUser} ambil 1 item ringan biar ritme tetap sinkron.`;
+  const targetAction = (couple.users || []).find((x) => x.user === targetUser)?.next_best_action
+    || 'Ambil 1 sprint fokus 25 menit untuk item paling mepet.';
+
+  const helperRes = await emitEvent(client, {
+    userId: helperUser,
+    eventType: 'partner_assist_suggestion',
+    eventKey: `assist-${targetUser}-${window.localDate}-${window.localHour}`,
+    level: 'warning',
+    title: 'Sinkron Pasangan',
+    body: `${targetUser} lagi overload. ${helperAction}`,
+    url: '/chat',
+    localDate: window.localDate,
+    payload: {
+      source: 'general',
+      target_user: targetUser,
+      helper_user: helperUser,
+      suggestion: helperAction,
+    },
+  }, notify);
+  if (helperRes.inserted) stats.generated += 1;
+  if (helperRes.pushed) stats.pushed += 1;
+
+  const targetRes = await emitEvent(client, {
+    userId: targetUser,
+    eventType: 'partner_momentum_prompt',
+    eventKey: `momentum-${targetUser}-${window.localDate}-${window.localHour}`,
+    level: 'info',
+    title: 'Momentum Eksekusi',
+    body: targetAction,
+    url: '/daily-tasks',
+    localDate: window.localDate,
+    payload: {
+      source: 'task',
+      suggestion: targetAction,
+    },
+  }, notify);
+  if (targetRes.inserted) stats.generated += 1;
+  if (targetRes.pushed) stats.pushed += 1;
+
+  return stats;
+}
+
 export async function runProactiveEngine({ now = new Date(), notify = true } = {}) {
   const client = await pool.connect();
   try {
@@ -859,6 +1208,7 @@ export async function runProactiveEngine({ now = new Date(), notify = true } = {
     const predictive = await runPredictiveRiskRadar(client, targets, window, notify, schema);
     const mood = await runMoodDropAlerts(client, targets, window, notify);
     const checkin = await runCheckinSuggestion(client, window, notify, schema);
+    const coupleAssist = await runCoupleAssistSuggestions(client, window, notify, schema);
 
     return {
       ok: true,
@@ -874,6 +1224,7 @@ export async function runProactiveEngine({ now = new Date(), notify = true } = {
         predictive_risk: predictive,
         mood_drop: mood,
         checkin: checkin,
+        couple_assist: coupleAssist,
       },
     };
   } finally {
@@ -965,11 +1316,12 @@ export async function getProactiveFeedForUser(user, limit = 20) {
       [...assignmentOwner.params, predictiveNearIso, predictiveHorizonIso]
     );
 
-    const [taskSignals, assignmentSignals, taskPredictRisk, assignmentPredictRisk] = await Promise.all([
+    const [taskSignals, assignmentSignals, taskPredictRisk, assignmentPredictRisk, coupleSync] = await Promise.all([
       taskSignalPromise,
       assignmentSignalPromise,
       taskPredictRiskPromise,
       assignmentPredictRiskPromise,
+      buildCoupleSyncSignals(client, schema, now),
     ]);
     const taskRow = taskSignals.rows[0] || {};
     const assignmentRow = assignmentSignals.rows[0] || {};
@@ -992,6 +1344,7 @@ export async function getProactiveFeedForUser(user, limit = 20) {
         predicted_critical_count: predictiveCriticalCount,
         predicted_total_count: predictiveHighCount + predictiveCriticalCount,
       },
+      couple_sync: coupleSync,
       generated_at: now.toISOString(),
     };
   } finally {

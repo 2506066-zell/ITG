@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { pool, readBody, verifyToken, withErrorHandling, sendJson, logActivity } from './_lib.js';
 import { sendNotificationToUser } from './notifications.js';
 import { generateStudyPlanSnapshot } from './study_plan.js';
+import { createActionToken } from './action_token.js';
+import { evaluatePushPolicy, logPushEvent } from './push_policy.js';
 
 const CHATBOT_ENDPOINT_PATH = '/api/chatbot';
 const CHATBOT_MAX_REPLY = 420;
@@ -1482,14 +1484,71 @@ async function flushDueRemindersForUser(userId = '', maxItems = 4) {
     for (const item of reminders) {
       const targetUser = String(item.target_user || item.user_id || userId).trim() || userId;
       try {
+        const policyRes = await evaluatePushPolicy(client, {
+          userId: targetUser,
+          eventType: 'zai_reminder_due',
+          eventFamily: 'reminder',
+          dedupKey: `reminder:${item.id}:due`,
+          payload: {
+            source: 'reminder',
+            entity_type: 'reminder',
+            entity_id: String(item.id),
+            horizon_bucket: '<=24h',
+          },
+        });
+        if (!policyRes.allowed) {
+          await logPushEvent(client, targetUser, 'push_ignored', {
+            event_type: 'zai_reminder_due',
+            event_family: 'reminder',
+            dedup_key: `reminder:${item.id}:due`,
+            reason: policyRes.reason,
+            entity_type: 'reminder',
+            entity_id: String(item.id),
+            route: '/chat',
+          });
+          continue;
+        }
+
+        const actionToken = createActionToken({
+          user_id: targetUser,
+          entity_type: 'reminder',
+          entity_id: String(item.id),
+          route_fallback: '/chat',
+          event_family: 'reminder',
+        });
         const sent = await sendNotificationToUser(targetUser, {
           title: 'Pengingat Z AI',
           body: String(item.reminder_text || 'Waktunya lanjut fokus.'),
           url: '/chat',
-          data: { url: '/chat', reminder_id: item.id },
+          data: {
+            url: '/chat',
+            reminder_id: item.id,
+            entity_type: 'reminder',
+            entity_id: String(item.id),
+            event_family: 'reminder',
+            dedup_key: `reminder:${item.id}:due`,
+            action_token: actionToken,
+          },
           tag: `zai-reminder-${item.id}`,
+          actions: [
+            { action: 'start', title: 'Mulai' },
+            { action: 'snooze', title: 'Tunda 30m' },
+            { action: 'done', title: 'Selesai' },
+          ],
         });
-        pushedCount += Number(sent || 0) > 0 ? 1 : 0;
+        const didSend = Number(sent || 0) > 0;
+        pushedCount += didSend ? 1 : 0;
+        if (didSend) {
+          await logPushEvent(client, targetUser, 'push_sent', {
+            event_type: 'zai_reminder_due',
+            event_family: 'reminder',
+            dedup_key: `reminder:${item.id}:due`,
+            entity_type: 'reminder',
+            entity_id: String(item.id),
+            route: '/chat',
+            action_ids: ['start', 'snooze', 'done'],
+          });
+        }
       } catch {}
     }
 

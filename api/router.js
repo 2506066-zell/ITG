@@ -34,7 +34,8 @@ const routes = new Set([
   'chatbot_profile',
   'study_plan',
   'study_progress',
-  'unified_memory'
+  'unified_memory',
+  'push_metrics'
 ]);
 
 export default async function handler(req, res) {

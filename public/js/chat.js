@@ -267,6 +267,8 @@ function escapeHtml(text = '') {
 function appendLocalSystemMessage(author, message, options = {}) {
   const wrap = document.querySelector('#chat-messages');
   if (!wrap) return null;
+  const text = String(message || '').trim();
+  if (!text) return null;
   const type = options.type === 'system' ? 'system' : 'assistant';
 
   const el = document.createElement('div');
@@ -283,7 +285,7 @@ function appendLocalSystemMessage(author, message, options = {}) {
     <div class="bubble-content assistant-bubble"></div>
   `;
   const content = el.querySelector('.assistant-bubble');
-  content.textContent = message;
+  content.textContent = text;
   wrap.appendChild(el);
   wrap.scrollTop = wrap.scrollHeight;
   return content;
@@ -292,6 +294,8 @@ function appendLocalSystemMessage(author, message, options = {}) {
 function appendLocalChatMessage(author, message, options = {}) {
   const wrap = document.querySelector('#chat-messages');
   if (!wrap) return null;
+  const text = String(message || '').trim();
+  if (!text) return null;
   const isMe = Boolean(options.me);
   const isSystem = Boolean(options.system);
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -307,7 +311,7 @@ function appendLocalChatMessage(author, message, options = {}) {
   `;
 
   const content = el.querySelector('.bubble-content');
-  if (content) content.textContent = String(message || '');
+  if (content) content.textContent = text;
   wrap.appendChild(el);
   wrap.scrollTop = wrap.scrollHeight;
   return content;
@@ -1150,7 +1154,9 @@ async function loadMessages() {
 
       const safeUser = escapeHtml(String(m.user_id || 'Pengguna'));
       const safeTime = escapeHtml(String(time));
-      const safeMessage = escapeHtml(String(m.message || ''));
+      const rawMessage = String(m.message || '').trim();
+      if (!rawMessage) return;
+      const safeMessage = escapeHtml(rawMessage);
       el.innerHTML = `
         <div class="msg-meta">
           <span>${safeUser}</span>
