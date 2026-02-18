@@ -15,6 +15,7 @@
     "serve:ci": "node scripts/serve_static_ci.js",
     "check:css": "node scripts/css-fetch-check.js",
     "test:router": "node scripts/chatbot-routing-check.js",
+    "test:critical": "node --test tests-node/*.test.js",
     "dev": "npm run build:public && node scripts/local_server.js",
     "start": "node scripts/serve_static_ci.js"
   },

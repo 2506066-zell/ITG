@@ -9,6 +9,7 @@ const OWNER_STORAGE_KEY = 'ownership_active_user';
 let activeOwner = 'Zaldy';
 const LMS_URL_KEY = 'college_lms_url';
 const DEFAULT_LMS_URL = 'https://elearning.itg.ac.id/student_area/tugas/index';
+let assignmentIntelMap = new Map();
 
 function normalizeOwner(value) {
   const v = String(value || '').trim().toLowerCase();
@@ -98,6 +99,173 @@ function sendNotification(title, timeLeft) {
       icon: '/icons/192.png'
     });
   }
+}
+
+function clampRiskScore(value) {
+  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+}
+
+function deriveBehaviorProfile(assignments = []) {
+  const list = Array.isArray(assignments) ? assignments : [];
+  const completed = list.filter((item) => item && item.completed && item.completed_at && item.deadline);
+  if (!completed.length) {
+    return {
+      onTimeRate: 0.5,
+      overdueRate: 0.5,
+      avgLateHours: 18,
+      consistencyScore: 50,
+      confidence: 'low',
+    };
+  }
+
+  let onTime = 0;
+  let overdue = 0;
+  let lateHoursSum = 0;
+
+  completed.forEach((item) => {
+    const doneAt = new Date(item.completed_at).getTime();
+    const deadlineAt = new Date(item.deadline).getTime();
+    if (!Number.isFinite(doneAt) || !Number.isFinite(deadlineAt)) return;
+    const lateHours = (doneAt - deadlineAt) / 3600000;
+    if (lateHours <= 0) onTime += 1;
+    else overdue += 1;
+    lateHoursSum += Math.max(0, lateHours);
+  });
+
+  const total = Math.max(1, onTime + overdue);
+  const onTimeRate = onTime / total;
+  const overdueRate = overdue / total;
+  const avgLateHours = lateHoursSum / total;
+  const consistencyScore = clampRiskScore((onTimeRate * 70) + (Math.max(0, 1 - (avgLateHours / 24)) * 30));
+  const confidence = total >= 12 ? 'high' : (total >= 5 ? 'medium' : 'low');
+
+  return { onTimeRate, overdueRate, avgLateHours, consistencyScore, confidence };
+}
+
+function computeAssignmentRiskModel(item, ownerLoad = 1, profile = null) {
+  const now = Date.now();
+  const title = String(item?.title || '').toLowerCase();
+  const description = String(item?.description || '').toLowerCase();
+  const due = item?.deadline ? new Date(item.deadline).getTime() : Number.NaN;
+  const hasDeadline = Number.isFinite(due);
+  const hoursLeft = hasDeadline ? (due - now) / 3600000 : null;
+  const userProfile = profile || {
+    onTimeRate: 0.5,
+    overdueRate: 0.5,
+    avgLateHours: 18,
+    consistencyScore: 50,
+    confidence: 'low',
+  };
+
+  let score = 24;
+  if (!hasDeadline) score += 10;
+  else if (hoursLeft <= 0) score += 70;
+  else if (hoursLeft <= 6) score += 62;
+  else if (hoursLeft <= 24) score += 50;
+  else if (hoursLeft <= 48) score += 34;
+  else if (hoursLeft <= 72) score += 24;
+  else score += 12;
+
+  if (/\b(ujian|kuis|quiz|uas|uts|project|laporan|proposal|presentasi|praktikum)\b/.test(`${title} ${description}`)) score += 12;
+  if (/\b(final|wajib|utama|penting|urgent)\b/.test(`${title} ${description}`)) score += 8;
+  score += Math.min(12, Math.max(0, ownerLoad - 2) * 3);
+  score += Math.min(14, Math.round((userProfile.overdueRate || 0) * 16));
+  score -= Math.min(10, Math.round((userProfile.onTimeRate || 0) * 10));
+  score += Math.min(10, Math.round((userProfile.avgLateHours || 0) / 5));
+
+  const normalized = clampRiskScore(score);
+  let band = 'low';
+  if (normalized >= 78) band = 'critical';
+  else if (normalized >= 62) band = 'high';
+  else if (normalized >= 42) band = 'medium';
+
+  const featureConfidence = hasDeadline && String(description).trim().length >= 12 ? 'high' : (hasDeadline ? 'medium' : 'low');
+  const confidence = userProfile.confidence === 'high'
+    ? featureConfidence
+    : (userProfile.confidence === 'medium' ? 'medium' : featureConfidence === 'high' ? 'medium' : featureConfidence);
+  return {
+    score: normalized,
+    band,
+    hoursLeft,
+    confidence,
+    hasDeadline,
+  };
+}
+
+function buildAssignmentIntelligence(assignments = []) {
+  const list = Array.isArray(assignments) ? assignments : [];
+  if (!list.length) return { items: [], top: null, profile: deriveBehaviorProfile([]) };
+  const profile = deriveBehaviorProfile(list);
+  const ownerLoad = list.length;
+  const enriched = list.map((item) => {
+    const model = computeAssignmentRiskModel(item, ownerLoad, profile);
+    return { ...item, _risk: model };
+  }).sort((a, b) => Number(b._risk.score || 0) - Number(a._risk.score || 0));
+  return { items: enriched, top: enriched[0] || null, profile };
+}
+
+function buildAiActionText(top) {
+  if (!top) return 'Belum ada sinyal risiko. Pertahankan ritme eksekusi harian.';
+  const title = String(top.title || 'tugas ini').trim();
+  const risk = top._risk || {};
+  if (risk.band === 'critical') return `Mulai "${title}" sekarang 25 menit. Jangan pindah konteks dulu.`;
+  if (risk.band === 'high') return `Prioritaskan "${title}" di sesi berikutnya sebelum tugas lain.`;
+  if (risk.band === 'medium') return `Siapkan progress awal "${title}" hari ini minimal 15 menit.`;
+  return `Kondisi aman. Kamu bisa cicil "${title}" sambil menjaga konsistensi.`;
+}
+
+function buildAiWhyText(top, activeCount = 0) {
+  if (!top) return 'Data tugas kuliah masih minim untuk analisis risiko.';
+  const risk = top._risk || {};
+  const timeLabel = Number.isFinite(risk.hoursLeft)
+    ? (risk.hoursLeft <= 0 ? 'deadline sudah lewat' : `deadline ~${Math.max(1, Math.round(risk.hoursLeft))} jam lagi`)
+    : 'deadline belum diisi';
+  return `Model membaca ${activeCount} tugas aktif, dan "${top.title}" punya skor ${risk.score} (${risk.band}) karena ${timeLabel}.`;
+}
+
+function renderAssignmentAiEngine(assignments = []) {
+  const host = document.getElementById('assignment-ai-engine');
+  if (!host) return;
+  const { items, top, profile } = buildAssignmentIntelligence(assignments);
+  assignmentIntelMap = new Map(items.map((item) => [String(item.id), item._risk]));
+
+  if (!top) {
+    host.innerHTML = `
+      <div class="assignment-ai-card">
+        <div class="assignment-ai-head">
+          <span class="assignment-ai-title">Academic Intelligence Engine</span>
+          <span class="assignment-ai-confidence medium">Confidence medium</span>
+        </div>
+        <div class="assignment-ai-main">Belum ada tugas kuliah aktif untuk dianalisis.</div>
+        <div class="assignment-ai-sub">Tambahkan tugas baru agar Z AI bisa memprediksi risiko deadline.</div>
+      </div>
+    `;
+    return;
+  }
+
+  const risk = top._risk || {};
+  const command = encodeURIComponent(`analisis tugas kuliah saya, prioritaskan "${top.title}" dan buat rencana 3 langkah`);
+  host.innerHTML = `
+    <div class="assignment-ai-card">
+      <div class="assignment-ai-head">
+        <span class="assignment-ai-title">Academic Intelligence Engine</span>
+        <span class="assignment-ai-confidence ${risk.confidence || 'medium'}">Confidence ${risk.confidence || 'medium'}</span>
+      </div>
+      <div class="assignment-ai-main">${buildAiActionText(top)}</div>
+      <div class="assignment-ai-sub">${buildAiWhyText(top, items.length)}</div>
+      <div class="assignment-ai-chips">
+        <span class="assignment-ai-chip ${risk.band || 'medium'}">Skor ${risk.score || 0}</span>
+        <span class="assignment-ai-chip ${risk.band || 'medium'}">Risk ${String(risk.band || 'medium').toUpperCase()}</span>
+        <span class="assignment-ai-chip">${Number.isFinite(risk.hoursLeft) ? `Due ${Math.max(0, Math.round(risk.hoursLeft))}j` : 'Tanpa deadline'}</span>
+        <span class="assignment-ai-chip">On-time ${Math.round((profile?.onTimeRate || 0) * 100)}%</span>
+        <span class="assignment-ai-chip">Konsisten ${profile?.consistencyScore || 0}</span>
+      </div>
+      <div class="assignment-ai-actions">
+        <a class="btn small" href="/chat?ai=${command}"><i class="fa-solid fa-robot"></i> Buka Rencana Z AI</a>
+        <a class="btn small secondary" href="/schedule"><i class="fa-solid fa-calendar-day"></i> Atur Slot Belajar</a>
+      </div>
+    </div>
+  `;
 }
 
 function summarizeDeadlineShield(assignments = []) {
@@ -232,6 +400,7 @@ async function load() {
 
   if (!scoped.length) {
     renderDeadlineShield([]);
+    renderAssignmentAiEngine([]);
     activeList.innerHTML = `<div class="empty center muted">Belum ada tugas kuliah milik ${activeOwner}.</div>`;
     if (el1d) el1d.textContent = '0 tugas';
     if (el3d) el3d.textContent = '0 tugas';
@@ -259,6 +428,7 @@ async function load() {
   const active = scoped.filter(a => !a.completed).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
   const completed = scoped.filter(a => a.completed).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
   renderDeadlineShield(active);
+  renderAssignmentAiEngine(active);
 
   const createItem = (a, isCompleted) => {
     const owner = getAssignmentOwner(a) || 'Other';
@@ -272,6 +442,7 @@ async function load() {
         <div style="display:flex; align-items:center; gap:8px">
           <input type="checkbox" ${isCompleted ? 'checked' : ''} data-id="${a.id}" data-action="toggle">
           <strong style="font-size:13px">${a.title}</strong>
+          ${!isCompleted ? `<span class="risk-chip ${(assignmentIntelMap.get(String(a.id)) || {}).band || 'low'}">${((assignmentIntelMap.get(String(a.id)) || {}).band || 'low')}</span>` : ''}
           <span class="owner-chip ${ownerClass}">${owner || 'OTHER'}</span>
         </div>
         ${a.description ? `<div class="muted small" style="margin-left:24px; font-size:11px">${a.description}</div>` : ''}

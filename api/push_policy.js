@@ -1,58 +1,30 @@
 import { pool } from './_lib.js';
+import {
+  pushFamilyFromEventType,
+  cooldownMinutesByFamily,
+  horizonBucketFromPayload,
+  sourceDomainFromPayload,
+  buildDerivedDedupKey,
+} from './push_policy_core.js';
+export { pushFamilyFromEventType } from './push_policy_core.js';
 
 const DEFAULT_DAILY_CAP = Math.max(1, Number(process.env.PUSH_DAILY_CAP_PER_USER || 6));
-const COOLDOWN_URGENT_MIN = Math.max(15, Number(process.env.PUSH_COOLDOWN_URGENT_MIN || 90));
-const COOLDOWN_PARTNER_MIN = Math.max(30, Number(process.env.PUSH_COOLDOWN_PARTNER_MIN || 180));
-const COOLDOWN_STUDY_MIN = Math.max(30, Number(process.env.PUSH_COOLDOWN_STUDY_MIN || 120));
-const COOLDOWN_DEFAULT_MIN = Math.max(15, Number(process.env.PUSH_COOLDOWN_DEFAULT_MIN || 90));
 
 function toInt(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? Math.trunc(n) : fallback;
 }
 
-export function pushFamilyFromEventType(eventType = '') {
-  const key = String(eventType || '').toLowerCase();
-  if (!key) return 'general';
-  if (key.includes('urgent') || key.includes('overdue') || key.includes('critical')) return 'urgent_due';
-  if (key.includes('support') || key.includes('assist') || key.includes('checkin')) return 'partner_assist';
-  if (key.includes('study') || key.includes('focus')) return 'study_window';
-  if (key.includes('reminder')) return 'reminder';
-  return 'general';
-}
-
-function cooldownMinutesByFamily(family = '') {
-  const key = String(family || '').toLowerCase();
-  if (key === 'urgent_due') return COOLDOWN_URGENT_MIN;
-  if (key === 'partner_assist') return COOLDOWN_PARTNER_MIN;
-  if (key === 'study_window') return COOLDOWN_STUDY_MIN;
-  return COOLDOWN_DEFAULT_MIN;
-}
-
-function horizonBucketFromPayload(payload = {}) {
-  const h = Number(payload?.hours_left);
-  const m = Number(payload?.minutes_left);
-  if (Number.isFinite(m)) {
-    if (m <= 0) return 'overdue';
-    if (m <= 24 * 60) return '<=24h';
-    if (m <= 48 * 60) return '<=48h';
-    return '>48h';
+function shouldAllowWhenFatigued(userId = '', family = '') {
+  if (String(family) === 'urgent_due') return true;
+  const hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
+  const seed = `${userId}:${family}:${hourBucket}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0;
   }
-  if (Number.isFinite(h)) {
-    if (h <= 0) return 'overdue';
-    if (h <= 24) return '<=24h';
-    if (h <= 48) return '<=48h';
-    return '>48h';
-  }
-  return 'na';
-}
-
-function sourceDomainFromPayload(payload = {}) {
-  const source = String(payload?.source || payload?.entity_type || '').toLowerCase();
-  if (source.includes('assignment')) return 'assignment';
-  if (source.includes('task')) return 'task';
-  if (source.includes('study')) return 'study_session';
-  return 'general';
+  return Math.abs(hash) % 2 === 0; // 50% frequency during fatigue window
 }
 
 async function ensureUserActivityEventsTable() {
@@ -164,7 +136,7 @@ export async function evaluatePushPolicy(client, {
   const cooldownMin = cooldownMinutesByFamily(family);
   const horizonBucket = horizonBucketFromPayload(payload);
   const sourceDomain = sourceDomainFromPayload(payload);
-  const derivedDedup = dedupKey || `${family}:${sourceDomain}:${horizonBucket}:${String(payload?.item_id || payload?.entity_id || 'none')}`;
+  const derivedDedup = buildDerivedDedupKey(family, dedupKey, payload);
 
   const [dailyCount, duplicate, cooldownHit, fatigued] = await Promise.all([
     readDailySentCount(client, userId),
@@ -182,8 +154,8 @@ export async function evaluatePushPolicy(client, {
   if (cooldownHit) {
     return { allowed: false, reason: 'cooldown', policy: { family, dedup_key: derivedDedup, cooldown_min: cooldownMin } };
   }
-  if (fatigued && family !== 'urgent_due') {
-    return { allowed: false, reason: 'fatigue', policy: { family, dedup_key: derivedDedup } };
+  if (fatigued && !shouldAllowWhenFatigued(userId, family)) {
+    return { allowed: false, reason: 'fatigue', policy: { family, dedup_key: derivedDedup, frequency: 'downshift_50' } };
   }
   return {
     allowed: true,

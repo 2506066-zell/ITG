@@ -16,7 +16,8 @@ const state = {
     month: localMonth(), // Current YYYY-MM (local)
     todos: [],
     stats: null,
-    habitMetrics: {}
+    habitMetrics: {},
+    habitIntelligence: {}
 };
 
 const els = {
@@ -43,7 +44,12 @@ const els = {
     combinedRate: document.getElementById('stat-combined'),
     summaryRate: document.getElementById('summary-rate'),
     summaryStreak: document.getElementById('summary-streak'),
-    summaryTotal: document.getElementById('summary-total')
+    summaryTotal: document.getElementById('summary-total'),
+    weeklyReviewCard: document.getElementById('weekly-review-card'),
+    weeklyReviewScore: document.getElementById('weekly-review-score'),
+    weeklyReviewList: document.getElementById('weekly-review-list'),
+    weeklyReviewAction: document.getElementById('weekly-review-action'),
+    weeklyReviewSendChat: document.getElementById('weekly-review-send-chat')
 };
 
 function motionReduced() {
@@ -84,6 +90,88 @@ function computeHabitMetrics(todo, daysInMonth, currentDay, isCurrentMonth) {
     };
 }
 
+function clampNum(value, min, max) {
+    return Math.max(min, Math.min(max, Number(value)));
+}
+
+function completionRateForRange(completedSet, startDay, endDay) {
+    if (endDay < startDay) return 0;
+    let total = 0;
+    let done = 0;
+    for (let d = startDay; d <= endDay; d += 1) {
+        total += 1;
+        if (completedSet.has(d)) done += 1;
+    }
+    if (total <= 0) return 0;
+    return done / total;
+}
+
+function countMissedRecent(completedSet, endDay, lookback = 3) {
+    let missed = 0;
+    const start = Math.max(1, endDay - lookback + 1);
+    for (let d = start; d <= endDay; d += 1) {
+        if (!completedSet.has(d)) missed += 1;
+    }
+    return missed;
+}
+
+function countRecoveryBounce(completedSet, endDay) {
+    // Recovery bounce: hari bolong yang berhasil "dibayar" 1-2 hari setelahnya.
+    let recovered = 0;
+    const start = Math.max(2, endDay - 13);
+    for (let d = start; d <= endDay - 1; d += 1) {
+        if (completedSet.has(d)) continue;
+        if (completedSet.has(d + 1) || completedSet.has(d + 2)) recovered += 1;
+    }
+    return recovered;
+}
+
+function computeHabitIntelligence(todo, metrics, daysInMonth, currentDay, isCurrentMonth) {
+    const completedDays = normalizeCompletedDays(todo, daysInMonth);
+    const completedSet = new Set(completedDays);
+    const endDay = isCurrentMonth ? currentDay : daysInMonth;
+    const recentStart = Math.max(1, endDay - 6);
+    const prevEnd = Math.max(1, recentStart - 1);
+    const prevStart = Math.max(1, prevEnd - 6);
+    const recentRate = completionRateForRange(completedSet, recentStart, endDay);
+    const prevRate = completionRateForRange(completedSet, prevStart, prevEnd);
+    const trend = recentRate - prevRate;
+    const missedRecent = countMissedRecent(completedSet, endDay, 3);
+    const recoveryBounce = countRecoveryBounce(completedSet, endDay);
+
+    const consistencyPart = recentRate * 55;
+    const streakPart = (Math.min(7, Number(metrics.currentStreak || 0)) / 7) * 25;
+    const recoveryPart = (Math.min(3, recoveryBounce) / 3) * 12;
+    const trendPart = trend > 0 ? Math.min(8, trend * 20) : Math.max(-8, trend * 20);
+    const penalty = missedRecent * 8;
+    const score = Math.round(clampNum(consistencyPart + streakPart + recoveryPart + trendPart - penalty, 0, 100));
+
+    let level = 'low';
+    if (score >= 75) level = 'high';
+    else if (score >= 50) level = 'medium';
+
+    let trendLabel = 'stabil';
+    if (trend >= 0.12) trendLabel = 'naik';
+    else if (trend <= -0.12) trendLabel = 'turun';
+
+    let recoveryPlan = 'Momentum bagus. Pertahankan pola checklist di jam yang sama.';
+    if (missedRecent >= 2) {
+        recoveryPlan = 'Recovery mode: hari ini cukup 1 checklist cepat 5-10 menit agar ritme balik.';
+    } else if (missedRecent === 1) {
+        recoveryPlan = 'Ada 1 bolong terbaru. Tutup hari ini sebelum jam 21:00 untuk jaga streak.';
+    } else if (level === 'low' && Number(metrics.currentStreak || 0) === 0) {
+        recoveryPlan = 'Mulai ultra-ringan: fokus 1 aksi kecil dulu, bukan perfeksionis.';
+    }
+
+    return {
+        score,
+        level,
+        trendLabel,
+        missedRecent,
+        recoveryPlan
+    };
+}
+
 function getUserStats() {
     const users = (state.stats && state.stats.users) || {};
     return users[state.user] || {};
@@ -98,16 +186,69 @@ function renderStickySummary() {
     const apiTotal = Number(userStats.total_completed || 0);
 
     const metrics = Object.values(state.habitMetrics || {});
+    const intel = Object.values(state.habitIntelligence || {});
     const derivedStreak = metrics.reduce((max, m) => Math.max(max, Number(m.currentStreak || 0)), 0);
     const derivedTotal = metrics.reduce((sum, m) => sum + Number(m.completedCount || 0), 0);
 
     const rate = Number.isFinite(apiRate) ? apiRate : 0;
     const streak = apiStreak > 0 ? apiStreak : derivedStreak;
     const total = apiTotal > 0 ? apiTotal : derivedTotal;
+    const avgIntel = intel.length
+        ? Math.round(intel.reduce((sum, item) => sum + Number(item.score || 0), 0) / intel.length)
+        : 0;
 
-    els.summaryRate.textContent = `${rate}%`;
+    els.summaryRate.textContent = `${Math.max(rate, avgIntel)}%`;
     els.summaryStreak.textContent = `${streak} hari`;
     els.summaryTotal.textContent = `${total}`;
+}
+
+function renderWeeklyReview() {
+    if (!els.weeklyReviewCard || !els.weeklyReviewScore || !els.weeklyReviewList || !els.weeklyReviewAction) return;
+
+    const intelEntries = state.todos
+        .map((todo) => ({
+            title: String(todo?.title || 'Habit').trim(),
+            metrics: state.habitMetrics[todo.id] || null,
+            intel: state.habitIntelligence[todo.id] || null
+        }))
+        .filter((item) => item.metrics && item.intel);
+
+    if (!intelEntries.length) {
+        els.weeklyReviewScore.textContent = 'Skor --';
+        els.weeklyReviewList.innerHTML = '<li>Belum ada data habit untuk direview.</li>';
+        els.weeklyReviewAction.innerHTML = '<i class="fa-solid fa-bolt"></i><span>Mulai 1 habit dulu agar Z AI bisa bikin review mingguan.</span>';
+        if (els.weeklyReviewSendChat) {
+            els.weeklyReviewSendChat.href = '/chat?ai=' + encodeURIComponent('bantu saya mulai 1 habit ringan minggu ini');
+        }
+        return;
+    }
+
+    const avgScore = Math.round(intelEntries.reduce((sum, item) => sum + Number(item.intel.score || 0), 0) / intelEntries.length);
+    const best = [...intelEntries].sort((a, b) => Number(b.intel.score || 0) - Number(a.intel.score || 0))[0];
+    const risk = [...intelEntries].sort((a, b) => Number(a.intel.score || 0) - Number(b.intel.score || 0))[0];
+    const trendUp = intelEntries.filter((item) => item.intel.trendLabel === 'naik').length;
+    const trendDown = intelEntries.filter((item) => item.intel.trendLabel === 'turun').length;
+
+    const insightLines = [
+        `Habit paling stabil: ${best.title} (skor ${best.intel.score}).`,
+        `Habit paling rawan putus: ${risk.title} (skor ${risk.intel.score}).`,
+        `Tren minggu ini: ${trendUp} naik, ${trendDown} turun.`
+    ];
+
+    let action = `Aksi minggu ini: kunci 1 slot tetap harian untuk "${risk.title}" selama 10 menit.`;
+    if (avgScore >= 75) {
+        action = `Aksi minggu ini: pertahankan ritme, naikkan 1 level pada "${best.title}" (durasi +5 menit).`;
+    } else if (avgScore < 50) {
+        action = `Aksi minggu ini: mode recovery. Fokus dulu konsisten 1 habit termudah selama 3 hari berturut.`;
+    }
+
+    els.weeklyReviewScore.textContent = `Skor ${avgScore}`;
+    els.weeklyReviewList.innerHTML = insightLines.map((line) => `<li>${line}</li>`).join('');
+    els.weeklyReviewAction.innerHTML = `<i class="fa-solid fa-bolt"></i><span>${action}</span>`;
+    if (els.weeklyReviewSendChat) {
+        const prompt = `weekly review habit saya: skor ${avgScore}, habit stabil ${best.title}, habit rawan ${risk.title}, tren naik ${trendUp}, tren turun ${trendDown}. bantu susun rencana aksi 7 hari yang realistis.`;
+        els.weeklyReviewSendChat.href = '/chat?ai=' + encodeURIComponent(prompt);
+    }
 }
 
 function init() {
@@ -207,6 +348,8 @@ function renderTodos() {
     if (!Array.isArray(state.todos) || state.todos.length === 0) {
         els.todoList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-style:italic">Belum ada kebiasaan bulan ini. Coba buat satu.</div>';
         state.habitMetrics = {};
+        state.habitIntelligence = {};
+        renderWeeklyReview();
         return;
     }
 
@@ -217,12 +360,15 @@ function renderTodos() {
     const currentDay = today.getDate();
     const isPastMonth = state.month < currentMonthStr;
     state.habitMetrics = {};
+    state.habitIntelligence = {};
 
     els.todoList.innerHTML = state.todos.map(todo => {
         let daysHtml = '';
         const completedSet = new Set(normalizeCompletedDays(todo, daysInMonth));
         const metrics = computeHabitMetrics(todo, daysInMonth, currentDay, isCurrentMonth);
+        const intelligence = computeHabitIntelligence(todo, metrics, daysInMonth, currentDay, isCurrentMonth);
         state.habitMetrics[todo.id] = metrics;
+        state.habitIntelligence[todo.id] = intelligence;
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${state.month}-${String(d).padStart(2, '0')}`;
@@ -250,9 +396,15 @@ function renderTodos() {
                 <div class="todo-meta">
                     <span class="habit-chip streak" id="habit-streak-${todo.id}">Runtun ${metrics.currentStreak} hari</span>
                     <span class="habit-chip progress">${metrics.completedCount}/${metrics.daysSoFar} hari</span>
+                    <span class="habit-chip intel ${intelligence.level}">Skor ${intelligence.score}</span>
+                    <span class="habit-chip trend ${intelligence.trendLabel}">Tren ${intelligence.trendLabel}</span>
                 </div>
                 <div class="habit-progress-rail">
                     <div class="habit-progress-fill" id="habit-progress-${todo.id}" style="width:${metrics.progressPct}%"></div>
+                </div>
+                <div class="habit-recovery ${intelligence.level}">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>${intelligence.recoveryPlan}</span>
                 </div>
                 <div class="day-scroller" id="scroller-${todo.id}">
                     ${daysHtml}
@@ -270,6 +422,8 @@ function renderTodos() {
             }
         }, 100);
     }
+
+    renderWeeklyReview();
 }
 
 function renderStats() {

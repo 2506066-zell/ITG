@@ -362,6 +362,92 @@
       color: var(--text);
     }
 
+    .weekly-review-card {
+      margin-bottom: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: linear-gradient(135deg, rgba(16, 25, 48, 0.9), rgba(10, 16, 34, 0.9));
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .weekly-review-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .weekly-review-title {
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(191, 215, 255, 0.85);
+      font-weight: 700;
+    }
+
+    .weekly-review-score {
+      font-size: 11px;
+      font-weight: 700;
+      color: #9ed2ff;
+      border: 1px solid rgba(88, 177, 255, 0.4);
+      background: rgba(88, 177, 255, 0.13);
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+
+    .weekly-review-list {
+      margin: 0;
+      padding-left: 16px;
+      display: grid;
+      gap: 4px;
+      color: rgba(226, 236, 255, 0.92);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .weekly-review-action {
+      margin-top: 8px;
+      padding: 7px 8px;
+      border-radius: 8px;
+      border: 1px dashed rgba(255, 216, 130, 0.45);
+      background: rgba(255, 216, 130, 0.1);
+      color: #ffe6ad;
+      font-size: 10px;
+      line-height: 1.35;
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+    }
+
+    .weekly-review-action i {
+      margin-top: 1px;
+    }
+
+    .weekly-review-cta {
+      margin-top: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 10px;
+      border-radius: 9px;
+      border: 1px solid rgba(102, 178, 255, 0.42);
+      background: rgba(102, 178, 255, 0.14);
+      color: #b7dcff;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform .2s ease, filter .2s ease, background .2s ease;
+    }
+
+    .weekly-review-cta:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.07);
+      background: rgba(102, 178, 255, 0.2);
+    }
+
     .todo-card {
       padding: 12px 14px;
       border-radius: 14px;
@@ -403,6 +489,49 @@
       background: rgba(77, 163, 255, 0.13);
     }
 
+    .habit-chip.intel {
+      border-color: rgba(255, 215, 126, 0.42);
+      color: #ffd98c;
+      background: rgba(255, 215, 126, 0.13);
+    }
+
+    .habit-chip.intel.high {
+      border-color: rgba(88, 240, 170, 0.5);
+      color: #8bf6bf;
+      background: rgba(88, 240, 170, 0.16);
+    }
+
+    .habit-chip.intel.medium {
+      border-color: rgba(255, 215, 126, 0.45);
+      color: #ffd98c;
+      background: rgba(255, 215, 126, 0.14);
+    }
+
+    .habit-chip.intel.low {
+      border-color: rgba(255, 122, 122, 0.45);
+      color: #ff9d9d;
+      background: rgba(255, 122, 122, 0.14);
+    }
+
+    .habit-chip.trend {
+      border-color: rgba(255, 255, 255, 0.2);
+      color: rgba(222, 235, 255, 0.86);
+      background: rgba(255, 255, 255, 0.05);
+      text-transform: capitalize;
+    }
+
+    .habit-chip.trend.naik {
+      border-color: rgba(86, 221, 163, 0.48);
+      color: #93f8ca;
+      background: rgba(86, 221, 163, 0.14);
+    }
+
+    .habit-chip.trend.turun {
+      border-color: rgba(255, 126, 126, 0.45);
+      color: #ffb0b0;
+      background: rgba(255, 126, 126, 0.14);
+    }
+
     .habit-progress-rail {
       width: 100%;
       height: 6px;
@@ -420,6 +549,41 @@
       background: linear-gradient(90deg, #64b5ff, #8b9cff);
       box-shadow: 0 0 12px rgba(100, 181, 255, 0.5);
       transition: width .35s ease;
+    }
+
+    .habit-recovery {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      margin-bottom: 8px;
+      padding: 7px 8px;
+      border-radius: 9px;
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.04);
+      font-size: 10px;
+      line-height: 1.35;
+      color: rgba(222, 235, 255, 0.88);
+    }
+
+    .habit-recovery i {
+      margin-top: 1px;
+      color: #8ec5ff;
+      font-size: 10px;
+    }
+
+    .habit-recovery.high {
+      border-color: rgba(88, 240, 170, 0.35);
+      background: rgba(88, 240, 170, 0.1);
+    }
+
+    .habit-recovery.medium {
+      border-color: rgba(255, 215, 126, 0.35);
+      background: rgba(255, 215, 126, 0.1);
+    }
+
+    .habit-recovery.low {
+      border-color: rgba(255, 126, 126, 0.35);
+      background: rgba(255, 126, 126, 0.1);
     }
 
     .day-scroller {
@@ -543,6 +707,24 @@
           <span class="summary-value" id="summary-total">0</span>
         </div>
       </div>
+
+      <section class="weekly-review-card" id="weekly-review-card">
+        <div class="weekly-review-head">
+          <span class="weekly-review-title">Weekly Habit Review</span>
+          <span class="weekly-review-score" id="weekly-review-score">Skor --</span>
+        </div>
+        <ul class="weekly-review-list" id="weekly-review-list">
+          <li>Memuat insight mingguan...</li>
+        </ul>
+        <div class="weekly-review-action" id="weekly-review-action">
+          <i class="fa-solid fa-bolt"></i>
+          <span>Menyusun aksi prioritas minggu ini...</span>
+        </div>
+        <a class="weekly-review-cta" id="weekly-review-send-chat" href="/chat?ai=ringkasan%20weekly%20habit%20review%20saya">
+          <i class="fa-solid fa-paper-plane"></i>
+          <span>Kirim ke Z AI</span>
+        </a>
+      </section>
 
       <div id="todo-list" class="todo-grid">
         <!-- Injected JS -->

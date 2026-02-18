@@ -38,6 +38,7 @@ let dashboardPollTimer = null;
 let lastAssistantFetchAt = 0;
 let currentReminderItem = null;
 let currentZaiFloatPayload = null;
+let currentExecutionCopilot = null;
 
 function escapeHtml(value = '') {
   return String(value)
@@ -958,6 +959,79 @@ function renderTaskReminderBanner() {
   banner.hidden = false;
 }
 
+async function runCopilotAction(action = '', options = {}) {
+  const next = currentExecutionCopilot && currentExecutionCopilot.next_action
+    ? currentExecutionCopilot.next_action
+    : null;
+  const token = String(next?.action_token || '').trim();
+  const entityType = String(next?.entity_type || '').trim();
+  const entityId = String(next?.entity_id || '').trim();
+  if (!token || !entityType || !entityId) {
+    showToast('Belum ada aksi yang bisa dijalankan.', 'error', 1800);
+    return;
+  }
+
+  const payload = {
+    action,
+    token,
+    entity_type: entityType,
+    entity_id: entityId,
+    route_fallback: String(next?.route_fallback || '/daily-tasks'),
+    source: 'home',
+  };
+  if (action === 'snooze') payload.snooze_minutes = 30;
+  if (action === 'replan') payload.snooze_minutes = 15;
+
+  await post('/notifications/action', payload);
+  const okText = options.successText || 'Aksi Copilot dijalankan.';
+  showToast(okText, 'success', 1800);
+  await loadDashboardData({ silent: true, includeAssistant: false });
+}
+
+function renderExecutionCopilot() {
+  const card = document.getElementById('execution-copilot-card');
+  const stateEl = document.getElementById('execution-copilot-state');
+  const actionEl = document.getElementById('execution-copilot-action');
+  const reasonEl = document.getElementById('execution-copilot-reason');
+  const startBtn = document.getElementById('copilot-start-btn');
+  const snoozeBtn = document.getElementById('copilot-snooze-btn');
+  const replanBtn = document.getElementById('copilot-replan-btn');
+  if (!card || !stateEl || !actionEl || !reasonEl) return;
+
+  const copilot = state.proactive?.execution_copilot || null;
+  currentExecutionCopilot = copilot;
+
+  if (!copilot || !copilot.next_action) {
+    stateEl.textContent = 'CALM';
+    stateEl.classList.remove('status-critical', 'status-focus', 'status-calm', 'status-drift');
+    stateEl.classList.add('status-calm');
+    actionEl.textContent = 'Tidak ada aksi mendesak sekarang.';
+    reasonEl.textContent = 'Z AI akan update otomatis saat ada prioritas baru.';
+    if (startBtn) startBtn.disabled = true;
+    if (snoozeBtn) snoozeBtn.disabled = true;
+    if (replanBtn) replanBtn.disabled = true;
+    return;
+  }
+
+  const next = copilot.next_action || {};
+  const copilotState = String(copilot.state || 'calm').toLowerCase();
+  const riskBand = String(next.risk_band || 'low').toLowerCase();
+  stateEl.classList.remove('status-critical', 'status-focus', 'status-calm', 'status-drift');
+  if (copilotState === 'drift') stateEl.classList.add('status-drift');
+  else if (copilotState === 'overload' || riskBand === 'critical') stateEl.classList.add('status-critical');
+  else if (copilotState === 'on_track' || riskBand === 'high') stateEl.classList.add('status-focus');
+  else stateEl.classList.add('status-calm');
+
+  stateEl.textContent = String(copilotState || 'calm').toUpperCase();
+  actionEl.textContent = String(next.action_text || 'Mulai 1 sprint fokus 25 menit sekarang.');
+  reasonEl.textContent = String(next.reason_text || 'Aksi ini dipilih karena prioritas deadline saat ini.');
+
+  const actionable = Boolean(next.action_token && next.entity_type && next.entity_id);
+  if (startBtn) startBtn.disabled = !actionable;
+  if (snoozeBtn) snoozeBtn.disabled = !actionable;
+  if (replanBtn) replanBtn.disabled = !actionable;
+}
+
 function buildZaIFloatingMessage() {
   const user = localStorage.getItem('user') || 'Kamu';
   const missionItems = collectMissionItems();
@@ -1136,30 +1210,78 @@ function renderCouplePulse() {
   const nMoodEl = document.getElementById('pulse-n-mood');
   const zActivityEl = document.getElementById('pulse-z-activity');
   const nActivityEl = document.getElementById('pulse-n-activity');
+  const zLoadEl = document.getElementById('pulse-z-load');
+  const nLoadEl = document.getElementById('pulse-n-load');
+  const zRiskEl = document.getElementById('pulse-z-risk');
+  const nRiskEl = document.getElementById('pulse-n-risk');
   const syncEl = document.getElementById('pulse-sync-badge');
   const zBarEl = document.getElementById('pulse-z-bar');
   const nBarEl = document.getElementById('pulse-n-bar');
+  const nextActionEl = document.getElementById('couple-next-action');
+  const assistHintEl = document.getElementById('couple-assist-hint');
 
   const usersData = (state.weekly && state.weekly.users) ? state.weekly.users : {};
   const z = usersData.Zaldy || { avg_mood: 0, total_activities: 0, correlation: null };
   const n = usersData.Nesya || { avg_mood: 0, total_activities: 0, correlation: null };
+  const coupleSync = state.proactive && state.proactive.couple_sync ? state.proactive.couple_sync : null;
+  const coupleUsers = Array.isArray(coupleSync?.users) ? coupleSync.users : [];
+  const zSync = coupleUsers.find((item) => String(item?.user || '').toLowerCase() === 'zaldy') || null;
+  const nSync = coupleUsers.find((item) => String(item?.user || '').toLowerCase() === 'nesya') || null;
 
   if (zMoodEl) zMoodEl.textContent = Number(z.avg_mood || 0).toFixed(1);
   if (nMoodEl) nMoodEl.textContent = Number(n.avg_mood || 0).toFixed(1);
   if (zActivityEl) zActivityEl.textContent = String(z.total_activities || 0);
   if (nActivityEl) nActivityEl.textContent = String(n.total_activities || 0);
 
-  const maxActivities = Math.max(1, Number(z.total_activities || 0), Number(n.total_activities || 0));
-  animateWidth(zBarEl, Math.round((Number(z.total_activities || 0) / maxActivities) * 100));
-  animateWidth(nBarEl, Math.round((Number(n.total_activities || 0) / maxActivities) * 100));
+  const zLoad = Number(zSync?.load_index || 0);
+  const nLoad = Number(nSync?.load_index || 0);
+  if (zLoadEl) zLoadEl.textContent = `${zLoad}/100`;
+  if (nLoadEl) nLoadEl.textContent = `${nLoad}/100`;
+  if (zRiskEl) zRiskEl.textContent = String(zSync?.risk_band || '--').toUpperCase();
+  if (nRiskEl) nRiskEl.textContent = String(nSync?.risk_band || '--').toUpperCase();
+
+  const maxBar = coupleSync ? 100 : Math.max(1, Number(z.total_activities || 0), Number(n.total_activities || 0));
+  const zBarValue = coupleSync ? zLoad : Math.round((Number(z.total_activities || 0) / maxBar) * 100);
+  const nBarValue = coupleSync ? nLoad : Math.round((Number(n.total_activities || 0) / maxBar) * 100);
+  animateWidth(zBarEl, zBarValue);
+  animateWidth(nBarEl, nBarValue);
 
   const sync = state.weekly && state.weekly.combined ? state.weekly.combined.correlation : null;
   if (syncEl) {
-    if (sync === null || sync === undefined) {
+    syncEl.classList.remove('status-critical', 'status-focus', 'status-calm');
+    if (coupleSync && coupleSync.risk_band) {
+      const band = String(coupleSync.risk_band).toLowerCase();
+      if (band === 'critical') {
+        syncEl.textContent = 'Mode CRITICAL';
+        syncEl.classList.add('status-critical');
+      } else if (band === 'focus') {
+        syncEl.textContent = 'Mode FOCUS';
+        syncEl.classList.add('status-focus');
+      } else {
+        syncEl.textContent = 'Mode CALM';
+        syncEl.classList.add('status-calm');
+      }
+    } else if (sync === null || sync === undefined) {
       syncEl.textContent = 'Sinkron --';
     } else {
       const pct = Math.round((Number(sync) + 1) * 50);
       syncEl.textContent = `Sinkron ${pct}%`;
+    }
+  }
+
+  if (nextActionEl) {
+    const nextAction = String(coupleSync?.next_best_action || '').trim();
+    nextActionEl.textContent = nextAction || 'Belum ada aksi sinkron prioritas saat ini.';
+  }
+
+  if (assistHintEl) {
+    const assist = coupleSync?.assist_opportunity || {};
+    if (assist.active) {
+      assistHintEl.hidden = false;
+      assistHintEl.textContent = String(assist.reason || `${assist.helper_user || 'Partner'} bisa bantu ${assist.target_user || 'pasangan'} mengambil 1 item ringan.`);
+    } else {
+      assistHintEl.hidden = true;
+      assistHintEl.textContent = '';
     }
   }
 }
@@ -1319,6 +1441,7 @@ function renderAll() {
   renderTaskReminderBanner();
   renderZaIFloatingWidget();
   renderTodayMission();
+  renderExecutionCopilot();
   renderCouplePulse();
   renderUrgentRadar();
   renderStudyMission();
@@ -1432,6 +1555,9 @@ function initActions() {
   const zaiPanel = document.getElementById('zai-floating-panel');
   const zaiPrimary = document.getElementById('zai-floating-primary');
   const zaiSecondary = document.getElementById('zai-floating-secondary');
+  const copilotStartBtn = document.getElementById('copilot-start-btn');
+  const copilotSnoozeBtn = document.getElementById('copilot-snooze-btn');
+  const copilotReplanBtn = document.getElementById('copilot-replan-btn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', async () => {
       refreshBtn.disabled = true;
@@ -1514,6 +1640,45 @@ function initActions() {
       if (target.closest('#zai-floating-widget')) return;
       zaiPanel.classList.remove('show');
       zaiTrigger.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  if (copilotStartBtn) {
+    copilotStartBtn.addEventListener('click', async () => {
+      copilotStartBtn.disabled = true;
+      try {
+        await runCopilotAction('start_focus', { successText: 'Sprint fokus dimulai. Gas 25 menit.' });
+      } catch {
+        showToast('Gagal menjalankan aksi Mulai.', 'error', 1800);
+      } finally {
+        copilotStartBtn.disabled = false;
+      }
+    });
+  }
+
+  if (copilotSnoozeBtn) {
+    copilotSnoozeBtn.addEventListener('click', async () => {
+      copilotSnoozeBtn.disabled = true;
+      try {
+        await runCopilotAction('snooze', { successText: 'Ditunda 30 menit. Z AI akan ingatkan lagi.' });
+      } catch {
+        showToast('Gagal menunda aksi.', 'error', 1800);
+      } finally {
+        copilotSnoozeBtn.disabled = false;
+      }
+    });
+  }
+
+  if (copilotReplanBtn) {
+    copilotReplanBtn.addEventListener('click', async () => {
+      copilotReplanBtn.disabled = true;
+      try {
+        await runCopilotAction('replan', { successText: 'Rencana dipecah jadi langkah kecil 15 menit.' });
+      } catch {
+        showToast('Gagal replan aksi.', 'error', 1800);
+      } finally {
+        copilotReplanBtn.disabled = false;
+      }
     });
   }
 }

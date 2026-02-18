@@ -1031,6 +1031,219 @@ function buildActionSentence(nextItem, nowUtc = new Date()) {
   return `Mulai ${title} sekarang (${sourceLabel}, ${timeText}).`;
 }
 
+function copilotRiskBandFromHours(hoursLeft = null) {
+  if (!Number.isFinite(hoursLeft)) return 'medium';
+  if (hoursLeft <= 0) return 'critical';
+  if (hoursLeft <= 6) return 'critical';
+  if (hoursLeft <= 24) return 'high';
+  if (hoursLeft <= 48) return 'medium';
+  return 'low';
+}
+
+function copilotState({ drift = false, loadIndex = 0, pending = 0, due24h = 0 } = {}) {
+  if (drift) return 'drift';
+  if (Number(loadIndex || 0) >= 72) return 'overload';
+  if (Number(pending || 0) > 0 || Number(due24h || 0) > 0) return 'on_track';
+  return 'calm';
+}
+
+async function readCopilotSnoozeCount(client, user, entityType, entityId) {
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS cnt
+     FROM user_activity_events
+     WHERE user_id = $1
+       AND event_name IN ('push_action_snooze', 'push_action_replan')
+       AND payload->>'entity_type' = $2
+       AND payload->>'entity_id' = $3
+       AND server_ts >= NOW() - INTERVAL '6 hours'`,
+    [user, entityType, entityId]
+  );
+  return Number(r.rows?.[0]?.cnt || 0);
+}
+
+async function findDriftCandidate(client, user) {
+  const starts = await client.query(
+    `SELECT
+       payload->>'entity_type' AS entity_type,
+       payload->>'entity_id' AS entity_id,
+       MAX(server_ts) AS started_at
+     FROM user_activity_events
+     WHERE user_id = $1
+       AND event_name IN ('push_action_start', 'copilot_action_start')
+       AND server_ts >= NOW() - INTERVAL '6 hours'
+       AND payload->>'entity_type' IS NOT NULL
+       AND payload->>'entity_id' IS NOT NULL
+     GROUP BY 1, 2
+     ORDER BY MAX(server_ts) DESC
+     LIMIT 8`,
+    [user]
+  );
+  for (const row of starts.rows || []) {
+    const entityType = String(row.entity_type || '').trim().toLowerCase();
+    const entityId = String(row.entity_id || '').trim();
+    const startedAt = row.started_at ? new Date(row.started_at) : null;
+    if (!entityType || !entityId || !startedAt || Number.isNaN(startedAt.getTime())) continue;
+    const ageMin = (Date.now() - startedAt.getTime()) / 60000;
+    if (ageMin < 40 || ageMin > 6 * 60) continue;
+
+    const [doneRes, followupRes] = await Promise.all([
+      client.query(
+        `SELECT 1
+         FROM user_activity_events
+         WHERE user_id = $1
+           AND event_name = 'push_action_done'
+           AND payload->>'entity_type' = $2
+           AND payload->>'entity_id' = $3
+           AND server_ts >= $4
+         LIMIT 1`,
+        [user, entityType, entityId, startedAt.toISOString()]
+      ),
+      client.query(
+        `SELECT 1
+         FROM user_activity_events
+         WHERE user_id = $1
+           AND event_name = 'copilot_drift_followup_sent'
+           AND payload->>'entity_type' = $2
+           AND payload->>'entity_id' = $3
+           AND server_ts >= NOW() - INTERVAL '2 hours'
+         LIMIT 1`,
+        [user, entityType, entityId]
+      ),
+    ]);
+    if (doneRes.rowCount > 0) continue;
+    if (followupRes.rowCount > 0) continue;
+
+    return {
+      entity_type: entityType,
+      entity_id: entityId,
+      started_at: startedAt.toISOString(),
+      age_minutes: Math.round(ageMin),
+    };
+  }
+  return null;
+}
+
+function summarizeDailyClose(user, completionToday, pending = {}, nextAction = '') {
+  const pendingTotal = Number(pending.pending || 0);
+  const due24h = Number(pending.due_24h || 0) + Number(pending.due_6h || 0);
+  const done = Number(completionToday || 0);
+  const firstAction = String(nextAction || '').trim() || 'Mulai 1 sprint fokus 25 menit besok pagi.';
+
+  if (pendingTotal <= 0) {
+    return `Hai ${user}, hari ini rapi. Kamu menyelesaikan ${done} item. Besok mulai pelan dari target jangka panjang.`;
+  }
+
+  if (due24h > 0) {
+    return `Hai ${user}, hari ini selesai ${done} item. Masih ada ${due24h} item mepet <=24 jam. Besok: ${firstAction}`;
+  }
+
+  return `Hai ${user}, progres hari ini ${done} item. Pending tersisa ${pendingTotal}. Besok: ${firstAction}`;
+}
+
+export async function buildExecutionCopilotSignals(client, schema, user, now = new Date(), opts = {}) {
+  const nowIso = now.toISOString();
+  const [pending, intensity, completionToday, ignoredPush, nextItem] = await Promise.all([
+    readUserPendingStats(client, user, schema, nowIso),
+    readUserActivityIntensity(client, user),
+    readDailyCompletionCount(client, user, schema, nowIso),
+    readIgnoredPushCount(client, user),
+    readNextDueItem(client, user, schema),
+  ]);
+  const drift = opts?.driftCandidate || null;
+  const loadIndex = computeLoadIndex(pending, intensity, completionToday, ignoredPush);
+
+  if (!nextItem) {
+    return {
+      state: copilotState({ drift: Boolean(drift), loadIndex, pending: 0, due24h: 0 }),
+      quick_actions: ['start', 'snooze_30', 'replan'],
+      updated_at: now.toISOString(),
+      next_action: {
+        entity_type: '',
+        entity_id: '',
+        title: 'Mode tenang',
+        action_text: 'Tidak ada tugas mepet. Lanjutkan 1 sesi fokus untuk goals jangka panjang.',
+        reason_text: 'Semua deadline terdekat masih aman.',
+        duration_min: 25,
+        risk_band: 'low',
+        route_fallback: '/goals',
+        action_token: '',
+      },
+      meta: {
+        pending,
+        activity_intensity_24h: intensity,
+        completion_today: completionToday,
+        ignored_push_24h: ignoredPush,
+        load_index: loadIndex,
+      },
+    };
+  }
+
+  const source = String(nextItem.source || 'task').toLowerCase();
+  const entityType = source === 'assignment' ? 'assignment' : 'task';
+  const entityId = String(nextItem.id || '').trim();
+  const hoursLeft = hoursLeftFrom(nextItem.deadline, now);
+  const riskBand = copilotRiskBandFromHours(hoursLeft);
+  const snoozeCount = entityId ? await readCopilotSnoozeCount(client, user, entityType, entityId) : 0;
+  const durationMin = snoozeCount >= 2 ? 15 : 25;
+  const title = String(nextItem.title || (entityType === 'assignment' ? 'tugas kuliah' : 'tugas')).trim();
+
+  const deadlineLabel = Number.isFinite(hoursLeft)
+    ? (hoursLeft <= 0 ? 'deadline sudah lewat' : `deadline ${Math.max(1, Math.round(hoursLeft))} jam lagi`)
+    : 'deadline aktif';
+  const actionText = durationMin === 15
+    ? `Mulai langkah kecil ${durationMin} menit untuk "${title}" sekarang.`
+    : `Mulai "${title}" fokus ${durationMin} menit sekarang.`;
+  const reasonText = riskBand === 'critical'
+    ? `Prioritas kritis, ${deadlineLabel}.`
+    : riskBand === 'high'
+      ? `Prioritas tinggi, ${deadlineLabel}.`
+      : `Jaga momentum eksekusi, ${deadlineLabel}.`;
+
+  let actionToken = '';
+  try {
+    actionToken = createActionToken({
+      user_id: user,
+      entity_type: entityType,
+      entity_id: entityId,
+      route_fallback: entityType === 'assignment' ? '/college-assignments' : '/daily-tasks',
+      event_family: 'execution_followup',
+    });
+  } catch {
+    actionToken = '';
+  }
+
+  return {
+    state: copilotState({
+      drift: Boolean(drift),
+      loadIndex,
+      pending: pending.pending,
+      due24h: pending.due_24h,
+    }),
+    quick_actions: ['start', 'snooze_30', 'replan'],
+    updated_at: now.toISOString(),
+    next_action: {
+      entity_type: entityType,
+      entity_id: entityId,
+      title,
+      action_text: actionText,
+      reason_text: reasonText,
+      duration_min: durationMin,
+      risk_band: riskBand,
+      route_fallback: entityType === 'assignment' ? '/college-assignments' : '/daily-tasks',
+      action_token: actionToken,
+    },
+    meta: {
+      pending,
+      activity_intensity_24h: intensity,
+      completion_today: completionToday,
+      ignored_push_24h: ignoredPush,
+      load_index: loadIndex,
+      snooze_count_6h: snoozeCount,
+      drift_candidate: drift,
+    },
+  };
+}
+
 export async function buildCoupleSyncSignals(client, schema, now = new Date()) {
   const nowIso = now.toISOString();
   const users = ['Zaldy', 'Nesya'];
@@ -1194,6 +1407,94 @@ async function runCoupleAssistSuggestions(client, window, notify, schema) {
   return stats;
 }
 
+async function runExecutionCopilot(client, users, window, notify, schema) {
+  const stats = { generated: 0, pushed: 0, drift_followup: 0, daily_close: 0 };
+  const targets = Array.isArray(users) && users.length ? users : COUPLE_USERS;
+  const localMinute = Number(window.localNow?.getUTCMinutes?.() || 0);
+  const shouldDailyClose = window.localHour === 20 && localMinute >= 30 && localMinute <= 50;
+
+  for (const user of targets) {
+    const driftCandidate = await findDriftCandidate(client, user);
+    const copilot = await buildExecutionCopilotSignals(client, schema, user, window.nowUtc, { driftCandidate });
+    const nextAction = copilot?.next_action || {};
+    const pending = copilot?.meta?.pending || {};
+    const completionToday = Number(copilot?.meta?.completion_today || 0);
+
+    if (driftCandidate && nextAction?.entity_type && nextAction?.entity_id) {
+      const followupRes = await emitEvent(client, {
+        userId: user,
+        eventType: 'execution_followup',
+        eventKey: `drift-${nextAction.entity_type}-${nextAction.entity_id}-${window.localDate}-${window.localHour}`,
+        level: 'warning',
+        title: 'Z AI Follow-up',
+        body: `${nextAction.action_text} Kamu sempat mulai, sekarang lanjutkan sampai selesai langkah pertama.`,
+        url: nextAction.route_fallback || '/daily-tasks',
+        localDate: window.localDate,
+        payload: {
+          source: nextAction.entity_type,
+          entity_type: nextAction.entity_type,
+          entity_id: nextAction.entity_id,
+          started_at: driftCandidate.started_at,
+          age_minutes: driftCandidate.age_minutes,
+          risk_band: nextAction.risk_band || 'high',
+        },
+        push_meta: {
+          event_family: 'execution_followup',
+          dedup_key: `execution_followup:${nextAction.entity_type}:${nextAction.entity_id}:${window.localDate}`,
+        },
+      }, notify);
+      if (followupRes.inserted) {
+        stats.generated += 1;
+        stats.drift_followup += 1;
+        await logPushEvent(client, user, 'copilot_drift_followup_sent', {
+          entity_type: nextAction.entity_type,
+          entity_id: nextAction.entity_id,
+          event_family: 'execution_followup',
+          route: nextAction.route_fallback || '/daily-tasks',
+        });
+      }
+      if (followupRes.pushed) stats.pushed += 1;
+    }
+
+    if (shouldDailyClose) {
+      const dailyCloseBody = summarizeDailyClose(user, completionToday, pending, nextAction.action_text || '');
+      const closeRes = await emitEvent(client, {
+        userId: user,
+        eventType: 'daily_close_loop',
+        eventKey: `daily-close-${user}-${window.localDate}`,
+        level: Number(pending.due_6h || 0) > 0 ? 'warning' : 'info',
+        title: 'Daily Close Z AI',
+        body: dailyCloseBody,
+        url: '/chat?ai=ringkasan%20hari%20ini',
+        localDate: window.localDate,
+        payload: {
+          source: 'general',
+          completion_today: completionToday,
+          pending_total: Number(pending.pending || 0),
+          due_24h: Number(pending.due_24h || 0) + Number(pending.due_6h || 0),
+          next_action: String(nextAction.action_text || '').trim(),
+        },
+        push_meta: {
+          event_family: 'daily_close',
+          dedup_key: `daily_close:${user}:${window.localDate}`,
+        },
+      }, notify);
+      if (closeRes.inserted) {
+        stats.generated += 1;
+        stats.daily_close += 1;
+        await logPushEvent(client, user, 'copilot_daily_close_sent', {
+          event_family: 'daily_close',
+          route: '/chat?ai=ringkasan%20hari%20ini',
+          local_date: window.localDate,
+        });
+      }
+      if (closeRes.pushed) stats.pushed += 1;
+    }
+  }
+
+  return stats;
+}
+
 export async function runProactiveEngine({ now = new Date(), notify = true } = {}) {
   const client = await pool.connect();
   try {
@@ -1209,6 +1510,7 @@ export async function runProactiveEngine({ now = new Date(), notify = true } = {
     const mood = await runMoodDropAlerts(client, targets, window, notify);
     const checkin = await runCheckinSuggestion(client, window, notify, schema);
     const coupleAssist = await runCoupleAssistSuggestions(client, window, notify, schema);
+    const executionCopilot = await runExecutionCopilot(client, targets, window, notify, schema);
 
     return {
       ok: true,
@@ -1225,6 +1527,7 @@ export async function runProactiveEngine({ now = new Date(), notify = true } = {
         mood_drop: mood,
         checkin: checkin,
         couple_assist: coupleAssist,
+        execution_copilot: executionCopilot,
       },
     };
   } finally {
@@ -1316,12 +1619,13 @@ export async function getProactiveFeedForUser(user, limit = 20) {
       [...assignmentOwner.params, predictiveNearIso, predictiveHorizonIso]
     );
 
-    const [taskSignals, assignmentSignals, taskPredictRisk, assignmentPredictRisk, coupleSync] = await Promise.all([
+    const [taskSignals, assignmentSignals, taskPredictRisk, assignmentPredictRisk, coupleSync, executionCopilot] = await Promise.all([
       taskSignalPromise,
       assignmentSignalPromise,
       taskPredictRiskPromise,
       assignmentPredictRiskPromise,
       buildCoupleSyncSignals(client, schema, now),
+      buildExecutionCopilotSignals(client, schema, user, now),
     ]);
     const taskRow = taskSignals.rows[0] || {};
     const assignmentRow = assignmentSignals.rows[0] || {};
@@ -1345,6 +1649,7 @@ export async function getProactiveFeedForUser(user, limit = 20) {
         predicted_total_count: predictiveHighCount + predictiveCriticalCount,
       },
       couple_sync: coupleSync,
+      execution_copilot: executionCopilot,
       generated_at: now.toISOString(),
     };
   } finally {

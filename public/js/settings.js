@@ -319,18 +319,30 @@ function renderKeyValueRows(container, rows = []) {
   }
 }
 
-function renderChatMetrics(payload = {}) {
+function renderChatMetrics(payload = {}, pushPayload = null) {
   const summary = payload && typeof payload.summary === 'object' ? payload.summary : {};
   const engines = Array.isArray(payload.engines) ? payload.engines : [];
+  const push = pushPayload && typeof pushPayload === 'object' ? pushPayload : null;
+
+  const summaryRows = [
+    { label: 'Requests (7d)', value: formatCount(summary.total_requests || 0) },
+    { label: 'Fallback Rate', value: `${Number(summary.fallback_rate_pct || 0).toFixed(1)}%` },
+    { label: 'Avg Latency', value: `${Math.round(Number(summary.avg_latency_ms || 0))} ms` },
+    { label: 'P95 Latency', value: `${Math.round(Number(summary.p95_latency_ms || 0))} ms` },
+  ];
+  if (push) {
+    summaryRows.push(
+      { label: 'Copilot Push', value: formatCount(push.copilot_sent || 0) },
+      { label: 'Copilot Start', value: formatCount(push.copilot_action_start || 0) },
+      { label: 'Copilot Replan', value: formatCount(push.copilot_action_replan || 0) },
+      { label: 'Drift Follow-up', value: formatCount(push.copilot_drift_recovered || 0) },
+      { label: 'Copilot Ignore Rate', value: `${Math.round(Number(push.copilot_ignore_rate || 0) * 100)}%` },
+    );
+  }
 
   renderKeyValueRows(
     document.getElementById('chat-metrics-summary'),
-    [
-      { label: 'Requests (7d)', value: formatCount(summary.total_requests || 0) },
-      { label: 'Fallback Rate', value: `${Number(summary.fallback_rate_pct || 0).toFixed(1)}%` },
-      { label: 'Avg Latency', value: `${Math.round(Number(summary.avg_latency_ms || 0))} ms` },
-      { label: 'P95 Latency', value: `${Math.round(Number(summary.p95_latency_ms || 0))} ms` },
-    ]
+    summaryRows
   );
 
   const max = Math.max(1, ...engines.map((item) => Number(item.count || 0)));
@@ -347,8 +359,11 @@ async function refreshChatMetrics() {
   const summaryEl = document.getElementById('chat-metrics-summary');
   if (!summaryEl) return;
   try {
-    const payload = await get('/chat_metrics?days=7');
-    renderChatMetrics(payload || {});
+    const [payload, pushPayload] = await Promise.all([
+      get('/chat_metrics?days=7'),
+      get('/push_metrics?days=7'),
+    ]);
+    renderChatMetrics(payload || {}, pushPayload || null);
   } catch {
     renderKeyValueRows(summaryEl, [{ label: 'Engine Health', value: 'Gagal memuat metrics' }]);
   }

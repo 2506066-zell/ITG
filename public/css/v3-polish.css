@@ -486,18 +486,24 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
   }
 
   .chat-page .container.chat-container {
-    height: auto;
-    min-height: 0;
-    flex: 1 1 auto;
+    height: calc(100dvh - 64px - 72px - env(safe-area-inset-bottom, 0px) - 12px);
+    min-height: 520px;
+    width: 100%;
+    max-width: 880px;
+    margin: 8px auto 0;
+    padding: 0 10px;
     display: flex;
     flex-direction: column;
-    margin-top: 0;
-    padding: 0;
   }
 
   .chat-page .chat-card {
     flex: 1 1 auto;
     min-height: 0;
+    border-radius: 18px;
+    border: 1px solid hsla(var(--nebula-core), 0.22);
+    box-shadow: 0 16px 36px -24px rgba(0, 0, 0, 0.88);
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto auto;
   }
 
   .chat-page .chat-messages {
@@ -508,11 +514,11 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
   }
 
   .chat-page .chat-input {
-    position: sticky;
-    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    position: static;
     padding: 10px 12px;
     gap: 8px;
     background: hsla(var(--space-950), 0.95);
+    border-top: 1px solid hsla(0, 0%, 100%, 0.12);
   }
 
   .chat-page .chat-input .btn {

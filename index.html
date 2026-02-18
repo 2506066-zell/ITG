@@ -119,6 +119,20 @@
       <div class="cc-list" id="today-mission-list"></div>
     </section>
 
+    <section class="card cc-card cc-card-beta cc-reveal" id="execution-copilot-card">
+      <div class="cc-section-head">
+        <h2><i class="fa-solid fa-crosshairs"></i> Aksi Sekarang</h2>
+        <span class="cc-chip" id="execution-copilot-state">CALM</span>
+      </div>
+      <p class="cc-copilot-action" id="execution-copilot-action">Z AI sedang menyiapkan aksi prioritas.</p>
+      <p class="cc-copilot-reason" id="execution-copilot-reason">Tunggu sebentar, sinkronisasi data berjalan.</p>
+      <div class="cc-copilot-actions">
+        <button type="button" class="btn small" id="copilot-start-btn"><i class="fa-solid fa-play"></i> Mulai</button>
+        <button type="button" class="btn small secondary" id="copilot-snooze-btn">Tunda 30m</button>
+        <button type="button" class="btn small secondary" id="copilot-replan-btn">Replan</button>
+      </div>
+    </section>
+
     <section class="card cc-card cc-card-beta cc-reveal" id="couple-pulse-card">
       <div class="cc-section-head">
         <h2><i class="fa-solid fa-heart-pulse"></i> Pulse Pasangan</h2>
@@ -132,6 +146,7 @@
             <span class="cc-mood-value" id="pulse-z-mood">--</span>
           </header>
           <p class="cc-user-meta">Aktivitas: <strong id="pulse-z-activity">0</strong></p>
+          <p class="cc-user-meta cc-user-load">Load: <strong id="pulse-z-load">--</strong> · Risiko: <strong id="pulse-z-risk">--</strong></p>
           <div class="cc-bar-track"><div class="cc-bar-fill" id="pulse-z-bar"></div></div>
         </article>
 
@@ -141,8 +156,13 @@
             <span class="cc-mood-value" id="pulse-n-mood">--</span>
           </header>
           <p class="cc-user-meta">Aktivitas: <strong id="pulse-n-activity">0</strong></p>
+          <p class="cc-user-meta cc-user-load">Load: <strong id="pulse-n-load">--</strong> · Risiko: <strong id="pulse-n-risk">--</strong></p>
           <div class="cc-bar-track"><div class="cc-bar-fill" id="pulse-n-bar"></div></div>
         </article>
+      </div>
+      <div class="cc-couple-sync-summary">
+        <p class="cc-user-meta" id="couple-next-action">Z AI menyiapkan sinkronisasi pasangan.</p>
+        <p class="cc-user-meta cc-couple-assist" id="couple-assist-hint" hidden></p>
       </div>
     </section>
 

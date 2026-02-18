@@ -873,6 +873,24 @@ function detectIntent(message = '', user = '') {
     };
   }
 
+  if (/(aksi saya sekarang|aksi sekarang|next action|apa aksi saya sekarang|langkah saya sekarang)/i.test(lower)) {
+    return {
+      tool: 'get_daily_brief',
+      mode: 'read',
+      args: { limit: 5 },
+      summary: 'Aksi prioritas sekarang',
+    };
+  }
+
+  if (/(replan hari ini|atur ulang hari ini|susun ulang hari ini|replan tugas hari ini)/i.test(lower)) {
+    return {
+      tool: 'replan_study_window',
+      mode: 'write',
+      args: parseStudyPreferencePayload(msg),
+      summary: 'Replan eksekusi hari ini',
+    };
+  }
+
   if (/(study plan|jadwal belajar|rencana belajar|plan belajar)/i.test(lower)) {
     return {
       tool: 'get_study_plan',

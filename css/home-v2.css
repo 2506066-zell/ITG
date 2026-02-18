@@ -317,6 +317,60 @@
   color: hsl(var(--text-500));
 }
 
+.cc-user-load {
+  margin-top: calc(var(--cc-space-2) * -0.5);
+  font-size: 0.75rem;
+}
+
+.cc-couple-sync-summary {
+  margin-top: var(--cc-space-3);
+  padding-top: var(--cc-space-2);
+  border-top: 1px dashed hsla(0, 0%, 100%, 0.12);
+}
+
+.cc-couple-assist {
+  color: hsl(var(--nebula-core));
+}
+
+.cc-copilot-action {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  color: hsl(var(--text-100));
+}
+
+.cc-copilot-reason {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  color: hsl(var(--text-400));
+}
+
+.cc-copilot-actions {
+  margin-top: var(--cc-space-3);
+  display: flex;
+  gap: var(--cc-space-2);
+  flex-wrap: wrap;
+}
+
+.cc-copilot-actions .btn {
+  min-height: 40px;
+}
+
+.cc-chip.status-drift {
+  color: #ff9f7f;
+  border-color: rgba(255, 159, 127, 0.5);
+}
+
+.cc-chip.status-focus {
+  color: #ffcc88;
+  border-color: rgba(255, 188, 82, 0.55);
+}
+
+.cc-chip.status-calm {
+  color: #83f7be;
+  border-color: rgba(131, 247, 190, 0.45);
+}
+
 .cc-bar-track {
   width: 100%;
   height: 6px;
@@ -720,6 +774,18 @@ body.no-anim.cc-motion-ready .cc-reveal.is-visible {
     min-height: 40px;
     font-size: 0.66rem;
     padding: 7px 10px;
+  }
+
+  .cc-copilot-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .cc-copilot-actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding-inline: 8px;
+    font-size: 0.68rem;
   }
 }
 

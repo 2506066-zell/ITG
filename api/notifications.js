@@ -7,6 +7,7 @@ const publicVapidKey = process.env.VAPID_PUBLIC_KEY;
 const privateVapidKey = process.env.VAPID_PRIVATE_KEY;
 const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
 const DEFAULT_SNOOZE_MINUTES = Math.max(5, Number(process.env.PUSH_DEFAULT_SNOOZE_MIN || 30));
+const DEFAULT_REPLAN_MINUTES = Math.max(10, Number(process.env.PUSH_REPLAN_SNOOZE_MIN || 15));
 
 if (publicVapidKey && privateVapidKey) {
   webpush.setVapidDetails(vapidSubject, publicVapidKey, privateVapidKey);
@@ -42,7 +43,14 @@ function normalizePath(req) {
 
 function normalizeAction(value = '') {
   const action = String(value || '').trim().toLowerCase();
-  if (action === 'start' || action === 'snooze' || action === 'done' || action === 'open') return action;
+  if (
+    action === 'start'
+    || action === 'start_focus'
+    || action === 'snooze'
+    || action === 'replan'
+    || action === 'done'
+    || action === 'open'
+  ) return action;
   return '';
 }
 
@@ -86,6 +94,7 @@ function updateResult(base = {}) {
 
 async function applyTaskAction(client, action, entityId, userId, payload = {}) {
   const result = updateResult({ entityType: 'task', entityId, action });
+  const normalizedAction = action === 'start_focus' ? 'start' : action;
   if (action === 'done') {
     const r = await client.query(
       `UPDATE tasks
@@ -104,7 +113,7 @@ async function applyTaskAction(client, action, entityId, userId, payload = {}) {
     return { ...result, changed: true };
   }
 
-  if (action === 'start') {
+  if (normalizedAction === 'start') {
     const hasStartedAt = await hasColumn(client, 'tasks', 'started_at');
     if (hasStartedAt) {
       await client.query(
@@ -120,7 +129,8 @@ async function applyTaskAction(client, action, entityId, userId, payload = {}) {
     return { ...result, changed: true, status: hasStartedAt ? 'started' : 'started_logged' };
   }
 
-  const snoozeMin = Math.max(5, Number(payload?.snooze_minutes || DEFAULT_SNOOZE_MINUTES));
+  const defaultSnooze = action === 'replan' ? DEFAULT_REPLAN_MINUTES : DEFAULT_SNOOZE_MINUTES;
+  const snoozeMin = Math.max(5, Number(payload?.snooze_minutes || defaultSnooze));
   await client.query(
     `INSERT INTO z_ai_reminders (
       user_id, target_user, reminder_text, remind_at, status, source_command, payload, created_at
@@ -130,18 +140,30 @@ async function applyTaskAction(client, action, entityId, userId, payload = {}) {
       COALESCE(NULLIF(t.title, ''), 'Lanjutkan tugas sekarang'),
       NOW() + ($3::int * INTERVAL '1 minute'),
       'pending',
-      'push_action_snooze',
-      jsonb_build_object('entity_type','task','entity_id',$1::text,'snooze_minutes',$3::int),
+      $4,
+      jsonb_build_object(
+        'entity_type','task',
+        'entity_id',$1::text,
+        'snooze_minutes',$3::int,
+        'replan', $5::boolean
+      ),
       NOW()
     FROM tasks t
     WHERE t.id = $1`,
-    [Number(entityId), userId, snoozeMin]
+    [Number(entityId), userId, snoozeMin, action === 'replan' ? 'push_action_replan' : 'push_action_snooze', action === 'replan']
   );
-  return { ...result, changed: true, status: 'snoozed', snooze_minutes: snoozeMin };
+  return {
+    ...result,
+    changed: true,
+    status: action === 'replan' ? 'replanned' : 'snoozed',
+    snooze_minutes: snoozeMin,
+    duration_minutes: action === 'replan' ? DEFAULT_REPLAN_MINUTES : undefined,
+  };
 }
 
 async function applyAssignmentAction(client, action, entityId, userId, payload = {}) {
   const result = updateResult({ entityType: 'assignment', entityId, action });
+  const normalizedAction = action === 'start_focus' ? 'start' : action;
   if (action === 'done') {
     const r = await client.query(
       `UPDATE assignments
@@ -157,7 +179,7 @@ async function applyAssignmentAction(client, action, entityId, userId, payload =
     return { ...result, changed: true };
   }
 
-  if (action === 'start') {
+  if (normalizedAction === 'start') {
     const hasStartedAt = await hasColumn(client, 'assignments', 'started_at');
     if (hasStartedAt) {
       await client.query(
@@ -170,7 +192,8 @@ async function applyAssignmentAction(client, action, entityId, userId, payload =
     return { ...result, changed: true, status: hasStartedAt ? 'started' : 'started_logged' };
   }
 
-  const snoozeMin = Math.max(5, Number(payload?.snooze_minutes || DEFAULT_SNOOZE_MINUTES));
+  const defaultSnooze = action === 'replan' ? DEFAULT_REPLAN_MINUTES : DEFAULT_SNOOZE_MINUTES;
+  const snoozeMin = Math.max(5, Number(payload?.snooze_minutes || defaultSnooze));
   await client.query(
     `INSERT INTO z_ai_reminders (
       user_id, target_user, reminder_text, remind_at, status, source_command, payload, created_at
@@ -180,18 +203,30 @@ async function applyAssignmentAction(client, action, entityId, userId, payload =
       COALESCE(NULLIF(a.title, ''), 'Lanjutkan tugas kuliah sekarang'),
       NOW() + ($3::int * INTERVAL '1 minute'),
       'pending',
-      'push_action_snooze',
-      jsonb_build_object('entity_type','assignment','entity_id',$1::text,'snooze_minutes',$3::int),
+      $4,
+      jsonb_build_object(
+        'entity_type','assignment',
+        'entity_id',($1::int)::text,
+        'snooze_minutes',$3::int,
+        'replan', $5::boolean
+      ),
       NOW()
     FROM assignments a
-    WHERE a.id = $1`,
-    [Number(entityId), userId, snoozeMin]
+    WHERE a.id = $1::int`,
+    [Number(entityId), userId, snoozeMin, action === 'replan' ? 'push_action_replan' : 'push_action_snooze', action === 'replan']
   );
-  return { ...result, changed: true, status: 'snoozed', snooze_minutes: snoozeMin };
+  return {
+    ...result,
+    changed: true,
+    status: action === 'replan' ? 'replanned' : 'snoozed',
+    snooze_minutes: snoozeMin,
+    duration_minutes: action === 'replan' ? DEFAULT_REPLAN_MINUTES : undefined,
+  };
 }
 
 async function applyReminderAction(client, action, entityId, userId, payload = {}) {
   const result = updateResult({ entityType: 'reminder', entityId, action });
+  const normalizedAction = action === 'start_focus' ? 'start' : action;
   if (action === 'done') {
     await client.query(
       `UPDATE z_ai_reminders
@@ -203,7 +238,7 @@ async function applyReminderAction(client, action, entityId, userId, payload = {
     return { ...result, changed: true };
   }
 
-  if (action === 'start') {
+  if (normalizedAction === 'start') {
     await client.query(
       `UPDATE z_ai_reminders
        SET status = 'sent'
@@ -214,7 +249,8 @@ async function applyReminderAction(client, action, entityId, userId, payload = {
     return { ...result, changed: true, status: 'started_logged' };
   }
 
-  const snoozeMin = Math.max(5, Number(payload?.snooze_minutes || DEFAULT_SNOOZE_MINUTES));
+  const defaultSnooze = action === 'replan' ? DEFAULT_REPLAN_MINUTES : DEFAULT_SNOOZE_MINUTES;
+  const snoozeMin = Math.max(5, Number(payload?.snooze_minutes || defaultSnooze));
   await client.query(
     `UPDATE z_ai_reminders
      SET status = 'pending',
@@ -224,11 +260,18 @@ async function applyReminderAction(client, action, entityId, userId, payload = {
        AND (target_user = $2 OR user_id = $2)`,
     [Number(entityId), userId, snoozeMin]
   );
-  return { ...result, changed: true, status: 'snoozed', snooze_minutes: snoozeMin };
+  return {
+    ...result,
+    changed: true,
+    status: action === 'replan' ? 'replanned' : 'snoozed',
+    snooze_minutes: snoozeMin,
+    duration_minutes: action === 'replan' ? DEFAULT_REPLAN_MINUTES : undefined,
+  };
 }
 
 async function applyStudySessionAction(client, action, entityId, userId, payload = {}) {
   const result = updateResult({ entityType: 'study_session', entityId, action });
+  const normalizedAction = action === 'start_focus' ? 'start' : action;
   const [planDate, sessionKey] = String(entityId || '').split(':');
   if (!planDate || !sessionKey) return { ...result, ok: false, status: 'invalid_session_id', changed: false };
   if (action === 'done') {
@@ -243,19 +286,29 @@ async function applyStudySessionAction(client, action, entityId, userId, payload
     );
     return { ...result, changed: true };
   }
-  if (action === 'snooze') {
-    const snoozeMin = Math.max(5, Number(payload?.snooze_minutes || DEFAULT_SNOOZE_MINUTES));
+  if (action === 'snooze' || action === 'replan') {
+    const defaultSnooze = action === 'replan' ? DEFAULT_REPLAN_MINUTES : DEFAULT_SNOOZE_MINUTES;
+    const snoozeMin = Math.max(5, Number(payload?.snooze_minutes || defaultSnooze));
     await client.query(
       `INSERT INTO z_ai_reminders (
         user_id, target_user, reminder_text, remind_at, status, source_command, payload, created_at
       )
-      VALUES ($1, $1, 'Lanjutkan sesi belajar', NOW() + ($2::int * INTERVAL '1 minute'), 'pending', 'push_action_snooze',
-        jsonb_build_object('entity_type','study_session','entity_id',$3,'snooze_minutes',$2::int), NOW())`,
-      [userId, snoozeMin, `${planDate}:${sessionKey}`]
+      VALUES ($1, $1, 'Lanjutkan sesi belajar', NOW() + ($2::int * INTERVAL '1 minute'), 'pending', $4,
+        jsonb_build_object('entity_type','study_session','entity_id',$3,'snooze_minutes',$2::int,'replan',$5::boolean), NOW())`,
+      [userId, snoozeMin, `${planDate}:${sessionKey}`, action === 'replan' ? 'push_action_replan' : 'push_action_snooze', action === 'replan']
     );
-    return { ...result, changed: true, status: 'snoozed', snooze_minutes: snoozeMin };
+    return {
+      ...result,
+      changed: true,
+      status: action === 'replan' ? 'replanned' : 'snoozed',
+      snooze_minutes: snoozeMin,
+      duration_minutes: action === 'replan' ? DEFAULT_REPLAN_MINUTES : undefined,
+    };
   }
-  return { ...result, changed: true, status: 'started_logged' };
+  if (normalizedAction === 'start') {
+    return { ...result, changed: true, status: 'started_logged' };
+  }
+  return { ...result, ok: false, status: 'unsupported_action', changed: false };
 }
 
 async function applyNotificationAction(client, action, entityType, entityId, userId, payload = {}) {
@@ -318,13 +371,31 @@ async function handleActionRequest(req, res) {
       return;
     }
 
-    await logPushEvent(client, actor.userId, `push_action_${action}`, {
+    const actionForLog = action === 'start_focus' ? 'start' : action;
+    await logPushEvent(client, actor.userId, `push_action_${actionForLog}`, {
       entity_type: entityType,
       entity_id: entityId,
-      action,
+      action: actionForLog,
       route: String(tokenPayload?.route_fallback || body?.route_fallback || '/'),
       event_family: String(tokenPayload?.event_family || body?.event_family || 'general'),
+      source: String(body?.source || 'push'),
     });
+    if (action === 'replan') {
+      await logPushEvent(client, actor.userId, 'copilot_action_replan', {
+        entity_type: entityType,
+        entity_id: entityId,
+        event_family: String(tokenPayload?.event_family || body?.event_family || 'general'),
+        source: String(body?.source || 'push'),
+      });
+    }
+    if (actionForLog === 'start') {
+      await logPushEvent(client, actor.userId, 'copilot_action_start', {
+        entity_type: entityType,
+        entity_id: entityId,
+        event_family: String(tokenPayload?.event_family || body?.event_family || 'general'),
+        source: String(body?.source || 'push'),
+      });
+    }
     await client.query('COMMIT');
     sendJson(res, 200, {
       ...result,

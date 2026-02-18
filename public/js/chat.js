@@ -26,6 +26,9 @@ const BASE_COMMAND_SUGGESTIONS = [
   { label: 'Radar Mendesak', command: 'tugas paling mendesak saya hari ini apa', tone: 'urgent' },
   { label: 'Couple Pulse', command: 'lihat couple pulse hari ini' },
   { label: 'Snapshot Memori', command: 'tampilkan memori hari ini' },
+  { label: 'Aksi Saya Sekarang', command: 'aksi saya sekarang' },
+  { label: 'Replan Hari Ini', command: 'replan hari ini' },
+  { label: 'Cek Risiko Deadline', command: 'cek risiko deadline' },
   { label: 'Study Plan Besok', command: 'jadwal belajar besok pagi' },
   { label: 'Tugas Kuliah Tertunda', command: 'tugas kuliah pending saya apa' },
   { label: 'Bundle Cepat', command: 'buat tugas review materi deadline besok 19:00 lalu atur target belajar 180 menit' },
@@ -1131,6 +1134,17 @@ async function loadMessages() {
   const wrap = document.querySelector('#chat-messages');
   try {
     const msgs = await get('/chat');
+    const list = Array.isArray(msgs) ? msgs : [];
+    const emptyEl = wrap.querySelector('.chat-empty-state');
+    if (emptyEl) emptyEl.remove();
+
+    if (list.length === 0 && wrap.children.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'chat-empty-state';
+      empty.textContent = 'Chat masih kosong. Mulai dengan pesan singkat atau pakai saran pintar di bawah.';
+      wrap.appendChild(empty);
+      return;
+    }
 
     // Simple render (replace all) - Not efficient but works for small chat
     // Optimization: Diffing or appending new only. 
@@ -1139,7 +1153,7 @@ async function loadMessages() {
 
     const currentUser = localStorage.getItem('user');
 
-    msgs.forEach(m => {
+    list.forEach(m => {
       // Avoid duplicates
       if (wrap.querySelector(`[data-id="${m.id}"]`)) return;
 
@@ -1167,7 +1181,7 @@ async function loadMessages() {
       wrap.appendChild(el);
 
       // Auto-scroll on new message
-      wrap.scrollTop = wrap.scrollHeight;
+      if (wasAtBottom) wrap.scrollTop = wrap.scrollHeight;
     });
   } catch (err) {
     console.error('Chat load failed', err);

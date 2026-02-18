@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
 const ACTION_TOKEN_SECRET = String(process.env.PUSH_ACTION_SECRET || process.env.JWT_SECRET || '').trim();
-const DEFAULT_TTL_SECONDS = Math.max(60, Number(process.env.PUSH_ACTION_TTL_SECONDS || 6 * 3600));
+const DEFAULT_TTL_SECONDS = Math.max(1, Number(process.env.PUSH_ACTION_TTL_SECONDS || 6 * 3600));
 
 function base64UrlEncode(input) {
   return Buffer.from(input).toString('base64url');
@@ -21,7 +21,7 @@ export function createActionToken(payload = {}, ttlSeconds = DEFAULT_TTL_SECONDS
   const body = {
     ...payload,
     iat: nowSec,
-    exp: nowSec + Math.max(60, Number(ttlSeconds) || DEFAULT_TTL_SECONDS),
+    exp: nowSec + Math.max(1, Number(ttlSeconds) || DEFAULT_TTL_SECONDS),
   };
   const encoded = base64UrlEncode(JSON.stringify(body));
   const sig = signRaw(encoded);
