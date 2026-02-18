@@ -15,7 +15,8 @@ const state = {
     user: 'Zaldy', // Default user
     month: localMonth(), // Current YYYY-MM (local)
     todos: [],
-    stats: null
+    stats: null,
+    habitMetrics: {}
 };
 
 const els = {
@@ -39,8 +40,75 @@ const els = {
     nRate: document.getElementById('stat-n-rate'),
     nStreak: document.getElementById('stat-n-streak'),
     nTotal: document.getElementById('stat-n-total'),
-    combinedRate: document.getElementById('stat-combined')
+    combinedRate: document.getElementById('stat-combined'),
+    summaryRate: document.getElementById('summary-rate'),
+    summaryStreak: document.getElementById('summary-streak'),
+    summaryTotal: document.getElementById('summary-total')
 };
+
+function motionReduced() {
+    return document.body.classList.contains('no-anim')
+        || document.documentElement.classList.contains('perf-lite')
+        || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function normalizeCompletedDays(todo, daysInMonth) {
+    const set = new Set(Array.isArray(todo?.completed_days) ? todo.completed_days : []);
+    return Array.from(set)
+        .map((d) => Number(d))
+        .filter((d) => Number.isInteger(d) && d >= 1 && d <= daysInMonth)
+        .sort((a, b) => a - b);
+}
+
+function computeHabitMetrics(todo, daysInMonth, currentDay, isCurrentMonth) {
+    const completedDays = normalizeCompletedDays(todo, daysInMonth);
+    const completedCount = completedDays.length;
+    const daysSoFar = isCurrentMonth ? Math.max(1, currentDay) : daysInMonth;
+    const progressPct = Math.max(0, Math.min(100, Math.round((completedCount / Math.max(1, daysSoFar)) * 100)));
+
+    const completedSet = new Set(completedDays);
+    const streakStart = isCurrentMonth ? currentDay : daysInMonth;
+    let streakCursor = streakStart;
+    while (streakCursor > 0 && !completedSet.has(streakCursor)) streakCursor -= 1;
+    let currentStreak = 0;
+    while (streakCursor > 0 && completedSet.has(streakCursor)) {
+        currentStreak += 1;
+        streakCursor -= 1;
+    }
+
+    return {
+        completedCount,
+        daysSoFar,
+        progressPct,
+        currentStreak
+    };
+}
+
+function getUserStats() {
+    const users = (state.stats && state.stats.users) || {};
+    return users[state.user] || {};
+}
+
+function renderStickySummary() {
+    if (!els.summaryRate || !els.summaryStreak || !els.summaryTotal) return;
+
+    const userStats = getUserStats();
+    const apiRate = Number(userStats.completion_rate || 0);
+    const apiStreak = Number(userStats.streak || 0);
+    const apiTotal = Number(userStats.total_completed || 0);
+
+    const metrics = Object.values(state.habitMetrics || {});
+    const derivedStreak = metrics.reduce((max, m) => Math.max(max, Number(m.currentStreak || 0)), 0);
+    const derivedTotal = metrics.reduce((sum, m) => sum + Number(m.completedCount || 0), 0);
+
+    const rate = Number.isFinite(apiRate) ? apiRate : 0;
+    const streak = apiStreak > 0 ? apiStreak : derivedStreak;
+    const total = apiTotal > 0 ? apiTotal : derivedTotal;
+
+    els.summaryRate.textContent = `${rate}%`;
+    els.summaryStreak.textContent = `${streak} hari`;
+    els.summaryTotal.textContent = `${total}`;
+}
 
 function init() {
     initProtected();
@@ -105,21 +173,22 @@ function updateUserTabs() {
 }
 
 async function loadTodos() {
-    els.todoList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Loading...</div>';
+    els.todoList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Memuat kebiasaan...</div>';
     try {
         const data = await get(`/monthly?month=${state.month}&user=${state.user}`);
         state.todos = Array.isArray(data) ? data : [];
         renderTodos();
+        renderStickySummary();
     } catch (err) {
         console.error(err);
         if (err.message.includes('backend unreachable') || err.message.includes('404')) {
             els.todoList.innerHTML = `
                  <div style="text-align:center;padding:20px;color:var(--danger)">
-                     <p style="margin-bottom:8px"><strong>Connection Error</strong></p>
-                     <p style="font-size:13px;margin-bottom:12px">Ensure backend is running on Port 3000.</p>
+                     <p style="margin-bottom:8px"><strong>Koneksi bermasalah</strong></p>
+                     <p style="font-size:13px;margin-bottom:12px">Pastikan backend aktif di Port 3000.</p>
                  </div>`;
         } else {
-            els.todoList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--danger)">Error loading data</div>';
+            els.todoList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--danger)">Gagal memuat data</div>';
         }
     }
 }
@@ -136,7 +205,8 @@ async function loadStats() {
 
 function renderTodos() {
     if (!Array.isArray(state.todos) || state.todos.length === 0) {
-        els.todoList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-style:italic">No monthly habits yet. Create one!</div>';
+        els.todoList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-style:italic">Belum ada kebiasaan bulan ini. Coba buat satu.</div>';
+        state.habitMetrics = {};
         return;
     }
 
@@ -146,10 +216,13 @@ function renderTodos() {
     const isCurrentMonth = state.month === currentMonthStr;
     const currentDay = today.getDate();
     const isPastMonth = state.month < currentMonthStr;
+    state.habitMetrics = {};
 
     els.todoList.innerHTML = state.todos.map(todo => {
         let daysHtml = '';
-        const completedSet = new Set(todo.completed_days || []);
+        const completedSet = new Set(normalizeCompletedDays(todo, daysInMonth));
+        const metrics = computeHabitMetrics(todo, daysInMonth, currentDay, isCurrentMonth);
+        state.habitMetrics[todo.id] = metrics;
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${state.month}-${String(d).padStart(2, '0')}`;
@@ -173,6 +246,13 @@ function renderTodos() {
                 <div class="todo-header">
                     <span>${todo.title}</span>
                     ${!isPastMonth ? `<i class="fa-solid fa-trash" style="font-size:12px;color:var(--danger);cursor:pointer;opacity:0.5" onclick="window.deleteTodo(${todo.id})"></i>` : ''}
+                </div>
+                <div class="todo-meta">
+                    <span class="habit-chip streak" id="habit-streak-${todo.id}">Runtun ${metrics.currentStreak} hari</span>
+                    <span class="habit-chip progress">${metrics.completedCount}/${metrics.daysSoFar} hari</span>
+                </div>
+                <div class="habit-progress-rail">
+                    <div class="habit-progress-fill" id="habit-progress-${todo.id}" style="width:${metrics.progressPct}%"></div>
                 </div>
                 <div class="day-scroller" id="scroller-${todo.id}">
                     ${daysHtml}
@@ -200,14 +280,15 @@ function renderStats() {
     const n = users.Nesya || {};
 
     els.zRate.textContent = (z.completion_rate || 0) + '%';
-    els.zStreak.textContent = (z.streak || 0) + ' days';
+    els.zStreak.textContent = (z.streak || 0) + ' hari';
     els.zTotal.textContent = (z.total_completed || 0);
 
     els.nRate.textContent = (n.completion_rate || 0) + '%';
-    els.nStreak.textContent = (n.streak || 0) + ' days';
+    els.nStreak.textContent = (n.streak || 0) + ' hari';
     els.nTotal.textContent = (n.total_completed || 0);
 
     els.combinedRate.textContent = (combined || 0) + '%';
+    renderStickySummary();
 }
 
 async function handleCreate(e) {
@@ -229,7 +310,7 @@ async function handleCreate(e) {
         loadAll(); // Reload everything
     } catch (err) {
         console.error(err);
-        alert('Failed to create todo');
+        showToast('Gagal membuat kebiasaan', 'error');
     }
 }
 
@@ -239,7 +320,7 @@ window.handleDayClick = async (box) => {
     // Check read-only state
     const currentMonth = localMonth();
     if (state.month < currentMonth) {
-        alert('Past months are read-only.');
+        showToast('Bulan sebelumnya hanya bisa dilihat.', 'error');
         return;
     }
     // Hanya hari ini yang bisa di-toggle
@@ -273,9 +354,22 @@ window.handleDayClick = async (box) => {
                 date: new Date().toISOString()
             });
             box.classList.add('completed');
-            box.classList.add('flash-effect');
-            setTimeout(() => box.classList.remove('flash-effect'), 500);
+            if (!motionReduced()) {
+                box.classList.add('pulse-ok');
+                const card = box.closest('.todo-card');
+                card?.classList.add('streak-pop', 'progress-bump');
+                setTimeout(() => {
+                    box.classList.remove('pulse-ok');
+                    card?.classList.remove('streak-pop', 'progress-bump');
+                }, 520);
+            }
             box.dataset.completed = true;
+            const motivations = [
+                'Keren, streak kamu lanjut',
+                'Rapi banget, konsisten hari ini',
+                'Mantap, progres kamu naik lagi'
+            ];
+            showToast(`${motivations[Math.floor(Math.random() * motivations.length)]} 🔥`, 'success');
         } else {
             await post('/monthly', {
                 action: 'toggle_log',
@@ -286,9 +380,12 @@ window.handleDayClick = async (box) => {
             });
             box.classList.remove('completed');
             box.dataset.completed = false;
+            showToast('Checklist hari ini dibatalkan', 'info');
         }
 
         // Refresh stats silently to update percentages
+        renderTodos();
+        renderStickySummary();
         loadStats();
     } catch (err) {
         console.error(err);
@@ -299,14 +396,14 @@ window.handleDayClick = async (box) => {
 };
 
 window.deleteTodo = async (id) => {
-    if (!confirm('Delete this habit? This cannot be undone.')) return;
+    if (!confirm('Hapus kebiasaan ini? Aksi ini tidak bisa dibatalkan.')) return;
 
     try {
         await del(`/monthly?id=${id}`);
         loadAll();
     } catch (err) {
         console.error(err);
-        alert('Failed to delete');
+        showToast('Gagal menghapus kebiasaan', 'error');
     }
 };
 

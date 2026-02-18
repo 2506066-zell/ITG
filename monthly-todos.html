@@ -11,7 +11,7 @@
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <script src="js/perf-mode.js"></script>
-  <title>NZ • Monthly</title>
+  <title>NZ • Kebiasaan Bulanan</title>
   <style>
     /* Monthly Page Specific CSS */
     body {
@@ -323,6 +323,190 @@
       color: var(--text);
       border-color: var(--primary)
     }
+
+    .sticky-summary {
+      position: sticky;
+      top: 0;
+      z-index: 15;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(135deg, rgba(18, 26, 48, 0.92), rgba(10, 16, 34, 0.9));
+      backdrop-filter: blur(10px);
+    }
+
+    .summary-item {
+      padding: 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      text-align: center;
+    }
+
+    .summary-label {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .summary-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .todo-card {
+      padding: 12px 14px;
+      border-radius: 14px;
+    }
+
+    .todo-header {
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .todo-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .habit-chip {
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      letter-spacing: .04em;
+      font-weight: 700;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+    }
+
+    .habit-chip.streak {
+      border-color: rgba(74, 222, 128, 0.4);
+      color: #8ef3bb;
+      background: rgba(74, 222, 128, 0.13);
+    }
+
+    .habit-chip.progress {
+      border-color: rgba(77, 163, 255, 0.42);
+      color: #a8d3ff;
+      background: rgba(77, 163, 255, 0.13);
+    }
+
+    .habit-progress-rail {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      margin-bottom: 8px;
+      position: relative;
+    }
+
+    .habit-progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #64b5ff, #8b9cff);
+      box-shadow: 0 0 12px rgba(100, 181, 255, 0.5);
+      transition: width .35s ease;
+    }
+
+    .day-scroller {
+      gap: 3px;
+      padding-bottom: 2px;
+    }
+
+    .day-box {
+      flex: 0 0 23px;
+      height: 23px;
+      border-radius: 6px;
+      font-size: 10px;
+      border-color: rgba(255, 255, 255, 0.14);
+      color: rgba(222, 235, 255, 0.75);
+    }
+
+    .day-box.disabled {
+      opacity: .5;
+    }
+
+    .day-box.today {
+      border-color: rgba(255, 218, 122, 0.95);
+      color: #ffe39f;
+      background: rgba(255, 218, 122, 0.08);
+    }
+
+    .day-box.completed {
+      background: linear-gradient(135deg, rgba(86, 180, 255, 0.92), rgba(129, 143, 255, 0.95));
+      border-color: rgba(159, 197, 255, 0.95);
+      color: #fff;
+    }
+
+    .day-box.pulse-ok {
+      animation: day-pulse-ok .45s cubic-bezier(.2, .9, .2, 1);
+    }
+
+    .todo-card.streak-pop .habit-chip.streak {
+      animation: streak-pop .45s cubic-bezier(.2, .9, .2, 1);
+    }
+
+    .todo-card.progress-bump .habit-progress-fill {
+      filter: brightness(1.14);
+    }
+
+    @keyframes day-pulse-ok {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.12); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes streak-pop {
+      0% { transform: scale(1); }
+      55% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+
+    body.no-anim .day-box.pulse-ok,
+    html.perf-lite .day-box.pulse-ok,
+    body.no-anim .todo-card.streak-pop .habit-chip.streak,
+    html.perf-lite .todo-card.streak-pop .habit-chip.streak {
+      animation: none !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .day-box.pulse-ok,
+      .todo-card.streak-pop .habit-chip.streak {
+        animation: none !important;
+      }
+
+      .habit-progress-fill {
+        transition: none !important;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .content-area {
+        padding: 12px 14px 94px;
+      }
+
+      .sticky-summary {
+        padding: 8px;
+      }
+
+      .summary-value {
+        font-size: 13px;
+      }
+    }
   </style>
   <link rel="stylesheet" href="css/v3-polish.css">
 </head>
@@ -333,7 +517,7 @@
     <!-- HEADER -->
     <header class="monthly-header">
       <div class="header-controls">
-        <a href="/" style="color:var(--text)"><i class="fa-solid fa-arrow-left"></i> Back</a>
+        <a href="/" style="color:var(--text)"><i class="fa-solid fa-arrow-left"></i> Kembali</a>
         <input type="month" id="month-picker" class="month-selector">
       </div>
 
@@ -345,36 +529,51 @@
 
     <!-- CONTENT -->
     <div class="content-area">
+      <div class="sticky-summary" id="monthly-sticky-summary">
+        <div class="summary-item">
+          <span class="summary-label">Konsistensi</span>
+          <span class="summary-value" id="summary-rate">0%</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Streak Aktif</span>
+          <span class="summary-value" id="summary-streak">0 hari</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Total Ceklis</span>
+          <span class="summary-value" id="summary-total">0</span>
+        </div>
+      </div>
+
       <div id="todo-list" class="todo-grid">
         <!-- Injected JS -->
       </div>
 
       <!-- ANALYTICS -->
       <div class="analytics-section" id="analytics">
-        <div class="section-title" style="font-size:16px;margin-bottom:16px">Monthly Consistency</div>
+        <div class="section-title" style="font-size:16px;margin-bottom:16px">Konsistensi Bulanan</div>
 
         <div style="margin-bottom:20px">
           <div style="font-weight:600;margin-bottom:8px;color:var(--primary)">Zaldy</div>
-          <div class="stat-row"><span class="stat-label">Completion Rate</span><span class="stat-val"
+          <div class="stat-row"><span class="stat-label">Rasio Selesai</span><span class="stat-val"
               id="stat-z-rate">0%</span></div>
-          <div class="stat-row"><span class="stat-label">Longest Streak</span><span class="stat-val"
-              id="stat-z-streak">0 days</span></div>
-          <div class="stat-row"><span class="stat-label">Total Days</span><span class="stat-val"
+          <div class="stat-row"><span class="stat-label">Streak Terpanjang</span><span class="stat-val"
+              id="stat-z-streak">0 hari</span></div>
+          <div class="stat-row"><span class="stat-label">Total Hari</span><span class="stat-val"
               id="stat-z-total">0</span></div>
         </div>
 
         <div style="margin-bottom:20px">
           <div style="font-weight:600;margin-bottom:8px;color:var(--secondary)">Nesya</div>
-          <div class="stat-row"><span class="stat-label">Completion Rate</span><span class="stat-val"
+          <div class="stat-row"><span class="stat-label">Rasio Selesai</span><span class="stat-val"
               id="stat-n-rate">0%</span></div>
-          <div class="stat-row"><span class="stat-label">Longest Streak</span><span class="stat-val"
-              id="stat-n-streak">0 days</span></div>
-          <div class="stat-row"><span class="stat-label">Total Days</span><span class="stat-val"
+          <div class="stat-row"><span class="stat-label">Streak Terpanjang</span><span class="stat-val"
+              id="stat-n-streak">0 hari</span></div>
+          <div class="stat-row"><span class="stat-label">Total Hari</span><span class="stat-val"
               id="stat-n-total">0</span></div>
         </div>
 
         <div style="padding:12px;background:rgba(255,255,255,0.05);border-radius:8px;text-align:center">
-          <div class="stat-label" style="margin-bottom:4px">Couple Average</div>
+          <div class="stat-label" style="margin-bottom:4px">Rata-rata Pasangan</div>
           <div class="stat-val" style="font-size:18px;color:var(--success)" id="stat-combined">0%</div>
         </div>
       </div>
@@ -389,12 +588,12 @@
   <!-- MODAL -->
   <div class="modal-overlay" id="modal-overlay">
     <div class="modal">
-      <h3 style="margin-top:0">New Monthly Habit</h3>
+      <h3 style="margin-top:0">Buat Kebiasaan Bulanan</h3>
       <form id="create-form">
-        <input type="text" name="title" class="input" placeholder="e.g. Workout, Read Book" required autocomplete="off">
+        <input type="text" name="title" class="input" placeholder="Contoh: Olahraga, Baca Buku" required autocomplete="off">
         <div style="display:flex;gap:12px;margin-top:16px">
-          <button type="button" class="btn secondary" style="flex:1" id="modal-cancel">Cancel</button>
-          <button type="submit" class="btn" style="flex:1">Create</button>
+          <button type="button" class="btn secondary" style="flex:1" id="modal-cancel">Batal</button>
+          <button type="submit" class="btn" style="flex:1">Buat</button>
         </div>
       </form>
     </div>
@@ -435,23 +634,23 @@
   <nav class="bottom-nav">
     <a href="/" class="nav-item">
       <i class="fa-solid fa-house-chimney"></i>
-      <span>Home</span>
+      <span>Beranda</span>
     </a>
     <a href="/daily-tasks" class="nav-item">
       <i class="fa-solid fa-list-check"></i>
-      <span>Tasks</span>
+      <span>Tugas</span>
     </a>
     <a href="/goals" class="nav-item">
       <i class="fa-solid fa-bullseye"></i>
-      <span>Goals</span>
+      <span>Tujuan</span>
     </a>
     <a href="/chat" class="nav-item">
       <i class="fa-solid fa-message-heart"></i>
-      <span>Chat</span>
+      <span>Obrolan</span>
     </a>
     <a href="/settings" class="nav-item">
       <i class="fa-solid fa-gear"></i>
-      <span>Settings</span>
+      <span>Pengaturan</span>
     </a>
   </nav>
 

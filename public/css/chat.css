@@ -463,3 +463,114 @@
         padding: 3px 8px;
     }
 }
+
+/* Mobile full-screen chat (WhatsApp-like) */
+@media (max-width: 768px) {
+    body.chat-page {
+        overflow: hidden;
+    }
+
+    .chat-page .navbar {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+    }
+
+    .chat-page .container.chat-container {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        height: calc(100dvh - 64px - 76px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    }
+
+    .chat-page .chat-card {
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+        border-bottom: 0;
+        box-shadow: none;
+        background: linear-gradient(180deg, hsla(var(--space-900), 0.72), hsla(var(--space-950), 0.9));
+    }
+
+    .chat-page .chat-messages {
+        padding: 12px;
+        gap: 10px;
+        mask-image: none;
+    }
+
+    .chat-page .chat-msg {
+        max-width: 86%;
+    }
+
+    .chat-page .bubble-content {
+        font-size: 0.9rem;
+        line-height: 1.4;
+        padding: 10px 12px;
+    }
+
+    .chat-page .assistant-command-bar {
+        padding: 8px 10px 6px;
+        gap: 6px;
+    }
+
+    .chat-page .assistant-command-title {
+        display: none;
+    }
+
+    .chat-page .assistant-command-head {
+        justify-content: flex-end;
+    }
+
+    .chat-page .assistant-mode-switches {
+        gap: 8px;
+    }
+
+    .chat-page .assistant-mode-label {
+        font-size: 10px;
+    }
+
+    .chat-page .assistant-suggestions {
+        gap: 6px;
+    }
+
+    .chat-page .assistant-suggestion-chip {
+        font-size: 11px;
+        padding: 6px 10px;
+    }
+
+    .chat-page .chat-input {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        gap: 8px;
+        padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+        background: hsla(var(--space-950), 0.95);
+        backdrop-filter: blur(12px);
+    }
+
+    .chat-page .chat-input-main {
+        min-height: 44px;
+        border-radius: 18px;
+        padding: 4px 6px;
+    }
+
+    .chat-page .assistant-mode-indicator {
+        padding: 4px 8px;
+        font-size: 9px;
+    }
+
+    .chat-page .chat-input .chat-input-main .input {
+        padding: 7px 8px !important;
+        font-size: 15px;
+    }
+
+    .chat-page .chat-input .btn {
+        width: 42px;
+        height: 42px;
+    }
+
+    .chat-page .footer {
+        display: none;
+    }
+}

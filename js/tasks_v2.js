@@ -11,6 +11,8 @@ let isMultiSelectMode = false;
 let touchStartX = 0;
 let touchStartY = 0;
 let activeSwipeEl = null;
+const OWNER_STORAGE_KEY = 'ownership_active_user';
+let activeOwner = 'Zaldy';
 
 // DOM Elements
 const taskListEl = document.getElementById('task-list');
@@ -26,10 +28,59 @@ const moodGrid = document.getElementById('mood-grid');
 const moodValueEl = document.getElementById('mood-value');
 const moodNoteEl = document.getElementById('mood-note');
 
+function normalizeOwner(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (v === 'zaldy') return 'Zaldy';
+  if (v === 'nesya') return 'Nesya';
+  return '';
+}
+
+function getDefaultOwner() {
+  const stored = normalizeOwner(localStorage.getItem(OWNER_STORAGE_KEY));
+  if (stored) return stored;
+  const user = normalizeOwner(localStorage.getItem('user'));
+  return user || 'Zaldy';
+}
+
+function getTaskOwner(task) {
+  return normalizeOwner(task?.assigned_to);
+}
+
+function isOwnedByActiveUser(task) {
+  return getTaskOwner(task) === activeOwner;
+}
+
+function applyDefaultOwnerToForm() {
+  const select = document.getElementById('task-assigned');
+  if (select) select.value = activeOwner;
+}
+
+function updateOwnerTabs() {
+  document.querySelectorAll('.owner-tab[data-owner]').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.owner === activeOwner);
+  });
+}
+
+function setActiveOwner(owner, opts = {}) {
+  const normalized = normalizeOwner(owner) || 'Zaldy';
+  const persist = opts.persist !== false;
+  const rerender = opts.rerender !== false;
+  activeOwner = normalized;
+  if (persist) localStorage.setItem(OWNER_STORAGE_KEY, activeOwner);
+  updateOwnerTabs();
+  applyDefaultOwnerToForm();
+  if (rerender) {
+    render();
+    updateHeaderStats();
+  }
+}
+
 // Init
 async function init() {
   initProtected();
+  activeOwner = getDefaultOwner();
   setupEventListeners();
+  setActiveOwner(activeOwner, { persist: false, rerender: false });
   await Promise.all([loadTasks(), fetchGoals()]);
   setupMoodEvents();
 }
@@ -65,93 +116,34 @@ async function loadTasks() {
     updateHeaderStats();
   } catch (err) {
     console.error(err);
-    taskListEl.innerHTML = '<div class="empty-state">Failed to load tasks. <br><button class="btn small mt-2" onclick="location.reload()">Retry</button></div>';
+    taskListEl.innerHTML = '<div class="empty-state">Gagal memuat tugas. <br><button class="btn small mt-2" onclick="location.reload()">Coba lagi</button></div>';
   }
 }
 
 // Render Logic
 function render() {
   taskListEl.innerHTML = '';
-  const filtered = filterTasks(tasks);
+  const filtered = filterTasks(tasks).filter(isOwnedByActiveUser);
   const sorted = sortTasks(filtered);
 
   if (sorted.length === 0) {
     taskListEl.innerHTML = `
       <div class="empty-state">
         <i class="fa-solid fa-clipboard-check empty-icon"></i>
-        <div>No tasks found</div>
-        <div style="font-size:12px;opacity:0.5;margin-top:4px">Tap + to add one</div>
+        <div>Belum ada tugas milik ${activeOwner}</div>
+        <div style="font-size:12px;opacity:0.5;margin-top:4px">Tap + untuk menambah tugas</div>
       </div>
     `;
     return;
   }
-
-  // Split by User
-  // For 'today' and 'upcoming' filter, we split.
-  // For 'completed', maybe just one list or split too? Let's split for consistency.
-
-  const users = ['Nesya', 'Zaldy'];
-  const grouped = { Nesya: [], Zaldy: [], Other: [] };
-
-  // Custom sorting for grouped items
-  const processList = (list) => {
-    // Sort within group
-    return sortTasks(list);
-  };
-
-  sorted.forEach(task => {
-    const assignee = task.assigned_to || 'Other';
-    if (users.includes(assignee)) {
-      grouped[assignee].push(task);
-    } else {
-      grouped.Other.push(task);
-    }
-  });
-
-  const createSection = (title, taskList) => {
-    if (taskList.length === 0) return document.createDocumentFragment();
-
-    const sec = document.createElement('div');
-    sec.className = 'task-section';
-    sec.style.marginBottom = '24px';
-
-    const head = document.createElement('div');
-    head.className = 'section-header';
-    head.style.padding = '0 16px 8px';
-    head.style.fontSize = '12px';
-    head.style.fontWeight = '700';
-    head.style.color = 'var(--text-muted)';
-    head.style.textTransform = 'uppercase';
-    head.style.letterSpacing = '1px';
-    head.style.display = 'flex';
-    head.style.alignItems = 'center';
-    head.style.gap = '8px';
-
-    // Avatar/Icon for section
-    const icon = title === 'Nesya' ? '<i class="fa-solid fa-venus" style="color:#ff69b4"></i>' :
-      (title === 'Zaldy' ? '<i class="fa-solid fa-mars" style="color:#00bfff"></i>' : '<i class="fa-solid fa-users"></i>');
-
-    head.innerHTML = `${icon} ${title} <span style="font-size:10px;opacity:0.7;margin-left:auto">${taskList.length}</span>`;
-
-    sec.appendChild(head);
-
-    taskList.forEach(task => {
-      sec.appendChild(createTaskEl(task));
-    });
-
-    return sec;
-  };
-
-  taskListEl.appendChild(createSection('Nesya', grouped.Nesya));
-  taskListEl.appendChild(createSection('Zaldy', grouped.Zaldy));
-  if (grouped.Other.length > 0) {
-    taskListEl.appendChild(createSection('Others', grouped.Other));
-  }
+  sorted.forEach(task => taskListEl.appendChild(createTaskEl(task)));
 }
 
 function createTaskEl(task) {
+  const owner = getTaskOwner(task) || 'Other';
+  const ownerClass = owner ? `owner-${owner.toLowerCase()}` : '';
   const el = document.createElement('div');
-  el.className = `task-item ${task.completed ? 'completed' : ''}`;
+  el.className = `task-item ${task.completed ? 'completed' : ''} ${ownerClass}`.trim();
   el.dataset.id = task.id;
 
   // Swipe Backgrounds
@@ -200,10 +192,21 @@ function createTaskEl(task) {
   const info = document.createElement('div');
   info.className = 'task-content';
 
+  const titleWrap = document.createElement('div');
+  titleWrap.style.display = 'flex';
+  titleWrap.style.alignItems = 'center';
+  titleWrap.style.gap = '8px';
+
   const title = document.createElement('div');
   title.className = 'task-title';
   title.textContent = task.title;
-  info.appendChild(title);
+  titleWrap.appendChild(title);
+
+  const ownerChip = document.createElement('span');
+  ownerChip.className = `task-owner-chip ${owner ? `owner-${owner.toLowerCase()}` : ''}`.trim();
+  ownerChip.textContent = owner || 'OTHER';
+  titleWrap.appendChild(ownerChip);
+  info.appendChild(titleWrap);
 
   const meta = document.createElement('div');
   meta.className = 'task-meta';
@@ -236,7 +239,7 @@ function createTaskEl(task) {
     }
 
     const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const dateStr = isToday ? 'Today' : d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+    const dateStr = isToday ? 'Hari ini' : d.toLocaleDateString([], { day: 'numeric', month: 'short' });
 
     const deadlineSpan = document.createElement('span');
     deadlineSpan.className = 'deadline-text';
@@ -355,7 +358,7 @@ function setupInteractions(el, task) {
         toggleComplete(task);
       } else {
         // Left Swipe -> Delete
-        if (confirm('Delete task?')) deleteTask(task.id);
+        if (confirm('Hapus tugas ini?')) deleteTask(task.id);
       }
       // Reset anim
       content.style.transition = 'transform 0.2s';
@@ -415,8 +418,9 @@ function sortTasks(list) {
 }
 
 function updateHeaderStats() {
-  const completed = tasks.filter(t => t.completed).length;
-  const total = tasks.length;
+  const scoped = tasks.filter(isOwnedByActiveUser);
+  const completed = scoped.filter(t => t.completed).length;
+  const total = scoped.length;
   const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
 
   document.getElementById('completed-count').textContent = completed;
@@ -434,7 +438,7 @@ async function toggleComplete(task) {
 
   try {
     await put('/tasks', { id: task.id, completed: task.completed, version: task.version });
-    showToast(task.completed ? 'Task completed' : 'Task reopened', 'success');
+    showToast(task.completed ? 'Tugas selesai' : 'Tugas dibuka lagi', 'success');
     loadTasks(); // Sync version
     if (task.completed) {
       openMoodPrompt(`Selesai tugas: ${task.title}`);
@@ -443,7 +447,7 @@ async function toggleComplete(task) {
     // Revert
     task.completed = !task.completed;
     render();
-    showToast('Failed to update', 'error');
+    showToast('Gagal memperbarui tugas', 'error');
   }
 }
 
@@ -455,10 +459,10 @@ async function deleteTask(id) {
 
   try {
     await del(`/tasks?id=${id}`);
-    showToast('Task deleted');
+    showToast('Tugas dihapus');
   } catch (e) {
     loadTasks();
-    showToast('Failed to delete', 'error');
+    showToast('Gagal menghapus tugas', 'error');
   }
 }
 
@@ -500,7 +504,7 @@ function updateMultiToolbar() {
 // Bottom Sheet
 function openSheet(task = null) {
   const isEdit = !!task;
-  document.getElementById('sheet-title').textContent = isEdit ? 'Edit Task' : 'New Task';
+  document.getElementById('sheet-title').textContent = isEdit ? 'Ubah Tugas' : 'Buat Tugas';
 
   // Reset Form
   taskForm.reset();
@@ -523,6 +527,7 @@ function openSheet(task = null) {
   } else {
     document.getElementById('task-id').value = '';
     document.getElementById('task-goal').value = '';
+    document.getElementById('task-assigned').value = activeOwner;
     document.querySelector('.prio-btn[data-val="medium"]').classList.add('active');
 
     const snoozeSection = document.getElementById('snooze-section');
@@ -629,7 +634,7 @@ function setupEventListeners() {
   // Sort Trigger
   document.getElementById('sort-trigger')?.addEventListener('click', () => {
     currentSort = currentSort === 'deadline' ? 'priority' : 'deadline';
-    showToast(`Sorted by ${currentSort}`, 'info');
+    showToast(`Diurutkan berdasarkan ${currentSort === 'deadline' ? 'deadline' : 'prioritas'}`, 'info');
     render();
   });
 
@@ -638,7 +643,7 @@ function setupEventListeners() {
     btn.addEventListener('click', async () => {
       let mins = btn.dataset.min;
       if (mins === 'custom') {
-        const input = prompt('Snooze for how many minutes?', '60');
+        const input = prompt('Tunda berapa menit?', '60');
         mins = parseInt(input);
       } else {
         mins = parseInt(mins);
@@ -649,11 +654,11 @@ function setupEventListeners() {
 
       try {
         await post('/tasks/snooze', { taskId: id, snoozeMinutes: mins });
-        showToast(`Task snoozed for ${mins} mins`, 'success');
+        showToast(`Tugas ditunda ${mins} menit`, 'success');
         closeSheet();
         loadTasks();
       } catch (err) {
-        showToast('Failed to snooze', 'error');
+        showToast('Gagal menunda tugas', 'error');
       }
     });
   });
@@ -691,6 +696,7 @@ function setupEventListeners() {
     e.preventDefault();
     const fd = new FormData(taskForm);
     const data = Object.fromEntries(fd.entries());
+    if (!data.assigned_to) data.assigned_to = activeOwner;
 
     const isEdit = !!data.id;
     const method = isEdit ? put : post;
@@ -698,23 +704,23 @@ function setupEventListeners() {
     try {
       await method('/tasks', data);
       closeSheet();
-      showToast(isEdit ? 'Task updated' : 'Task created', 'success');
+      showToast(isEdit ? 'Tugas diperbarui' : 'Tugas dibuat', 'success');
       loadTasks();
     } catch (err) {
-      showToast('Error saving task', 'error');
+      showToast('Gagal menyimpan tugas', 'error');
     }
   });
 
   // Multi Actions
   document.getElementById('bulk-delete').addEventListener('click', async () => {
-    if (!confirm(`Delete ${selectedIds.size} tasks?`)) return;
+    if (!confirm(`Hapus ${selectedIds.size} tugas?`)) return;
     // In real app, bulk API. Here loop.
     for (const id of selectedIds) {
       await del(`/tasks?id=${id}`);
     }
     exitMultiSelectMode();
     loadTasks();
-    showToast('Tasks deleted');
+    showToast('Tugas berhasil dihapus');
   });
 
   document.getElementById('bulk-complete').addEventListener('click', async () => {
@@ -727,7 +733,7 @@ function setupEventListeners() {
     }
     exitMultiSelectMode();
     loadTasks();
-    showToast('Tasks completed');
+    showToast('Tugas dipindahkan ke selesai');
     openMoodPrompt('Selesai beberapa tugas');
   });
 
@@ -740,11 +746,10 @@ function setupEventListeners() {
     if (!title) return;
 
     // Smart Defaults
-    const user = localStorage.getItem('user') || 'Zaldy';
     const data = {
       title: title,
       priority: 'medium',
-      assigned_to: user,
+      assigned_to: activeOwner,
       completed: false
     };
 
@@ -776,6 +781,12 @@ function setupEventListeners() {
   });
 
   quickBtn?.addEventListener('click', submitQuickTask);
+
+  document.querySelectorAll('.owner-tab[data-owner]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      setActiveOwner(tab.dataset.owner);
+    });
+  });
 }
 
 function renderSkeleton() {

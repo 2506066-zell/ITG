@@ -316,6 +316,7 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
   font-size: 0.82rem;
   line-height: 1.42;
   color: hsl(var(--text-100));
+  white-space: pre-line;
 }
 
 .zai-floating-actions {
@@ -336,6 +337,39 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
 .zai-floating-widget.is-urgent .zai-floating-icon {
   color: hsl(var(--danger));
   background: hsla(var(--danger), 0.18);
+}
+
+.zai-floating-widget[data-tone='critical'] .zai-floating-trigger {
+  border-color: hsla(var(--danger), 0.84);
+  background: linear-gradient(145deg, hsla(var(--danger), 0.34), hsla(var(--space-900), 0.94));
+}
+
+.zai-floating-widget[data-tone='critical'] .zai-floating-panel {
+  border-color: hsla(var(--danger), 0.72);
+  background: linear-gradient(150deg, hsla(var(--danger), 0.24), hsla(var(--space-900), 0.94));
+}
+
+.zai-floating-widget[data-tone='critical'] .zai-floating-tone {
+  color: hsl(var(--danger));
+}
+
+.zai-floating-widget[data-tone='success'] .zai-floating-trigger {
+  border-color: hsla(var(--success), 0.68);
+  background: linear-gradient(145deg, hsla(var(--success), 0.2), hsla(var(--space-900), 0.94));
+}
+
+.zai-floating-widget[data-tone='success'] .zai-floating-panel {
+  border-color: hsla(var(--success), 0.56);
+  background: linear-gradient(150deg, hsla(var(--success), 0.16), hsla(var(--space-900), 0.92));
+}
+
+.zai-floating-widget[data-tone='success'] .zai-floating-icon {
+  color: hsl(var(--success));
+  background: hsla(var(--success), 0.2);
+}
+
+.zai-floating-widget[data-tone='success'] .zai-floating-tone {
+  color: hsl(var(--success));
 }
 
 body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {

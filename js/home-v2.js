@@ -494,38 +494,109 @@ function dedupeFeedCandidates(candidates = []) {
 }
 
 function buildAssistantFeedCandidates() {
-  const candidates = [];
-  const proactiveItems = state.proactive && Array.isArray(state.proactive.items) ? state.proactive.items : [];
-  proactiveItems.slice(0, 12).forEach((item) => {
-    candidates.push(buildCandidateFromProactive(item));
-  });
+  const pendingAssignments = (state.assignments || []).filter((a) => !a.completed);
+  const pendingTasks = (state.tasks || []).filter((t) => !t.completed && !t.is_deleted);
+  const missionItems = collectMissionItems();
+  const top = missionItems[0] || null;
 
-  if (state.assistant && state.assistant.reply) {
-    const chips = buildAssistantEvidenceChips(state.assistant);
-    const command = chips.find((c) => c.command)?.command || 'ringkasan hari ini';
-    const candidate = {
-      id: 'assistant-summary',
-      family: 'assistant',
+  if (!top) {
+    return [{
+      id: 'calm',
+      family: 'general',
       horizon: 'none',
       domain: 'general',
       severity: 'info',
       risk_score: 0,
       overdue: false,
-      action: clampText(String(state.assistant.reply || '').split(/\n+/)[0] || 'Ringkasan harian siap.', 86),
-      context: 'Buka chat untuk detail reasoning.',
-      chips,
-      command,
-      tag: familyTag('assistant'),
+      action: 'Semua aman. Lanjutkan progres harianmu pelan tapi konsisten.',
+      context: 'Tidak ada item yang mepet sekarang.',
+      chips: [{ label: 'Lihat ringkasan', tone: 'success', command: 'ringkasan hari ini' }],
+      command: 'ringkasan hari ini',
+      tag: 'Mode Tenang',
       at: null,
-    };
-    candidate.score = baseScoreForCandidate(candidate);
-    candidates.push(candidate);
+      score: 1,
+    }];
   }
 
-  const deduped = dedupeFeedCandidates(candidates);
-  if (deduped.length > 0) return deduped;
+  const assignmentCount = pendingAssignments.length;
+  const taskCount = pendingTasks.length;
+  const dueHint = top.badge === 'Terlambat'
+    ? 'sudah lewat deadline'
+    : `paling mepet (${top.badge})`;
+  const title = clampText(top.title || 'tanpa judul', 34);
+  const command = top.type === 'Tugas Kuliah' ? 'tugas kuliah pending saya apa' : 'tugas paling mendesak saya apa';
 
-  return [{
+  let action = '';
+  if (assignmentCount === 0) {
+    action = 'kamu tidak memiliki tugas kuliah, cik cek LMS';
+  } else if (assignmentCount > 0) {
+    action = `Kamu punya ${assignmentCount} tugas kuliah. Kerjakan "${title}" dulu karena ${dueHint}.`;
+  } else if (taskCount > 0) {
+    action = `Kamu punya ${taskCount} tugas. Kerjakan "${title}" dulu karena ${dueHint}.`;
+  } else {
+    action = `Kerjakan "${title}" dulu karena ${dueHint}.`;
+  }
+
+  const mainCandidate = {
+    id: 'ultra-compact-main',
+    family: 'assistant',
+    horizon: 'none',
+    domain: top.type === 'Tugas Kuliah' ? 'assignment' : 'task',
+    severity: top.urgency === 'critical' ? 'critical' : (top.urgency === 'warning' ? 'high' : 'info'),
+    risk_score: 0,
+    overdue: top.badge === 'Terlambat',
+    action: clampText(action, 90),
+    context: 'Fokus 25 menit sekarang, lalu cek item berikutnya.',
+    chips: [{ label: 'Buka aksi', tone: top.urgency === 'critical' ? 'critical' : 'warning', command }],
+    command,
+    tag: 'Ringkasan Z AI',
+    at: null,
+    score: top.urgency === 'critical' ? 120 : 90,
+  };
+
+  const extra = [];
+  if (assignmentCount > 1 && top.type !== 'Tugas Kuliah') {
+    extra.push({
+      id: 'assignment-focus',
+      family: 'assistant',
+      horizon: 'none',
+      domain: 'assignment',
+      severity: 'high',
+      risk_score: 0,
+      overdue: false,
+      action: `Masih ada ${assignmentCount} tugas kuliah aktif.`,
+      context: 'Cek urutan deadline tugas kuliah setelah sesi ini.',
+      chips: [{ label: 'Cek kuliah', tone: 'warning', command: 'tugas kuliah pending saya apa' }],
+      command: 'tugas kuliah pending saya apa',
+      tag: 'Tugas Kuliah',
+      at: null,
+      score: 70,
+    });
+  }
+  if (taskCount > 1 && top.type !== 'Tugas') {
+    extra.push({
+      id: 'task-focus',
+      family: 'assistant',
+      horizon: 'none',
+      domain: 'task',
+      severity: 'warning',
+      risk_score: 0,
+      overdue: false,
+      action: `Masih ada ${taskCount} tugas harian aktif.`,
+      context: 'Selesaikan 1 quick win setelah fokus utama.',
+      chips: [{ label: 'Cek tugas', tone: 'info', command: 'tugas pending saya apa' }],
+      command: 'tugas pending saya apa',
+      tag: 'Tugas Harian',
+      at: null,
+      score: 60,
+    });
+  }
+
+  return [mainCandidate, ...extra].slice(0, 3);
+}
+
+function fallbackFeedCandidate() {
+  return {
     id: 'calm',
     family: 'general',
     horizon: 'none',
@@ -540,7 +611,7 @@ function buildAssistantFeedCandidates() {
     tag: 'Mode Tenang',
     at: null,
     score: 1,
-  }];
+  };
 }
 
 function safeJsonParse(text, fallback = null) {
@@ -724,6 +795,50 @@ function todayClassItems() {
     .sort((a, b) => String(a?.time_start || '').localeCompare(String(b?.time_start || '')));
 }
 
+function tomorrowClassItems() {
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const dayId = tomorrowDayIdFromDate(tomorrow);
+  const rows = Array.isArray(state.schedule) ? state.schedule : [];
+  return rows
+    .filter((row) => Number(row?.day_id || 0) === dayId)
+    .sort((a, b) => String(a?.time_start || '').localeCompare(String(b?.time_start || '')));
+}
+
+function tomorrowDayIdFromDate(d) {
+  const raw = d.getDay();
+  return raw === 0 ? 7 : raw;
+}
+
+function toMinutesFromHm(value = '') {
+  const m = String(value || '').match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return Number.POSITIVE_INFINITY;
+  return (Number(m[1]) * 60) + Number(m[2]);
+}
+
+function nextClassToday() {
+  const now = new Date();
+  const nowMin = (now.getHours() * 60) + now.getMinutes();
+  const rows = todayClassItems();
+  return rows.find((row) => toMinutesFromHm(row?.time_start) >= nowMin) || null;
+}
+
+function upcomingCollegeAssignment24h() {
+  const pending = (state.assignments || []).filter((a) => !a.completed && a.deadline);
+  const nowMs = Date.now();
+  const candidates = pending
+    .map((a) => {
+      const dueMs = new Date(a.deadline).getTime();
+      if (!Number.isFinite(dueMs)) return null;
+      return { ...a, dueMs, diffH: (dueMs - nowMs) / 3600000 };
+    })
+    .filter(Boolean)
+    .filter((a) => a.diffH <= 24);
+  candidates.sort((a, b) => a.dueMs - b.dueMs);
+  return candidates[0] || null;
+}
+
 function reminderCandidate(items = []) {
   return items.find((item) => item && (item.urgency === 'critical' || item.urgency === 'warning')) || null;
 }
@@ -847,10 +962,79 @@ function buildZaIFloatingMessage() {
   const user = localStorage.getItem('user') || 'Kamu';
   const missionItems = collectMissionItems();
   const urgent = reminderCandidate(missionItems);
+  const urgentCollege = upcomingCollegeAssignment24h();
+  const pendingAssignments = (state.assignments || []).filter((a) => !a.completed);
   const classesToday = todayClassItems();
+  const nextTodayClass = nextClassToday();
+  const classesTomorrow = tomorrowClassItems();
   const proactiveSignals = state.proactive && state.proactive.signals ? state.proactive.signals : {};
   const overdueCount = Number(proactiveSignals.overdue_count || 0);
   const predictiveCritical = Number(proactiveSignals.predicted_critical_count || 0);
+
+  const collegeLine = (() => {
+    if (urgentCollege) {
+      return `Tugas kuliah: "${urgentCollege.title || 'Tanpa Judul'}" deadline ${hoursLeftLabel(urgentCollege.dueMs)}.`;
+    }
+    if (pendingAssignments.length > 0) {
+      return `Tugas kuliah: ${pendingAssignments.length} aktif, belum ada yang mepet 24 jam.`;
+    }
+    return 'Tugas kuliah: kamu tidak memiliki tugas kuliah aktif.';
+  })();
+
+  const scheduleLine = (() => {
+    if (nextTodayClass) {
+      const start = asHmLabel(nextTodayClass.time_start);
+      const subject = String(nextTodayClass.subject || 'kuliah').trim();
+      const room = String(nextTodayClass.room || '').trim();
+      const roomText = room ? ` di ruangan ${room}` : '';
+      return `Jadwal kuliah: selanjutnya ${subject} jam ${start}${roomText}.`;
+    }
+    if (classesTomorrow.length > 0) {
+      const first = classesTomorrow[0];
+      const start = asHmLabel(first.time_start);
+      const subject = String(first.subject || 'kuliah').trim();
+      const room = String(first.room || '').trim();
+      const roomText = room ? ` di ruangan ${room}` : '';
+      return `Jadwal kuliah: besok ada ${subject} jam ${start}${roomText}.`;
+    }
+    return 'Jadwal kuliah: tidak ada jadwal terdekat.';
+  })();
+
+  if (urgentCollege) {
+    return {
+      tone: 'critical',
+      title: 'Pengingat Deadline Z AI',
+      message: `Hai ${user},\n${collegeLine}\n${scheduleLine}`,
+      primary: {
+        label: 'Buka Tugas Kuliah',
+        route: '/college-assignments',
+      },
+      secondary: { label: 'Buka Jadwal', route: '/schedule' },
+      pulse: true,
+    };
+  }
+
+  if (nextTodayClass) {
+    return {
+      tone: 'success',
+      title: 'Jadwal Selanjutnya Z AI',
+      message: `Hai ${user},\n${collegeLine}\n${scheduleLine}`,
+      primary: { label: 'Buka Jadwal', route: '/schedule' },
+      secondary: { label: 'Buka Tugas Kuliah', route: '/college-assignments' },
+      pulse: false,
+    };
+  }
+
+  if (classesTomorrow.length > 0) {
+    return {
+      tone: 'success',
+      title: 'Brief Kampus Z AI',
+      message: `Hai ${user},\n${collegeLine}\n${scheduleLine}`,
+      primary: { label: 'Buka Jadwal', route: '/schedule' },
+      secondary: { label: 'Buka Tugas Kuliah', route: '/college-assignments' },
+      pulse: false,
+    };
+  }
 
   if (urgent) {
     const danger = urgent.badge === 'Terlambat'
@@ -1065,13 +1249,8 @@ function renderAssistantFeedDesktop(container, items) {
 }
 
 function renderAssistantFeedMobile(container, items) {
-  const primary = items[0] || null;
+  const primary = items[0] || fallbackFeedCandidate();
   const secondary = items.slice(1, 3);
-  if (!primary) {
-    container.innerHTML = '<div class="cc-empty">Feed Z AI belum tersedia.</div>';
-    return;
-  }
-
   const primaryChip = primary.chips && primary.chips.length ? primary.chips[0] : { label: 'Buka aksi', tone: 'info', command: primary.command || 'ringkasan hari ini' };
   const secondaryHtml = secondary.map((item) => {
     const chip = item.chips && item.chips.length ? item.chips[0] : { label: 'Buka aksi', tone: 'info', command: item.command || 'ringkasan hari ini' };
@@ -1112,9 +1291,7 @@ function renderAssistantFeedMobile(container, items) {
         >${escapeHtml(primaryChip.label || 'Buka aksi')}</button>
       </div>
     </article>
-    <div class="zai-feed-grid">
-      ${secondaryHtml}
-    </div>
+    ${secondary.length ? `<div class="zai-feed-grid">${secondaryHtml}</div>` : ''}
     <div class="zai-feed-footer">
       <a class="btn small secondary" href="/chat?ai=ringkasan%20hari%20ini">Lihat semua</a>
     </div>

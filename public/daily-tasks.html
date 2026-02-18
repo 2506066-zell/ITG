@@ -11,7 +11,7 @@
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <script src="js/perf-mode.js"></script>
-  <title>NZ • Tasks</title>
+  <title>NZ • Tugas Harian</title>
   <link rel="stylesheet" href="css/daily-tasks.css">
   <link rel="stylesheet" href="css/v3-polish.css">
 </head>
@@ -23,13 +23,13 @@
     <!-- HEADER -->
     <header class="task-header">
       <div class="header-top">
-        <div class="header-title">Today's Tasks</div>
+        <div class="header-title">Tugas Harian</div>
         <div class="header-actions">
           <a href="/" style="color:var(--text)"><i class="fa-solid fa-xmark"></i></a>
         </div>
       </div>
       <div class="header-stats">
-        <span id="completed-count">0</span>/<span id="total-count">0</span> Completed
+        <span id="completed-count">0</span>/<span id="total-count">0</span> Selesai
         <span style="float:right" id="percent-count">0%</span>
       </div>
       <div class="progress-bar-bg" style="margin-top:8px">
@@ -48,11 +48,16 @@
 
     <!-- STICKY FILTER -->
     <div class="filter-bar">
-      <div class="filter-chip active" data-filter="today">Today</div>
-      <div class="filter-chip" data-filter="upcoming">Upcoming</div>
-      <div class="filter-chip" data-filter="completed">Completed</div>
+      <div class="filter-chip active" data-filter="today">Hari Ini</div>
+      <div class="filter-chip" data-filter="upcoming">Mendatang</div>
+      <div class="filter-chip" data-filter="completed">Selesai</div>
       <div style="width:1px;background:rgba(255,255,255,0.1);margin:0 4px"></div>
-      <div class="filter-chip" id="sort-trigger"><i class="fa-solid fa-sort"></i> Sort</div>
+      <div class="filter-chip" id="sort-trigger"><i class="fa-solid fa-sort"></i> Urutkan</div>
+    </div>
+
+    <div class="owner-tabs" id="task-owner-tabs" aria-label="Filter pemilik tugas">
+      <button type="button" class="owner-tab active" data-owner="Zaldy">Zaldy</button>
+      <button type="button" class="owner-tab" data-owner="Nesya">Nesya</button>
     </div>
 
     <!-- TASK LIST -->
@@ -70,7 +75,7 @@
 
     <!-- MULTI SELECT TOOLBAR -->
     <div class="multi-toolbar" id="multi-toolbar">
-      <div style="font-weight:600"><span id="selected-count">0</span> Selected</div>
+      <div style="font-weight:600"><span id="selected-count">0</span> Dipilih</div>
       <div style="display:flex;gap:16px">
         <div style="cursor:pointer;color:var(--danger)" id="bulk-delete"><i class="fa-solid fa-trash"></i></div>
         <div style="cursor:pointer;color:var(--primary)" id="bulk-complete"><i class="fa-solid fa-check-double"></i>
@@ -84,14 +89,14 @@
   <div class="bottom-sheet-overlay" id="sheet-overlay">
     <div class="bottom-sheet" id="sheet">
       <div class="sheet-handle"></div>
-      <h3 style="margin:0 0 20px;font-size:18px" id="sheet-title">New Task</h3>
+      <h3 style="margin:0 0 20px;font-size:18px" id="sheet-title">Buat Tugas</h3>
 
       <form id="task-form">
         <input type="hidden" name="id" id="task-id">
 
         <div class="form-group">
-          <label class="form-label">Title</label>
-          <input type="text" name="title" id="task-title" class="form-input" placeholder="What needs to be done?"
+          <label class="form-label">Judul</label>
+          <input type="text" name="title" id="task-title" class="form-input" placeholder="Tugas apa yang mau dikerjakan?"
             required autocomplete="off">
         </div>
 
@@ -101,7 +106,7 @@
             <input type="datetime-local" name="deadline" id="task-deadline" class="form-input">
           </div>
           <div class="form-group" style="flex:1">
-            <label class="form-label">Assigned To</label>
+            <label class="form-label">Pemilik</label>
             <select name="assigned_to" id="task-assigned" class="form-input" style="appearance:none">
               <option value="Zaldy">Zaldy</option>
               <option value="Nesya">Nesya</option>
@@ -110,34 +115,34 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">Priority</label>
+          <label class="form-label">Prioritas</label>
           <div class="prio-selector">
-            <div class="prio-btn" data-val="low">Low</div>
-            <div class="prio-btn active" data-val="medium">Medium</div>
-            <div class="prio-btn" data-val="high">High</div>
+            <div class="prio-btn" data-val="low">Rendah</div>
+            <div class="prio-btn active" data-val="medium">Sedang</div>
+            <div class="prio-btn" data-val="high">Tinggi</div>
           </div>
           <input type="hidden" name="priority" id="task-priority" value="medium">
         </div>
 
         <div class="form-group" id="goal-group">
-          <label class="form-label">Link to Goal</label>
+          <label class="form-label">Hubungkan ke Tujuan</label>
           <select name="goal_id" id="task-goal" class="form-input" style="appearance:none">
-            <option value="">None</option>
+            <option value="">Tidak ada</option>
           </select>
         </div>
 
         <div id="snooze-section" style="display:none; margin-bottom: 20px;">
-          <label class="form-label">Snooze Task</label>
+          <label class="form-label">Tunda Tugas</label>
           <div class="prio-selector" style="gap:8px">
-            <button type="button" class="snooze-btn" data-min="60">1 Hour</button>
-            <button type="button" class="snooze-btn" data-min="1440">1 Day</button>
+            <button type="button" class="snooze-btn" data-min="60">1 Jam</button>
+            <button type="button" class="snooze-btn" data-min="1440">1 Hari</button>
             <button type="button" class="snooze-btn" data-min="custom">Custom</button>
           </div>
         </div>
 
         <div class="sheet-actions">
-          <button type="button" class="btn secondary btn-block" id="sheet-cancel">Cancel</button>
-          <button type="submit" class="btn btn-block">Save Task</button>
+          <button type="button" class="btn secondary btn-block" id="sheet-cancel">Batal</button>
+          <button type="submit" class="btn btn-block">Simpan Tugas</button>
         </div>
       </form>
     </div>
@@ -191,23 +196,23 @@
   <nav class="bottom-nav">
     <a href="/" class="nav-item">
       <i class="fa-solid fa-house-chimney"></i>
-      <span>Home</span>
+      <span>Beranda</span>
     </a>
     <a href="/daily-tasks" class="nav-item active">
       <i class="fa-solid fa-list-check"></i>
-      <span>Tasks</span>
+      <span>Tugas</span>
     </a>
     <a href="/goals" class="nav-item">
       <i class="fa-solid fa-bullseye"></i>
-      <span>Goals</span>
+      <span>Tujuan</span>
     </a>
     <a href="/chat" class="nav-item">
       <i class="fa-solid fa-message-heart"></i>
-      <span>Chat</span>
+      <span>Obrolan</span>
     </a>
     <a href="/settings" class="nav-item">
       <i class="fa-solid fa-gear"></i>
-      <span>Settings</span>
+      <span>Pengaturan</span>
     </a>
   </nav>
 

@@ -5,8 +5,51 @@ let timerInterval;
 let moodOverlay, moodSheet, moodForm, moodGrid, moodValueEl, moodNoteEl;
 let addOverlay, addForm;
 let lastArchivedAssignmentId = null;
+const OWNER_STORAGE_KEY = 'ownership_active_user';
+let activeOwner = 'Zaldy';
 const LMS_URL_KEY = 'college_lms_url';
 const DEFAULT_LMS_URL = 'https://elearning.itg.ac.id/student_area/tugas/index';
+
+function normalizeOwner(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (v === 'zaldy') return 'Zaldy';
+  if (v === 'nesya') return 'Nesya';
+  return '';
+}
+
+function getDefaultOwner() {
+  const stored = normalizeOwner(localStorage.getItem(OWNER_STORAGE_KEY));
+  if (stored) return stored;
+  const user = normalizeOwner(localStorage.getItem('user'));
+  return user || 'Zaldy';
+}
+
+function getAssignmentOwner(item) {
+  return normalizeOwner(item?.assigned_to);
+}
+
+function isOwnedByActiveUser(item) {
+  return getAssignmentOwner(item) === activeOwner;
+}
+
+function updateOwnerTabs() {
+  document.querySelectorAll('.owner-tab[data-owner]').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.owner === activeOwner);
+  });
+}
+
+function syncAddOwnerSelect() {
+  const select = document.querySelector('#create-assignment select[name="assigned_to"]');
+  if (select) select.value = activeOwner;
+}
+
+function setActiveOwner(owner, options = {}) {
+  const persist = options.persist !== false;
+  activeOwner = normalizeOwner(owner) || 'Zaldy';
+  if (persist) localStorage.setItem(OWNER_STORAGE_KEY, activeOwner);
+  updateOwnerTabs();
+  syncAddOwnerSelect();
+}
 
 function normalizeLmsUrl(raw) {
   const value = String(raw || '').trim();
@@ -31,7 +74,7 @@ function openLmsUrl(url) {
 }
 
 function formatCountdown(ms) {
-  if (ms <= 0) return 'Overdue';
+  if (ms <= 0) return 'Lewat deadline';
   const days = Math.floor(ms / (1000 * 60 * 60 * 24));
   const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
@@ -50,7 +93,7 @@ async function requestNotificationPermission() {
 
 function sendNotification(title, timeLeft) {
   if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('Tugas Urgent!', {
+    new Notification('Tugas Mendesak!', {
       body: `"${title}" sisa waktu ${timeLeft}`,
       icon: '/icons/192.png'
     });
@@ -95,26 +138,26 @@ function renderDeadlineShield(assignments = []) {
     host.innerHTML = `
       <div class="deadline-shield">
         <div>
-          <span class="deadline-shield-title">Deadline Shield</span>
+          <span class="deadline-shield-title">Pelindung Deadline</span>
           <div class="deadline-shield-main">Semua deadline aman untuk 48 jam ke depan.</div>
           <div class="deadline-shield-sub">Pertahankan ritme ini biar tugas kuliah tidak numpuk.</div>
         </div>
         <div class="deadline-shield-badges">
-          <span class="deadline-shield-badge">Calm</span>
+          <span class="deadline-shield-badge">Tenang</span>
         </div>
       </div>
     `;
     return;
   }
 
-  const levelClass = stats.overdue > 0 ? 'is-critical' : 'is-warning';
+  const levelClass = stats.overdue > 0 ? 'is-critical' : stats.due24h > 0 ? 'is-warning' : 'is-good';
   let mainText = '';
   if (stats.overdue > 0) {
     mainText = `${stats.overdue} tugas kuliah sudah overdue. Tangani sekarang.`;
   } else if (stats.due24h > 0) {
     mainText = `${stats.due24h} tugas kuliah due <24 jam. Prioritaskan hari ini.`;
   } else {
-    mainText = `${stats.due48h} tugas kuliah due <48 jam. Siapkan sprint lebih awal.`;
+    mainText = `${stats.due48h} tugas kuliah belum masuk 24 jam. Masih aman, tetap jaga progres.`;
   }
 
   const nextLabel = stats.nextItem
@@ -124,14 +167,14 @@ function renderDeadlineShield(assignments = []) {
   host.innerHTML = `
     <div class="deadline-shield ${levelClass}">
       <div>
-        <span class="deadline-shield-title">Deadline Shield</span>
+        <span class="deadline-shield-title">Pelindung Deadline</span>
         <div class="deadline-shield-main">${mainText}</div>
         <div class="deadline-shield-sub">${nextLabel}</div>
       </div>
       <div class="deadline-shield-badges">
-        <span class="deadline-shield-badge critical">Overdue ${stats.overdue}</span>
-        <span class="deadline-shield-badge warning">Due24h ${stats.due24h}</span>
-        <span class="deadline-shield-badge warning">Due48h ${stats.due48h}</span>
+        <span class="deadline-shield-badge critical">Lewat ${stats.overdue}</span>
+        <span class="deadline-shield-badge warning">24j ${stats.due24h}</span>
+        <span class="deadline-shield-badge good">Aman>24j ${stats.due48h}</span>
       </div>
     </div>
   `;
@@ -148,7 +191,11 @@ function updateTimers() {
     el.textContent = formatCountdown(diff);
 
     const parent = el.closest('.list-item');
-    if (diff > 0 && diff < 43200000) {
+    if (diff <= 0) {
+      parent.classList.add('overdue');
+      parent.classList.remove('urgent');
+      parent.classList.remove('safe');
+    } else if (diff <= 86400000) {
       if (!parent.classList.contains('urgent')) {
         parent.classList.add('urgent');
         if (!el.dataset.notified) {
@@ -156,12 +203,12 @@ function updateTimers() {
           el.dataset.notified = 'true';
         }
       }
-    } else if (diff <= 0) {
-      parent.classList.add('overdue');
-      parent.classList.remove('urgent');
+      parent.classList.remove('overdue');
+      parent.classList.remove('safe');
     } else {
       parent.classList.remove('urgent');
       parent.classList.remove('overdue');
+      parent.classList.add('safe');
     }
   });
 }
@@ -181,10 +228,11 @@ async function load() {
   completedList.innerHTML = '';
 
   const data = await get('/assignments');
+  const scoped = data.filter(isOwnedByActiveUser);
 
-  if (!data.length) {
+  if (!scoped.length) {
     renderDeadlineShield([]);
-    activeList.innerHTML = '<div class="empty center muted">Belum ada tugas.</div>';
+    activeList.innerHTML = `<div class="empty center muted">Belum ada tugas kuliah milik ${activeOwner}.</div>`;
     if (el1d) el1d.textContent = '0 tugas';
     if (el3d) el3d.textContent = '0 tugas';
     if (el5d) el5d.textContent = '0 tugas';
@@ -193,30 +241,30 @@ async function load() {
 
   // Stats
   try {
-    const currentUser = localStorage.getItem('user') || '';
     const now = Date.now();
     const daysToMs = (d) => d * 24 * 60 * 60 * 1000;
-    const done = data.filter(a => a.completed && a.completed_at);
-    const byUser = currentUser ? done.filter(a => (a.completed_by || '') === currentUser) : done;
+    const done = scoped.filter(a => a.completed && a.completed_at);
     const within = (a, days) => {
       const t = new Date(a.completed_at).getTime();
       return (now - t) <= daysToMs(days);
     };
-    const c1 = byUser.filter(a => within(a, 1)).length;
-    const c3 = byUser.filter(a => within(a, 3)).length;
-    const c5 = byUser.filter(a => within(a, 5)).length;
+    const c1 = done.filter(a => within(a, 1)).length;
+    const c3 = done.filter(a => within(a, 3)).length;
+    const c5 = done.filter(a => within(a, 5)).length;
     if (el1d) el1d.textContent = `${c1} tugas`;
     if (el3d) el3d.textContent = `${c3} tugas`;
     if (el5d) el5d.textContent = `${c5} tugas`;
   } catch (_) { }
 
-  const active = data.filter(a => !a.completed).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
-  const completed = data.filter(a => a.completed).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+  const active = scoped.filter(a => !a.completed).sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+  const completed = scoped.filter(a => a.completed).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
   renderDeadlineShield(active);
 
   const createItem = (a, isCompleted) => {
+    const owner = getAssignmentOwner(a) || 'Other';
+    const ownerClass = owner ? `owner-${owner.toLowerCase()}` : '';
     const el = document.createElement('div');
-    el.className = 'list-item assignment-item';
+    el.className = `list-item assignment-item ${ownerClass}`.trim();
     el.dataset.assignmentId = String(a.id);
 
     el.innerHTML = `
@@ -224,6 +272,7 @@ async function load() {
         <div style="display:flex; align-items:center; gap:8px">
           <input type="checkbox" ${isCompleted ? 'checked' : ''} data-id="${a.id}" data-action="toggle">
           <strong style="font-size:13px">${a.title}</strong>
+          <span class="owner-chip ${ownerClass}">${owner || 'OTHER'}</span>
         </div>
         ${a.description ? `<div class="muted small" style="margin-left:24px; font-size:11px">${a.description}</div>` : ''}
         <div class="muted small" style="margin-left:24px; margin-top:4px; display:flex; flex-wrap:wrap; gap:6px; align-items:center">
@@ -231,7 +280,7 @@ async function load() {
         `<span class="badge success"><i class="fa-solid fa-check"></i> ${new Date(a.completed_at).toLocaleDateString()}</span>` :
         `<span class="badge countdown-timer" data-deadline="${a.deadline}" data-title="${a.title}">...</span>`
       }
-          <span style="font-size:10px; opacity:0.6"><i class="fa-solid fa-user"></i> ${a.assigned_to || 'Users'}</span>
+          <span style="font-size:10px; opacity:0.6"><i class="fa-solid fa-user"></i> ${owner || 'Other'}</span>
         </div>
       </div>
       <div class="actions">
@@ -245,10 +294,10 @@ async function load() {
   completed.forEach(item => completedList.appendChild(createItem(item, true)));
 
   if (!active.length) {
-    activeList.innerHTML = '<div class="empty center muted">Tidak ada tugas aktif.</div>';
+    activeList.innerHTML = `<div class="empty center muted">Tidak ada tugas aktif milik ${activeOwner}.</div>`;
   }
   if (!completed.length) {
-    completedList.innerHTML = '<div class="empty center muted">Arsip masih kosong. Tugas yang selesai akan muncul di sini.</div>';
+    completedList.innerHTML = `<div class="empty center muted">Arsip ${activeOwner} masih kosong. Tugas selesai akan muncul di sini.</div>`;
   }
   if (archiveTitle) {
     archiveTitle.innerHTML = `<i class="fa-solid fa-box-archive"></i> Arsip Selesai (${completed.length})`;
@@ -283,11 +332,12 @@ async function create(e) {
     title: f.get('title'),
     description: f.get('description'),
     deadline: deadline,
-    assigned_to: f.get('assigned_to')
+    assigned_to: normalizeOwner(f.get('assigned_to')) || activeOwner
   };
 
   await post('/assignments', body);
   e.target.reset();
+  syncAddOwnerSelect();
   closeAddModal();
   load();
   showToast('Tugas ditambahkan', 'success');
@@ -318,11 +368,20 @@ async function actions(e) {
 }
 
 function init() {
+  activeOwner = getDefaultOwner();
+  setActiveOwner(activeOwner, { persist: false });
+
   document.querySelector('#create-assignment').addEventListener('submit', create);
   document.querySelector('#assignments-active').addEventListener('change', actions);
   document.querySelector('#assignments-completed').addEventListener('change', actions);
   document.querySelector('#assignments-active').addEventListener('click', actions);
   document.querySelector('#assignments-completed').addEventListener('click', actions);
+  document.querySelectorAll('.owner-tab[data-owner]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      setActiveOwner(tab.dataset.owner);
+      load();
+    });
+  });
 
   // FAB Modal logic
   addOverlay = document.getElementById('add-overlay');
@@ -365,7 +424,7 @@ function setupLmsQuickAccess() {
       const target = normalizeLmsUrl(url);
       openLmsUrl(target);
     } catch {
-      showToast('URL LMS tidak valid. Ubah di Settings.', 'error');
+      showToast('URL LMS tidak valid. Ubah di Pengaturan.', 'error');
     }
   });
 }

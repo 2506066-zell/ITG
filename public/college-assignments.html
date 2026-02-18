@@ -11,7 +11,7 @@
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <script src="js/perf-mode.js"></script>
-  <title>NZ • College Assignments</title>
+  <title>NZ • Tugas Kuliah</title>
   <style>
     /* Local overrides for Assignments */
     .grid {
@@ -64,11 +64,17 @@
       box-shadow: inset 0 0 0 1px hsla(28, 94%, 60%, 0.2);
     }
 
+    .deadline-shield.is-good {
+      border-color: hsla(145, 72%, 45%, 0.45);
+      box-shadow: inset 0 0 0 1px hsla(145, 72%, 45%, 0.2);
+    }
+
     .deadline-shield.is-critical {
       border-color: hsla(4, 88%, 58%, 0.52);
       box-shadow: inset 0 0 0 1px hsla(4, 88%, 58%, 0.28), 0 0 0 1px hsla(4, 88%, 58%, 0.22);
     }
 
+    .deadline-shield.is-good::after,
     .deadline-shield.is-warning::after,
     .deadline-shield.is-critical::after {
       opacity: 0.32;
@@ -127,6 +133,12 @@
       color: hsl(35, 92%, 70%);
     }
 
+    .deadline-shield-badge.good {
+      background: hsla(145, 72%, 45%, 0.16);
+      border-color: hsla(145, 72%, 45%, 0.34);
+      color: hsl(145, 78%, 72%);
+    }
+
     @keyframes deadline-shield-pulse {
       0%,
       100% {
@@ -180,6 +192,19 @@
     .assignment-item.urgent>* {
       position: relative;
       z-index: 1;
+    }
+
+    .assignment-item.safe {
+      border-left: 3px solid hsl(145, 72%, 45%) !important;
+      background: linear-gradient(96deg, hsla(145, 72%, 45%, 0.12), transparent 68%) !important;
+      box-shadow: inset 0 0 0 1px hsla(145, 72%, 45%, 0.18);
+    }
+
+    .assignment-item.safe .countdown-timer {
+      background: hsla(145, 72%, 45%, 0.16);
+      color: hsl(145, 78%, 72%);
+      border-color: hsla(145, 72%, 45%, 0.36);
+      font-weight: 700;
     }
 
     .assignment-item.archive-highlight {
@@ -276,6 +301,65 @@
       flex: 1;
       min-width: 140px;
     }
+
+    .owner-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .owner-tab {
+      min-height: 40px;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      background: hsla(0, 0%, 100%, 0.03);
+      color: hsl(var(--text-400));
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .2s ease;
+    }
+
+    .owner-tab.active {
+      color: hsl(var(--text-100));
+      border-color: hsla(var(--nebula-core), .5);
+      box-shadow: 0 0 14px hsla(var(--nebula-core), .16);
+    }
+
+    .assignment-item.owner-zaldy {
+      box-shadow: inset 0 0 0 1px hsla(206, 95%, 62%, 0.22);
+    }
+
+    .assignment-item.owner-nesya {
+      box-shadow: inset 0 0 0 1px hsla(327, 85%, 68%, 0.22);
+    }
+
+    .owner-chip {
+      margin-left: auto;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .owner-chip.owner-zaldy {
+      background: hsla(206, 95%, 62%, 0.18);
+      border-color: hsla(206, 95%, 62%, 0.38);
+      color: hsl(206, 98%, 78%);
+    }
+
+    .owner-chip.owner-nesya {
+      background: hsla(327, 85%, 68%, 0.16);
+      border-color: hsla(327, 85%, 68%, 0.34);
+      color: hsl(327, 94%, 82%);
+    }
   </style>
   <link rel="stylesheet" href="css/v3-polish.css">
 </head>
@@ -291,8 +375,8 @@
 <nav class="navbar">
   <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
   <div class="nav-actions">
-    <a class="btn" href="/"><i class="fa-solid fa-house"></i> Home</a>
-    <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Settings</a>
+    <a class="btn" href="/"><i class="fa-solid fa-house"></i> Beranda</a>
+    <a class="btn" href="/settings"><i class="fa-solid fa-gear"></i> Pengaturan</a>
   </div>
 </nav>
 
@@ -304,7 +388,7 @@
         <div id="lms-url-label" class="lms-url">-</div>
         <div class="lms-actions">
           <button id="open-lms-btn" class="btn" type="button">
-            <i class="fa-solid fa-arrow-up-right-from-square"></i> Open LMS
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka LMS
           </button>
           <a href="/settings" class="btn secondary">
             <i class="fa-solid fa-sliders"></i> Ubah URL
@@ -332,7 +416,11 @@
     </div>
 
     <div class="card" style="grid-row: span 2;">
-      <div class="section-title"><i class="fa-solid fa-list-ul"></i> Assignments</div>
+      <div class="section-title"><i class="fa-solid fa-list-ul"></i> Tugas Kuliah</div>
+      <div class="owner-tabs" id="assignment-owner-tabs">
+        <button type="button" class="owner-tab active" data-owner="Zaldy">Zaldy</button>
+        <button type="button" class="owner-tab" data-owner="Nesya">Nesya</button>
+      </div>
       <div id="assignment-deadline-shield" class="deadline-shield-wrap"></div>
       <div id="assignments-active" class="list"></div>
       <div class="section-title" id="assignments-archive-title" style="margin-top:24px"><i class="fa-solid fa-box-archive"></i> Arsip Selesai (0)
@@ -350,15 +438,15 @@
 <div class="bottom-sheet-overlay" id="add-overlay">
   <div class="bottom-sheet">
     <div class="sheet-handle"></div>
-    <h3 style="margin:0 0 20px;font-size:18px">Add Assignment</h3>
+    <h3 style="margin:0 0 20px;font-size:18px">Tambah Tugas Kuliah</h3>
     <form id="create-assignment" class="list">
       <div class="form-group">
-        <label class="form-label">Title</label>
-        <input class="input" name="title" placeholder="What needs to be done?" required autocomplete="off">
+        <label class="form-label">Judul</label>
+        <input class="input" name="title" placeholder="Tugas apa yang harus dikerjakan?" required autocomplete="off">
       </div>
       <div class="form-group">
-        <label class="form-label">Description (optional)</label>
-        <textarea class="input" name="description" placeholder="Add more details..."></textarea>
+        <label class="form-label">Deskripsi (opsional)</label>
+        <textarea class="input" name="description" placeholder="Tambahkan detail tugas..."></textarea>
       </div>
       <div class="form-row" style="display:flex; gap:12px">
         <div class="form-group" style="flex:1">
@@ -366,7 +454,7 @@
           <input class="input" type="datetime-local" name="deadline" required>
         </div>
         <div class="form-group" style="flex:1">
-          <label class="form-label">Assign to</label>
+          <label class="form-label">Pemilik</label>
           <select class="input" name="assigned_to" style="appearance:none">
             <option value="Nesya">Nesya</option>
             <option value="Zaldy">Zaldy</option>
@@ -374,8 +462,8 @@
         </div>
       </div>
       <div class="sheet-actions" style="margin-top:20px">
-        <button type="button" class="btn secondary" id="add-cancel" style="flex:1">Cancel</button>
-        <button type="submit" class="btn" style="flex:1">Save Assignment</button>
+        <button type="button" class="btn secondary" id="add-cancel" style="flex:1">Batal</button>
+        <button type="submit" class="btn" style="flex:1">Simpan Tugas</button>
       </div>
     </form>
   </div>
@@ -427,23 +515,23 @@
 <nav class="bottom-nav">
   <a href="/" class="nav-item">
     <i class="fa-solid fa-house-chimney"></i>
-    <span>Home</span>
+    <span>Beranda</span>
   </a>
   <a href="/daily-tasks" class="nav-item">
     <i class="fa-solid fa-list-check"></i>
-    <span>Tasks</span>
+    <span>Tugas</span>
   </a>
   <a href="/goals" class="nav-item">
     <i class="fa-solid fa-bullseye"></i>
-    <span>Goals</span>
+    <span>Tujuan</span>
   </a>
   <a href="/chat" class="nav-item">
     <i class="fa-solid fa-message-heart"></i>
-    <span>Chat</span>
+    <span>Obrolan</span>
   </a>
   <a href="/settings" class="nav-item">
     <i class="fa-solid fa-gear"></i>
-    <span>Settings</span>
+    <span>Pengaturan</span>
   </a>
 </nav>
 

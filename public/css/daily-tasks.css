@@ -180,6 +180,37 @@ body {
     transform: translateY(-1px);
 }
 
+.owner-tabs {
+    padding: 10px 20px 8px;
+    display: flex;
+    gap: 8px;
+    background: hsla(var(--space-950), 0.46);
+    border-bottom: 1px solid var(--glass-border);
+    flex-shrink: 0;
+}
+
+.owner-tab {
+    flex: 1;
+    min-height: 40px;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    background: hsla(0, 0%, 100%, 0.03);
+    color: hsl(var(--text-400));
+    font-family: var(--font-main);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.owner-tab.active {
+    color: hsl(var(--text-100));
+    border-color: hsla(var(--nebula-core), 0.46);
+    box-shadow: 0 0 16px hsla(var(--nebula-core), 0.16);
+}
+
 /* Task List */
 .task-list-container {
     flex: 1;
@@ -213,6 +244,14 @@ body {
 .task-item.completed {
     opacity: 0.5;
     filter: grayscale(0.5);
+}
+
+.task-item.owner-zaldy {
+    box-shadow: inset 0 0 0 1px hsla(206, 95%, 64%, 0.24);
+}
+
+.task-item.owner-nesya {
+    box-shadow: inset 0 0 0 1px hsla(327, 85%, 70%, 0.24);
 }
 
 .task-check {
@@ -407,4 +446,28 @@ body {
     background: hsl(var(--space-900));
     border-top: 2px solid hsl(var(--nebula-core));
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.task-owner-chip {
+    margin-left: auto;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.task-owner-chip.owner-zaldy {
+    background: hsla(206, 95%, 62%, 0.18);
+    border-color: hsla(206, 95%, 62%, 0.38);
+    color: hsl(206, 98%, 78%);
+}
+
+.task-owner-chip.owner-nesya {
+    background: hsla(327, 85%, 68%, 0.16);
+    border-color: hsla(327, 85%, 68%, 0.34);
+    color: hsl(327, 94%, 82%);
 }
