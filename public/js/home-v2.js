@@ -318,6 +318,231 @@ function buildProactiveEvidenceChips(item) {
   return dedupeEvidenceChips(chips);
 }
 
+function isMobileFeedLayout() {
+  return Boolean(window.matchMedia && window.matchMedia('(max-width: 460px)').matches);
+}
+
+function clampText(text = '', max = 90) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return '';
+  if (clean.length <= max) return clean;
+  return `${clean.slice(0, max - 1).trim()}...`;
+}
+
+function normalizeFeedFamily(eventType = '') {
+  const e = String(eventType || '');
+  if (e === 'urgent_radar' || e.startsWith('urgent_radar_')) return 'urgent_radar';
+  if (e.startsWith('predictive_risk_')) return 'predictive_risk';
+  if (e === 'mood_drop_alert' || e === 'mood_drop_self') return 'mood';
+  if (e === 'checkin_suggestion' || e === 'predictive_support_ping') return 'checkin';
+  if (e === 'morning_brief') return 'brief';
+  return 'general';
+}
+
+function horizonBucket(hoursLeft) {
+  if (!Number.isFinite(hoursLeft)) return 'none';
+  if (hoursLeft <= 24) return '<=24h';
+  if (hoursLeft <= 48) return '<=48h';
+  return '>48h';
+}
+
+function sourceDomain(payload = {}, eventType = '') {
+  const fromPayload = String(payload?.source || payload?.domain || '').toLowerCase();
+  if (fromPayload.includes('assignment') || fromPayload.includes('kuliah')) return 'assignment';
+  if (fromPayload.includes('task') || fromPayload.includes('tugas')) return 'task';
+  const e = String(eventType || '').toLowerCase();
+  if (e.includes('assignment')) return 'assignment';
+  return 'general';
+}
+
+function severityLabel(severity = '') {
+  const s = String(severity || '').toLowerCase();
+  if (s === 'critical') return 'Critical';
+  if (s === 'high') return 'High';
+  if (s === 'warning') return 'Warning';
+  return 'Info';
+}
+
+function horizonLabel(bucket = '') {
+  if (bucket === '<=24h') return '<=24j';
+  if (bucket === '<=48h') return '<=48j';
+  if (bucket === '>48h') return '>48j';
+  return 'tanpa horizon';
+}
+
+function familyTag(family = '') {
+  if (family === 'urgent_radar') return 'Radar Mendesak';
+  if (family === 'predictive_risk') return 'Risiko Prediktif';
+  if (family === 'mood') return 'Mood';
+  if (family === 'checkin') return 'Check-In';
+  if (family === 'brief') return 'Brief';
+  if (family === 'assistant') return 'Ringkasan Z AI';
+  return 'Proaktif';
+}
+
+function baseScoreForCandidate(candidate = {}) {
+  const family = String(candidate.family || '');
+  let score = 20;
+  if (family === 'urgent_radar') score = 100;
+  else if (family === 'predictive_risk') score = candidate.severity === 'critical' ? 90 : 80;
+  else if (family === 'mood' || family === 'checkin') score = 60;
+  else if (family === 'brief') score = 50;
+  else if (family === 'assistant') score = 40;
+
+  if (candidate.overdue) score += 18;
+  if (candidate.horizon === '<=24h') score += 10;
+  else if (candidate.horizon === '<=48h') score += 6;
+  score += Math.min(20, Number(candidate.risk_score || 0) / 5);
+  return score;
+}
+
+function buildCandidateFromProactive(item = {}) {
+  const eventType = String(item?.event_type || '');
+  const payload = normalizeExplainability(item?.payload) || {};
+  const family = normalizeFeedFamily(eventType);
+  const chips = buildProactiveEvidenceChips(item);
+  const primaryCommand = chips.find((c) => c.command)?.command || 'ringkasan hari ini';
+
+  const minutesLeft = Number(payload.minutes_left);
+  const payloadHours = Number(payload.hours_left);
+  const hoursLeft = Number.isFinite(minutesLeft) ? (minutesLeft / 60) : payloadHours;
+  const horizon = horizonBucket(hoursLeft);
+  const domain = sourceDomain(payload, eventType);
+  const riskBand = String(payload.risk_band || '').toLowerCase();
+
+  const titleRaw = String(payload.title || payload.name || item?.title || item?.body || '').trim();
+  const title = clampText(titleRaw || (domain === 'assignment' ? 'tugas kuliah' : 'tugas'), 40);
+
+  let action = 'Lanjutkan prioritas utama sekarang';
+  let context = 'Eksekusi kecil sekarang biar ritme tetap jalan.';
+  let severity = riskBand || (family === 'urgent_radar' ? 'critical' : 'info');
+
+  if (family === 'urgent_radar') {
+    action = `Mulai ${title} 25m sekarang`;
+    context = `${severityLabel(severity)}, ${horizonLabel(horizon)}`;
+  } else if (family === 'predictive_risk') {
+    severity = riskBand || 'high';
+    action = `${domain === 'assignment' ? 'Cek tugas kuliah' : 'Cek tugas'} ${title}`;
+    context = `${severityLabel(severity)}, ${horizonLabel(horizon)}`;
+  } else if (family === 'mood') {
+    severity = 'warning';
+    action = 'Ambil tugas ringan 15m dulu';
+    context = 'Mood menurun, jaga momentum pelan tapi konsisten.';
+  } else if (family === 'checkin') {
+    severity = 'warning';
+    action = 'Kirim check-in singkat ke pasangan';
+    context = 'Sinkron 2 menit untuk cegah miskomunikasi.';
+  } else if (family === 'brief') {
+    const tasks = Array.isArray(payload.tasks) ? payload.tasks.length : 0;
+    const assignments = Array.isArray(payload.assignments) ? payload.assignments.length : 0;
+    severity = 'info';
+    action = 'Review prioritas pagi 2 menit';
+    context = `${tasks} tugas, ${assignments} tugas kuliah.`;
+  }
+
+  const candidate = {
+    id: String(item?.id || `${eventType}-${title}`),
+    family,
+    horizon,
+    domain,
+    severity,
+    risk_score: Number(payload.risk_score || 0),
+    overdue: Number.isFinite(hoursLeft) ? hoursLeft <= 0 : false,
+    action: clampText(action, 86),
+    context: clampText(context, 64),
+    chips,
+    command: primaryCommand,
+    tag: familyTag(family),
+    at: item?.created_at || null,
+  };
+  candidate.score = baseScoreForCandidate(candidate);
+  return candidate;
+}
+
+function dedupeFeedCandidates(candidates = []) {
+  const grouped = new Map();
+  for (const item of candidates) {
+    if (!item) continue;
+    const key = `${item.family}|${item.horizon}|${item.domain}`;
+    const current = grouped.get(key);
+    if (!current) {
+      grouped.set(key, { representative: item, count: 1 });
+      continue;
+    }
+    current.count += 1;
+    if (Number(item.score || 0) > Number(current.representative.score || 0)) {
+      current.representative = item;
+    }
+  }
+
+  const out = [];
+  for (const entry of grouped.values()) {
+    const rep = { ...entry.representative };
+    const count = Number(entry.count || 1);
+    if (count > 1) {
+      if (rep.family === 'predictive_risk') {
+        rep.context = `${count} item risiko ${rep.severity}. ${horizonLabel(rep.horizon)}`;
+      } else if (rep.family === 'urgent_radar') {
+        rep.context = `${count} item mendesak. ${horizonLabel(rep.horizon)}`;
+      } else {
+        rep.context = `${count} sinyal ${rep.tag.toLowerCase()}.`;
+      }
+    }
+    out.push(rep);
+  }
+  return out.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+}
+
+function buildAssistantFeedCandidates() {
+  const candidates = [];
+  const proactiveItems = state.proactive && Array.isArray(state.proactive.items) ? state.proactive.items : [];
+  proactiveItems.slice(0, 12).forEach((item) => {
+    candidates.push(buildCandidateFromProactive(item));
+  });
+
+  if (state.assistant && state.assistant.reply) {
+    const chips = buildAssistantEvidenceChips(state.assistant);
+    const command = chips.find((c) => c.command)?.command || 'ringkasan hari ini';
+    const candidate = {
+      id: 'assistant-summary',
+      family: 'assistant',
+      horizon: 'none',
+      domain: 'general',
+      severity: 'info',
+      risk_score: 0,
+      overdue: false,
+      action: clampText(String(state.assistant.reply || '').split(/\n+/)[0] || 'Ringkasan harian siap.', 86),
+      context: 'Buka chat untuk detail reasoning.',
+      chips,
+      command,
+      tag: familyTag('assistant'),
+      at: null,
+    };
+    candidate.score = baseScoreForCandidate(candidate);
+    candidates.push(candidate);
+  }
+
+  const deduped = dedupeFeedCandidates(candidates);
+  if (deduped.length > 0) return deduped;
+
+  return [{
+    id: 'calm',
+    family: 'general',
+    horizon: 'none',
+    domain: 'general',
+    severity: 'info',
+    risk_score: 0,
+    overdue: false,
+    action: 'Sistem stabil. Lanjutkan progres harian.',
+    context: 'Mode tenang aktif.',
+    chips: [{ label: 'Lihat ringkasan', tone: 'success', command: 'ringkasan hari ini' }],
+    command: 'ringkasan hari ini',
+    tag: 'Mode Tenang',
+    at: null,
+    score: 1,
+  }];
+}
+
 function safeJsonParse(text, fallback = null) {
   try {
     return JSON.parse(text);
@@ -811,131 +1036,20 @@ function renderStudyMission() {
 }
 
 function buildAssistantFeedItems() {
-  const feed = [];
-  const missionItems = collectMissionItems();
-  const urgentCount = missionItems.filter((i) => i.urgency === 'critical').length;
-  const proactiveItems = state.proactive && Array.isArray(state.proactive.items) ? state.proactive.items : [];
-
-  proactiveItems.slice(0, 3).forEach((item) => {
-    const eventType = (item.event_type || '').toString();
-    let tag = 'Proaktif';
-    if (eventType === 'morning_brief') tag = 'Brief Pagi';
-    if (eventType === 'urgent_radar' || eventType.startsWith('urgent_radar_')) tag = 'Radar Mendesak';
-    if (eventType.startsWith('predictive_risk_')) tag = 'Risiko Prediktif';
-    if (eventType === 'predictive_support_ping') tag = 'Sinyal Dukungan';
-    if (eventType === 'mood_drop_alert' || eventType === 'mood_drop_self') tag = 'Mood Menurun';
-    if (eventType === 'checkin_suggestion') tag = 'Check-In';
-    const base = item.body || item.title || 'Ada update proaktif terbaru.';
-    feed.push({
-      tag,
-      text: mergeFeedTextWithExplain(base, proactiveExplainability(item)),
-      chips: buildProactiveEvidenceChips(item),
-      at: item.created_at || null,
-    });
-  });
-
-  if (state.assistant && state.assistant.reply) {
-    feed.push({
-      tag: 'Ringkasan Z AI',
-      text: mergeFeedTextWithExplain(state.assistant.reply, state.assistant.explainability),
-      chips: buildAssistantEvidenceChips(state.assistant),
-      at: null,
-    });
-  }
-
-  if (urgentCount > 0) {
-    feed.push({
-      tag: 'Fokus',
-      text: `Ada ${urgentCount} item kritis. Ambil satu item paling atas lalu fokus 25 menit sekarang.`,
-      chips: [{ label: `Kritis ${urgentCount}`, tone: 'critical', command: 'tugas paling mendesak saya apa' }],
-      at: null,
-    });
-  }
-
-  const usersData = state.weekly && state.weekly.users ? state.weekly.users : {};
-  USERS.forEach((u) => {
-    const mood = Number((usersData[u] && usersData[u].avg_mood) || 0);
-    if (mood > 0 && mood < 3) {
-      feed.push({
-        tag: 'Dukungan',
-        text: `${u} lagi drop. Ganti ke tugas ringan dulu lalu kirim check-in singkat di chat.`,
-        chips: [{ label: `${u} Mood ${mood.toFixed(1)}`, tone: 'warning', command: 'buat pesan check-in dukungan pasangan' }],
-        at: null,
-      });
-    }
-  });
-
-  const upcoming = missionItems.filter((i) => i.badge === 'Hari Ini' || i.badge === '<12h').length;
-  if (upcoming > 2) {
-    feed.push({
-      tag: 'Eksekusi',
-      text: 'Gunakan pola 1-1-1: 1 tugas besar, 1 tugas menengah, 1 kemenangan cepat.',
-      chips: [{ label: `Jatuh Tempo ${upcoming}`, tone: 'warning', command: 'tugas paling mendesak saya apa' }],
-      at: null,
-    });
-  }
-
-  const proactiveSignals = state.proactive && state.proactive.signals ? state.proactive.signals : {};
-  const proactiveUrgent = Number(proactiveSignals.urgent_count || 0);
-  const proactiveCritical = Number(proactiveSignals.critical_count || 0);
-  const proactiveOverdue = Number(proactiveSignals.overdue_count || 0);
-  const predictiveHigh = Number(proactiveSignals.predicted_high_count || 0);
-  const predictiveCritical = Number(proactiveSignals.predicted_critical_count || 0);
-  if (proactiveUrgent > 0) {
-    const riskLabel = proactiveOverdue > 0
-      ? `${proactiveOverdue} terlambat`
-      : (proactiveCritical > 0 ? `${proactiveCritical} kritis` : `${proactiveUrgent} peringatan`);
-    feed.push({
-      tag: 'Radar',
-      text: `Mesin proaktif mendeteksi ${proactiveUrgent} item mendesak (${riskLabel}). Atur ulang prioritas sekarang.`,
-      chips: [{ label: `Mendesak ${proactiveUrgent}`, tone: proactiveOverdue > 0 ? 'critical' : 'warning', command: 'tugas paling mendesak saya apa' }],
-      at: null,
-    });
-  }
-
-  if (predictiveHigh + predictiveCritical > 0) {
-    const riskLabel = predictiveCritical > 0
-      ? `${predictiveCritical} prediksi kritis`
-      : `${predictiveHigh} prediksi tinggi`;
-    feed.push({
-      tag: 'Prediktif',
-      text: `Model prediktif membaca ${predictiveHigh + predictiveCritical} item berisiko dalam 72 jam (${riskLabel}).`,
-      chips: [{
-        label: `Risiko ${predictiveHigh + predictiveCritical}`,
-        tone: predictiveCritical > 0 ? 'critical' : 'warning',
-        command: 'risiko deadline 48 jam ke depan',
-      }],
-      at: null,
-    });
-  }
-
-  if (feed.length === 0) {
-    feed.push({
-      tag: 'Mode Tenang',
-      text: 'Sistem stabil. Pakai momentum ini buat progres tujuan jangka panjang.',
-      chips: [{ label: 'Risiko Rendah', tone: 'success', command: 'ringkasan hari ini' }],
-      at: null,
-    });
-  }
-
-  return feed.slice(0, 5);
+  return buildAssistantFeedCandidates();
 }
 
-function renderAssistantFeed() {
-  const container = document.getElementById('assistant-feed-list');
-  if (!container) return;
-
-  const items = buildAssistantFeedItems();
-  container.innerHTML = items.map((item) => `
+function renderAssistantFeedDesktop(container, items) {
+  container.innerHTML = items.slice(0, 5).map((item) => `
     <article class="cc-feed-item">
       <div class="cc-feed-head">
         <span>${escapeHtml(item.tag)}</span>
         <span>${escapeHtml(item.at ? nowLabel(new Date(item.at)) : nowLabel())}</span>
       </div>
-      <p class="cc-feed-text">${escapeHtml(item.text)}</p>
+      <p class="cc-feed-text">${escapeHtml(`${item.action} ${item.context}`)}</p>
       ${Array.isArray(item.chips) && item.chips.length ? `
         <div class="cc-feed-chips">
-          ${item.chips.slice(0, 5).map((chip) => `
+          ${item.chips.slice(0, 3).map((chip) => `
             <button
               type="button"
               class="cc-evidence-chip ${escapeHtml(chip.tone || 'info')}"
@@ -948,6 +1062,74 @@ function renderAssistantFeed() {
       ` : ''}
     </article>
   `).join('');
+}
+
+function renderAssistantFeedMobile(container, items) {
+  const primary = items[0] || null;
+  const secondary = items.slice(1, 3);
+  if (!primary) {
+    container.innerHTML = '<div class="cc-empty">Feed Z AI belum tersedia.</div>';
+    return;
+  }
+
+  const primaryChip = primary.chips && primary.chips.length ? primary.chips[0] : { label: 'Buka aksi', tone: 'info', command: primary.command || 'ringkasan hari ini' };
+  const secondaryHtml = secondary.map((item) => {
+    const chip = item.chips && item.chips.length ? item.chips[0] : { label: 'Buka aksi', tone: 'info', command: item.command || 'ringkasan hari ini' };
+    return `
+      <article class="cc-feed-item zai-feed-mini">
+        <div class="cc-feed-head">
+          <span>${escapeHtml(item.tag)}</span>
+          <span>${escapeHtml(item.at ? nowLabel(new Date(item.at)) : nowLabel())}</span>
+        </div>
+        <p class="zai-feed-action">${escapeHtml(item.action)}</p>
+        <p class="zai-feed-context">${escapeHtml(item.context)}</p>
+        <div class="cc-feed-chips">
+          <button
+            type="button"
+            class="cc-evidence-chip ${escapeHtml(chip.tone || 'info')}"
+            data-chip-command="${escapeHtml(encodeChipCommand(chip.command || item.command || 'ringkasan hari ini'))}"
+            title="${escapeHtml(chip.command ? `Jalankan: ${chip.command}` : chip.label || '')}"
+          >${escapeHtml(chip.label || 'Buka aksi')}</button>
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <article class="cc-feed-item zai-feed-primary">
+      <div class="cc-feed-head">
+        <span>${escapeHtml(primary.tag)}</span>
+        <span>${escapeHtml(primary.at ? nowLabel(new Date(primary.at)) : nowLabel())}</span>
+      </div>
+      <p class="zai-feed-action">${escapeHtml(primary.action)}</p>
+      <p class="zai-feed-context">${escapeHtml(primary.context)}</p>
+      <div class="cc-feed-chips">
+        <button
+          type="button"
+          class="cc-evidence-chip ${escapeHtml(primaryChip.tone || 'info')}"
+          data-chip-command="${escapeHtml(encodeChipCommand(primaryChip.command || primary.command || 'ringkasan hari ini'))}"
+          title="${escapeHtml(primaryChip.command ? `Jalankan: ${primaryChip.command}` : primaryChip.label || '')}"
+        >${escapeHtml(primaryChip.label || 'Buka aksi')}</button>
+      </div>
+    </article>
+    <div class="zai-feed-grid">
+      ${secondaryHtml}
+    </div>
+    <div class="zai-feed-footer">
+      <a class="btn small secondary" href="/chat?ai=ringkasan%20hari%20ini">Lihat semua</a>
+    </div>
+  `;
+}
+
+function renderAssistantFeed() {
+  const container = document.getElementById('assistant-feed-list');
+  if (!container) return;
+  const items = buildAssistantFeedItems();
+  if (isMobileFeedLayout()) {
+    renderAssistantFeedMobile(container, items);
+    return;
+  }
+  renderAssistantFeedDesktop(container, items);
 }
 
 function renderUpdatedTimestamp() {
