@@ -290,9 +290,15 @@
       color: hsl(var(--text-400));
     }
     .notes-textarea {
-      min-height: 82px;
+      min-height: 128px;
+      max-height: 62vh;
       resize: vertical;
-      line-height: 1.45;
+      line-height: 1.58;
+      font-size: 0.94rem;
+      -webkit-overflow-scrolling: touch;
+    }
+    #note-free-text {
+      min-height: 220px;
     }
     .notes-inline {
       display: grid;
@@ -319,6 +325,17 @@
       padding: 10px;
       background: hsla(0, 0%, 100%, 0.03);
       margin-bottom: 8px;
+      cursor: pointer;
+      transition: border-color .18s ease, background .18s ease, transform .18s ease;
+    }
+    .notes-history-item:hover {
+      border-color: hsla(var(--sem-info, 205 86% 65%), 0.34);
+      transform: translateY(-1px);
+    }
+    .notes-history-item.active {
+      border-color: hsla(var(--sem-info, 205 86% 65%), 0.52);
+      background: hsla(var(--sem-info, 205 86% 65%), 0.12);
+      box-shadow: 0 0 0 1px hsla(var(--sem-info, 205 86% 65%), 0.22);
     }
     .notes-history-item h4 {
       margin: 0;
@@ -330,6 +347,91 @@
       font-size: 0.78rem;
       color: hsl(var(--text-300));
       line-height: 1.42;
+    }
+    .notes-markdown-card {
+      margin-top: 10px;
+      border: 1px solid hsla(var(--sem-info, 205 86% 65%), 0.35);
+      border-radius: 12px;
+      background: linear-gradient(160deg, hsla(var(--sem-info, 205 86% 65%), 0.09), hsla(0, 0%, 100%, 0.03));
+      padding: 12px;
+    }
+    .notes-markdown-head {
+      margin: 0 0 8px;
+      font-size: 0.76rem;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: hsl(var(--sem-info, 205 86% 65%));
+    }
+    .notes-markdown-pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: hsl(var(--text-100));
+    }
+    .notes-markdown-actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .notes-markdown-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 3700;
+      display: none;
+      background: rgba(4, 8, 22, 0.88);
+      backdrop-filter: blur(10px);
+      padding: 18px;
+      align-items: center;
+      justify-content: center;
+    }
+    .notes-markdown-modal.show {
+      display: flex;
+    }
+    .notes-markdown-modal-card {
+      width: min(980px, 100%);
+      max-height: min(88vh, 920px);
+      border-radius: 14px;
+      border: 1px solid hsla(var(--sem-info, 205 86% 65%), 0.4);
+      background: linear-gradient(165deg, hsla(var(--sem-info, 205 86% 65%), 0.11), hsla(230, 35%, 8%, 0.95));
+      box-shadow: 0 24px 52px -24px rgba(0, 0, 0, 0.88);
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 10px;
+    }
+    .notes-markdown-modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .notes-markdown-modal-title {
+      margin: 0;
+      font-size: 0.86rem;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: hsl(var(--sem-info, 205 86% 65%));
+    }
+    .notes-markdown-modal-body {
+      min-height: 0;
+      overflow: auto;
+      border: 1px solid hsla(0, 0%, 100%, 0.12);
+      border-radius: 10px;
+      background: hsla(0, 0%, 100%, 0.03);
+      padding: 12px;
+    }
+    .notes-markdown-modal-pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.82rem;
+      line-height: 1.56;
+      color: hsl(var(--text-100));
     }
     .notes-empty {
       border: 1px dashed hsla(0, 0%, 100%, 0.2);
@@ -387,6 +489,12 @@
       }
       .notes-session-meta {
         font-size: 0.76rem;
+      }
+      .notes-markdown-modal {
+        padding: 12px;
+      }
+      .notes-markdown-modal-card {
+        max-height: min(92vh, 1000px);
       }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -502,7 +610,9 @@
           <button id="notes-export-pdf" type="button" class="btn small secondary"><i class="fa-solid fa-file-pdf"></i> Unduh PDF</button>
         </div>
       </div>
+      <p id="notes-history-scope" class="muted small" style="margin:0 0 10px;">Riwayat mengikuti mata kuliah aktif.</p>
       <div id="notes-history-list"></div>
+      <div id="notes-history-preview" class="notes-markdown-card" style="display:none;"></div>
     </section>
   </main>
 
@@ -511,6 +621,20 @@
       <h3 class="notes-hardgate-title">Catatan sesi belum lengkap</h3>
       <p class="notes-hardgate-sub" id="notes-hardgate-sub">Isi minimum satu catatan agar sesi kuliah tercatat rapi.</p>
       <button class="btn" id="notes-hardgate-focus"><i class="fa-solid fa-pen"></i> Isi Catatan Sekarang</button>
+    </div>
+  </div>
+
+  <div id="notes-markdown-modal" class="notes-markdown-modal" aria-hidden="true">
+    <div class="notes-markdown-modal-card">
+      <div class="notes-markdown-modal-head">
+        <h3 id="notes-markdown-modal-title" class="notes-markdown-modal-title">Versi Full Markdown</h3>
+        <button id="notes-markdown-modal-close" type="button" class="btn small secondary">
+          <i class="fa-solid fa-xmark"></i> Tutup
+        </button>
+      </div>
+      <div class="notes-markdown-modal-body">
+        <pre id="notes-markdown-modal-pre" class="notes-markdown-modal-pre"></pre>
+      </div>
     </div>
   </div>
 

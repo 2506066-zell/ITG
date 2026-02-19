@@ -10,12 +10,120 @@ let activeOwner = 'Zaldy';
 const LMS_URL_KEY = 'college_lms_url';
 const DEFAULT_LMS_URL = 'https://elearning.itg.ac.id/student_area/tugas/index';
 let assignmentIntelMap = new Map();
+const SUBJECT_CACHE_TTL_MS = 5 * 60 * 1000;
+let scheduleSubjects = [];
+let scheduleSubjectsLoadedAt = 0;
 
 function normalizeOwner(value) {
   const v = String(value || '').trim().toLowerCase();
   if (v === 'zaldy') return 'Zaldy';
   if (v === 'nesya') return 'Nesya';
   return '';
+}
+
+function normalizeSubject(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function subjectKey(value) {
+  return normalizeSubject(value).toLowerCase();
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getSubjectColor(subject = '') {
+  const key = subjectKey(subject) || 'mata kuliah';
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  return {
+    solid: `hsl(${hue} 86% 72%)`,
+    soft: `hsla(${hue}, 86%, 62%, 0.16)`,
+    softBorder: `hsla(${hue}, 86%, 62%, 0.34)`,
+  };
+}
+
+function parseTimeToMinutes(raw) {
+  const text = String(raw || '').trim();
+  const m = text.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return 23 * 60 + 59;
+  const hh = Math.max(0, Math.min(23, Number(m[1] || 0)));
+  const mm = Math.max(0, Math.min(59, Number(m[2] || 0)));
+  return hh * 60 + mm;
+}
+
+function dayDistanceFromToday(dayId) {
+  const today = new Date().getDay() || 7;
+  const day = Number(dayId) || 0;
+  if (day < 1 || day > 7) return 8;
+  return (day - today + 7) % 7;
+}
+
+function buildSubjectOptionsFromSchedule(rows = []) {
+  const map = new Map();
+  for (const row of rows) {
+    const subject = normalizeSubject(row?.subject);
+    if (!subject) continue;
+    const key = subjectKey(subject);
+    const rank = (dayDistanceFromToday(row?.day_id) * 24 * 60) + parseTimeToMinutes(row?.time_start);
+    const prev = map.get(key);
+    if (!prev || rank < prev.rank) {
+      map.set(key, { subject, rank });
+    }
+  }
+  return [...map.values()]
+    .sort((a, b) => a.rank - b.rank || a.subject.localeCompare(b.subject, 'id'))
+    .map((item) => item.subject);
+}
+
+function renderSubjectSelect() {
+  const select = document.querySelector('#create-assignment select[name="title"]');
+  const hint = document.getElementById('assignment-subject-hint');
+  if (!select) return;
+
+  const current = normalizeSubject(select.value);
+  if (!scheduleSubjects.length) {
+    select.innerHTML = '<option value="">Belum ada mata kuliah di jadwal</option>';
+    select.disabled = true;
+    if (hint) hint.textContent = 'Belum ada mapel di jadwal. Tambah jadwal dulu di halaman Jadwal.';
+    return;
+  }
+
+  const optionsHtml = scheduleSubjects
+    .map((subject) => `<option value="${escapeHtml(subject)}">${escapeHtml(subject)}</option>`)
+    .join('');
+  select.innerHTML = `<option value="">Pilih mata kuliah...</option>${optionsHtml}`;
+  select.disabled = false;
+  const fallback = scheduleSubjects[0] || '';
+  select.value = scheduleSubjects.includes(current) ? current : fallback;
+  if (hint) hint.textContent = `Mapel otomatis dari jadwal kuliah (${scheduleSubjects.length} mapel).`;
+}
+
+async function ensureScheduleSubjects(force = false) {
+  const now = Date.now();
+  if (!force && now - scheduleSubjectsLoadedAt < SUBJECT_CACHE_TTL_MS && scheduleSubjects.length) {
+    renderSubjectSelect();
+    return scheduleSubjects;
+  }
+
+  try {
+    const rows = await get('/schedule');
+    scheduleSubjects = buildSubjectOptionsFromSchedule(Array.isArray(rows) ? rows : []);
+    scheduleSubjectsLoadedAt = now;
+  } catch {
+    scheduleSubjects = [];
+  }
+  renderSubjectSelect();
+  return scheduleSubjects;
 }
 
 function getDefaultOwner() {
@@ -433,23 +541,29 @@ async function load() {
   const createItem = (a, isCompleted) => {
     const owner = getAssignmentOwner(a) || 'Other';
     const ownerClass = owner ? `owner-${owner.toLowerCase()}` : '';
+    const subject = normalizeSubject(a?.title) || 'Mata Kuliah';
+    const color = getSubjectColor(subject);
     const el = document.createElement('div');
     el.className = `list-item assignment-item ${ownerClass}`.trim();
     el.dataset.assignmentId = String(a.id);
+    el.style.setProperty('--subject-accent', color.solid);
+    el.style.setProperty('--subject-soft', color.soft);
+    el.style.setProperty('--subject-soft-border', color.softBorder);
 
     el.innerHTML = `
       <div style="flex:1">
         <div style="display:flex; align-items:center; gap:8px">
           <input type="checkbox" ${isCompleted ? 'checked' : ''} data-id="${a.id}" data-action="toggle">
-          <strong style="font-size:13px">${a.title}</strong>
+          <strong class="assignment-subject-title" style="font-size:13px">${escapeHtml(subject)}</strong>
+          <span class="subject-label-chip">Mapel</span>
           ${!isCompleted ? `<span class="risk-chip ${(assignmentIntelMap.get(String(a.id)) || {}).band || 'low'}">${((assignmentIntelMap.get(String(a.id)) || {}).band || 'low')}</span>` : ''}
           <span class="owner-chip ${ownerClass}">${owner || 'OTHER'}</span>
         </div>
-        ${a.description ? `<div class="muted small" style="margin-left:24px; font-size:11px">${a.description}</div>` : ''}
+        ${a.description ? `<div class="muted small" style="margin-left:24px; font-size:11px">${escapeHtml(a.description)}</div>` : ''}
         <div class="muted small" style="margin-left:24px; margin-top:4px; display:flex; flex-wrap:wrap; gap:6px; align-items:center">
           ${isCompleted ?
         `<span class="badge success"><i class="fa-solid fa-check"></i> ${new Date(a.completed_at).toLocaleDateString()}</span>` :
-        `<span class="badge countdown-timer" data-deadline="${a.deadline}" data-title="${a.title}">...</span>`
+        `<span class="badge countdown-timer" data-deadline="${a.deadline}" data-title="${escapeHtml(subject)}">...</span>`
       }
           <span style="font-size:10px; opacity:0.6"><i class="fa-solid fa-user"></i> ${owner || 'Other'}</span>
         </div>
@@ -492,7 +606,13 @@ async function load() {
 async function create(e) {
   e.preventDefault();
   const f = new FormData(e.target);
+  const subject = normalizeSubject(f.get('title'));
   const deadline = f.get('deadline');
+
+  if (!subject) {
+    showToast('Pilih mata kuliah dulu dari jadwal kuliah.', 'error');
+    return;
+  }
 
   if (new Date(deadline) < new Date()) {
     showToast('Deadline tidak boleh di masa lalu', 'error');
@@ -500,7 +620,7 @@ async function create(e) {
   }
 
   const body = {
-    title: f.get('title'),
+    title: subject,
     description: f.get('description'),
     deadline: deadline,
     assigned_to: normalizeOwner(f.get('assigned_to')) || activeOwner
@@ -559,6 +679,7 @@ function init() {
   document.getElementById('open-add').addEventListener('click', openAddModal);
   document.getElementById('add-cancel').addEventListener('click', closeAddModal);
   setupLmsQuickAccess();
+  ensureScheduleSubjects().catch(() => {});
 
   load();
   moodOverlay = document.getElementById('mood-overlay');
@@ -600,9 +721,10 @@ function setupLmsQuickAccess() {
   });
 }
 
-function openAddModal() {
+async function openAddModal() {
   addOverlay.classList.add('active');
   addOverlay.querySelector('.bottom-sheet').classList.add('active');
+  await ensureScheduleSubjects();
 }
 
 function closeAddModal() {

@@ -14,12 +14,17 @@ const state = {
   activeNote: null,
   enforce: false,
   realtimeTimer: null,
+  historyRows: [],
+  activeHistoryNoteId: 0,
   typingPopupEnabled: false,
   typingPopupRafPending: false,
   typingPopupQueue: [],
   typingPopupLastTs: 0,
   typingPopupHost: null,
   typingPopupComposing: false,
+  formDirty: false,
+  draftSaveTimer: null,
+  lastRestoredDraftKey: '',
 };
 
 const els = {
@@ -47,7 +52,13 @@ const els = {
   aiSummary: document.getElementById('notes-ai-summary'),
   aiNext: document.getElementById('notes-ai-next'),
   aiRisk: document.getElementById('notes-ai-risk'),
+  historyScope: document.getElementById('notes-history-scope'),
   history: document.getElementById('notes-history-list'),
+  historyPreview: document.getElementById('notes-history-preview'),
+  markdownModal: document.getElementById('notes-markdown-modal'),
+  markdownModalTitle: document.getElementById('notes-markdown-modal-title'),
+  markdownModalPre: document.getElementById('notes-markdown-modal-pre'),
+  markdownModalClose: document.getElementById('notes-markdown-modal-close'),
   chatCta: document.getElementById('notes-chat-cta'),
   gate: document.getElementById('notes-hardgate'),
   gateSub: document.getElementById('notes-hardgate-sub'),
@@ -58,6 +69,8 @@ const els = {
 
 const NOTES_REALTIME_POLL_MS = 30000;
 const NOTES_AUTO_OPEN_PREFIX = 'class_notes_auto_open_v2:';
+const NOTES_DRAFT_PREFIX = 'class_notes_draft_v1:';
+const NOTES_DRAFT_DEBOUNCE_MS = 260;
 const TYPING_POPUP_FRAME_MS = 1000 / 30;
 const TYPING_POPUP_QUEUE_MAX = 24;
 const TYPING_POPUP_ACTIVE_MAX = 8;
@@ -68,6 +81,110 @@ const TYPING_POPUP_FIELDS = [
   'note-questions',
   'note-free-text',
 ];
+
+function currentUserLabel() {
+  const user = String(localStorage.getItem('user') || 'Zaldy').trim();
+  if (!user) return 'Zaldy';
+  if (/^zaldy$/i.test(user)) return 'Zaldy';
+  if (/^nesya$/i.test(user)) return 'Nesya';
+  return user.slice(0, 60);
+}
+
+function formSessionKey(scheduleId = null, classDate = null) {
+  const sid = Number(scheduleId ?? els.scheduleId?.value ?? 0);
+  const dt = String(classDate ?? els.classDate?.value ?? state.date ?? localDateText()).slice(0, 10);
+  if (!sid || !dt) return '';
+  return `${sid}:${dt}`;
+}
+
+function draftStorageKey(scheduleId = null, classDate = null) {
+  const session = formSessionKey(scheduleId, classDate);
+  if (!session) return '';
+  return `${NOTES_DRAFT_PREFIX}${currentUserLabel()}:${session}`;
+}
+
+function collectFormDraftPayload() {
+  return {
+    key_points: String(els.keyPoints?.value || ''),
+    action_items: String(els.actionItems?.value || ''),
+    questions: String(els.questions?.value || ''),
+    free_text: String(els.freeText?.value || ''),
+    mood_focus: els.moodFocus?.value || '',
+    confidence: els.confidence?.value || '',
+    ts: Date.now(),
+  };
+}
+
+function applyDraftPayload(payload = {}) {
+  if (!payload || typeof payload !== 'object') return;
+  if (els.keyPoints) els.keyPoints.value = String(payload.key_points || '');
+  if (els.actionItems) els.actionItems.value = String(payload.action_items || '');
+  if (els.questions) els.questions.value = String(payload.questions || '');
+  if (els.freeText) els.freeText.value = String(payload.free_text || '');
+  if (els.moodFocus) els.moodFocus.value = String(payload.mood_focus || '');
+  if (els.confidence) els.confidence.value = String(payload.confidence || '');
+  setMinimumChip(minimumDoneFromForm());
+}
+
+function readDraftPayload(scheduleId = null, classDate = null) {
+  const key = draftStorageKey(scheduleId, classDate);
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraftPayload(scheduleId = null, classDate = null) {
+  const key = draftStorageKey(scheduleId, classDate);
+  if (!key) return;
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+}
+
+function persistDraftPayload() {
+  const key = draftStorageKey();
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(collectFormDraftPayload()));
+  } catch {}
+}
+
+function scheduleDraftPersist() {
+  if (state.draftSaveTimer) {
+    clearTimeout(state.draftSaveTimer);
+    state.draftSaveTimer = null;
+  }
+  state.draftSaveTimer = setTimeout(() => {
+    persistDraftPayload();
+  }, NOTES_DRAFT_DEBOUNCE_MS);
+}
+
+function markFormDirty() {
+  state.formDirty = true;
+  scheduleDraftPersist();
+}
+
+function clearFormDirty() {
+  state.formDirty = false;
+  if (state.draftSaveTimer) {
+    clearTimeout(state.draftSaveTimer);
+    state.draftSaveTimer = null;
+  }
+}
+
+function isEditingNotesField() {
+  const active = document.activeElement;
+  if (!active) return false;
+  const id = String(active.id || '');
+  return TYPING_POPUP_FIELDS.includes(id);
+}
 
 function localDateText() {
   const d = new Date();
@@ -527,18 +644,237 @@ function applyAi(note = null) {
 
 function fillForm(note = null, session = null) {
   const noteDate = String(session?.class_date || note?.class_date || state.date || localDateText()).slice(0, 10);
-  els.noteId.value = note?.id || '';
-  els.scheduleId.value = String(session?.schedule_id || note?.schedule_id || '');
-  els.classDate.value = noteDate;
-  els.keyPoints.value = note?.key_points || '';
-  els.actionItems.value = note?.action_items || '';
-  els.questions.value = note?.questions || '';
-  els.freeText.value = note?.free_text || '';
-  els.moodFocus.value = note?.mood_focus || '';
-  els.confidence.value = note?.confidence || '';
+  const nextScheduleId = Number(session?.schedule_id || note?.schedule_id || 0);
+  const nextSessionKey = formSessionKey(nextScheduleId, noteDate);
+  const currSessionKey = formSessionKey();
+  const sameSession = Boolean(nextSessionKey && currSessionKey && nextSessionKey === currSessionKey);
+
+  if (sameSession && state.formDirty) {
+    if (els.noteId) els.noteId.value = note?.id || els.noteId.value || '';
+    if (els.scheduleId && !els.scheduleId.value) els.scheduleId.value = String(nextScheduleId || '');
+    if (els.classDate && !els.classDate.value) els.classDate.value = noteDate;
+    setMinimumChip(minimumDoneFromForm());
+    applyAi(note);
+    renderActiveSessionContext(note, session || state.activeSession);
+    return;
+  }
+
+  if (els.noteId) els.noteId.value = note?.id || '';
+  if (els.scheduleId) els.scheduleId.value = String(nextScheduleId || '');
+  if (els.classDate) els.classDate.value = noteDate;
+  if (els.keyPoints) els.keyPoints.value = note?.key_points || '';
+  if (els.actionItems) els.actionItems.value = note?.action_items || '';
+  if (els.questions) els.questions.value = note?.questions || '';
+  if (els.freeText) els.freeText.value = note?.free_text || '';
+  if (els.moodFocus) els.moodFocus.value = note?.mood_focus || '';
+  if (els.confidence) els.confidence.value = note?.confidence || '';
+
+  const draft = readDraftPayload(nextScheduleId, noteDate);
+  const draftKey = draftStorageKey(nextScheduleId, noteDate);
+  if (draft && draftKey) {
+    applyDraftPayload(draft);
+    state.formDirty = true;
+    if (state.lastRestoredDraftKey !== draftKey) {
+      state.lastRestoredDraftKey = draftKey;
+      showToast('Draft lokal dipulihkan.', 'info');
+    }
+  } else {
+    clearFormDirty();
+  }
+
   setMinimumChip(Boolean(note?.is_minimum_completed) || minimumDoneFromForm());
   applyAi(note);
   renderActiveSessionContext(note, session || state.activeSession);
+}
+
+function normalizeOwnerLabel(raw = '') {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  if (/^zaldy$/i.test(t)) return 'Zaldy';
+  if (/^nesya$/i.test(t)) return 'Nesya';
+  return t.slice(0, 60);
+}
+
+function buildHistoryMarkdown(note = {}) {
+  const lines = [];
+  const date = String(note.class_date || '').slice(0, 10);
+  const start = String(note.time_start || '').slice(0, 5);
+  const end = String(note.time_end || '').slice(0, 5);
+  const owner = normalizeOwnerLabel(note.user_id || note.viewer_user || '');
+  const confidence = String(note.confidence || '').trim();
+  const mood = note.mood_focus === null || note.mood_focus === undefined || note.mood_focus === '' ? '' : String(note.mood_focus);
+
+  lines.push(`# ${note.subject || 'Catatan Kuliah'}`);
+  lines.push('');
+  lines.push(`- Tanggal: ${date || '-'}`);
+  lines.push(`- Waktu: ${start && end ? `${start}-${end}` : '-'}`);
+  lines.push(`- Ruangan: ${note.room || '-'}`);
+  lines.push(`- Dosen: ${note.lecturer || '-'}`);
+  if (owner) lines.push(`- Owner: ${owner}`);
+  if (confidence) lines.push(`- Keyakinan: ${confidence}`);
+  if (mood) lines.push(`- Mood Fokus: ${mood}`);
+  lines.push('');
+
+  if (note.key_points) {
+    lines.push('## Poin Penting');
+    lines.push(String(note.key_points).trim());
+    lines.push('');
+  }
+  if (note.action_items) {
+    lines.push('## Langkah Lanjutan');
+    lines.push(String(note.action_items).trim());
+    lines.push('');
+  }
+  if (note.questions) {
+    lines.push('## Pertanyaan');
+    lines.push(String(note.questions).trim());
+    lines.push('');
+  }
+  if (note.free_text) {
+    lines.push('## Catatan Bebas');
+    lines.push(String(note.free_text).trim());
+    lines.push('');
+  }
+  if (note.summary_text || note.next_action_text || note.risk_hint) {
+    lines.push('## Insight Z AI');
+    if (note.summary_text) lines.push(`- Ringkasan: ${String(note.summary_text).trim()}`);
+    if (note.next_action_text) lines.push(`- Aksi: ${String(note.next_action_text).trim()}`);
+    if (note.risk_hint) lines.push(`- Risiko: ${String(note.risk_hint).trim()}`);
+    lines.push('');
+  }
+  return lines.join('\n').trim();
+}
+
+async function copyTextToClipboard(text = '') {
+  const value = String(text || '');
+  if (!value) return false;
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {}
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = value;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    ta.style.pointerEvents = 'none';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return Boolean(ok);
+  } catch {
+    return false;
+  }
+}
+
+function applyHistoryNoteToEditor(note = null) {
+  if (!note) return;
+  const session = {
+    schedule_id: Number(note.schedule_id || state.activeSession?.schedule_id || 0),
+    class_date: String(note.class_date || state.date || localDateText()).slice(0, 10),
+    subject: note.subject || state.activeSession?.subject || 'Kelas',
+    room: note.room || state.activeSession?.room || '',
+    lecturer: note.lecturer || state.activeSession?.lecturer || '',
+    time_start: note.time_start || state.activeSession?.time_start || '',
+    time_end: note.time_end || state.activeSession?.time_end || '',
+    is_minimum_completed: Boolean(note.is_minimum_completed),
+  };
+
+  state.activeNote = note;
+  state.activeSession = session;
+  state.activeSessionId = Number(session.schedule_id || 0) || null;
+  state.activeSessionKey = sessionKey(session);
+  state.date = session.class_date || state.date;
+
+  if (els.dateInput) {
+    els.dateInput.value = state.date;
+  }
+  fillForm(note, session);
+  clearFormDirty();
+  renderActiveSessionContext(note, session);
+  renderSessions();
+  renderNearestSubjectList();
+  renderGate();
+
+  if (els.keyPoints) {
+    els.keyPoints.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    els.keyPoints.focus();
+  }
+}
+
+function closeHistoryMarkdownModal() {
+  if (!els.markdownModal) return;
+  els.markdownModal.classList.remove('show');
+  els.markdownModal.setAttribute('aria-hidden', 'true');
+}
+
+function openHistoryMarkdownModal(note = null) {
+  if (!note || !els.markdownModal || !els.markdownModalPre) return;
+  const md = buildHistoryMarkdown(note);
+  const date = String(note.class_date || '').slice(0, 10);
+  const subject = String(note.subject || 'Catatan Kuliah').trim() || 'Catatan Kuliah';
+  if (els.markdownModalTitle) {
+    els.markdownModalTitle.textContent = `Versi Full Markdown | ${subject} | ${date || '-'}`;
+  }
+  els.markdownModalPre.textContent = md;
+  els.markdownModal.classList.add('show');
+  els.markdownModal.setAttribute('aria-hidden', 'false');
+}
+
+function renderHistoryPreview(note = null) {
+  if (!els.historyPreview) return;
+  if (!note) {
+    els.historyPreview.style.display = 'none';
+    els.historyPreview.innerHTML = '';
+    return;
+  }
+  const markdown = buildHistoryMarkdown(note);
+  els.historyPreview.style.display = 'block';
+  els.historyPreview.innerHTML = `
+    <p class="notes-markdown-head"><i class="fa-solid fa-file-lines"></i> Preview Markdown</p>
+    <pre class="notes-markdown-pre">${escapeHtml(markdown)}</pre>
+    <div class="notes-markdown-actions">
+      <button type="button" class="btn small secondary" data-history-action="copy" data-note-id="${Number(note.id || 0)}">
+        <i class="fa-solid fa-copy"></i> Copy Markdown
+      </button>
+      <button type="button" class="btn small secondary" data-history-action="apply" data-note-id="${Number(note.id || 0)}">
+        <i class="fa-solid fa-pen-to-square"></i> Masukkan ke Editor
+      </button>
+      <button type="button" class="btn small secondary" data-history-action="fullscreen" data-note-id="${Number(note.id || 0)}">
+        <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Buka versi full
+      </button>
+    </div>
+  `;
+}
+
+function renderHistoryList(rows = []) {
+  if (!els.history) return;
+  els.history.innerHTML = rows.map((n) => {
+    const id = Number(n.id || 0);
+    const active = id > 0 && id === Number(state.activeHistoryNoteId || 0);
+    return `
+      <article class="notes-history-item ${active ? 'active' : ''}" data-note-id="${id}">
+        <h4>${escapeHtml(n.subject || 'Kelas')} | ${escapeHtml(String(n.class_date || '').slice(0, 10))}</h4>
+        <p>${escapeHtml(n.summary_text || n.next_action_text || 'Catatan tersimpan. Klik untuk lihat versi markdown.')}</p>
+      </article>
+    `;
+  }).join('');
+}
+
+function activeHistoryScope() {
+  const subject = String(state.activeSession?.subject || state.activeNote?.subject || '').trim();
+  const owner = normalizeOwnerLabel(
+    state.activeNote?.viewer_user ||
+    localStorage.getItem('user') ||
+    'Zaldy'
+  );
+  return { subject, owner };
 }
 
 function renderActiveSessionContext(note = null, session = null) {
@@ -654,6 +990,7 @@ async function focusSession(session, opts = {}) {
 
 async function maybeAutoOpenStartedSession(opts = {}) {
   const force = Boolean(opts.force);
+  if (!force && (state.formDirty || isEditingNotesField())) return;
   const pending = getPendingStartedSessions();
   if (!pending.length) return;
   const top = pending[0];
@@ -667,6 +1004,7 @@ async function maybeAutoOpenStartedSession(opts = {}) {
 async function setActiveSession(session, opts = {}) {
   if (!session) return;
   const focusEditor = opts.focusEditor !== false;
+  const prevKey = state.activeSessionKey;
   const dateText = String(session.class_date || state.date || localDateText()).slice(0, 10);
   state.activeSession = { ...session, class_date: dateText };
   state.activeSessionId = Number(state.activeSession.schedule_id || 0) || null;
@@ -678,6 +1016,9 @@ async function setActiveSession(session, opts = {}) {
   renderNearestSubjectList();
   renderSessions();
   renderGate();
+  if (prevKey !== state.activeSessionKey) {
+    await loadHistory();
+  }
   if (focusEditor && els.keyPoints) {
     els.keyPoints.scrollIntoView({ behavior: 'smooth', block: 'center' });
     els.keyPoints.focus();
@@ -865,21 +1206,51 @@ async function loadActiveNote(scheduleId, classDate = state.date) {
 }
 
 async function loadHistory() {
+  if (!els.history) return;
+  const scope = activeHistoryScope();
+  if (!scope.subject) {
+    if (els.historyScope) {
+      els.historyScope.textContent = 'Pilih mata kuliah dulu untuk melihat riwayat catatan per mapel.';
+    }
+    els.history.innerHTML = '<div class="notes-empty">Belum ada mata kuliah aktif untuk menampilkan riwayat.</div>';
+    state.historyRows = [];
+    state.activeHistoryNoteId = 0;
+    renderHistoryPreview(null);
+    return;
+  }
+
+  if (els.historyScope) {
+    const ownerText = scope.owner ? ` | Owner: ${scope.owner}` : '';
+    els.historyScope.textContent = `Riwayat mapel: ${scope.subject}${ownerText}`;
+  }
+
   const to = state.date;
   const base = new Date(`${to}T00:00:00`);
   base.setDate(base.getDate() - 7);
   const from = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
-  const rows = await get(`/class_notes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  const qs = new URLSearchParams();
+  qs.set('from', from);
+  qs.set('to', to);
+  qs.set('subject', scope.subject);
+  if (scope.owner) qs.set('owner', scope.owner);
+
+  const rows = await get(`/class_notes?${qs.toString()}`);
   if (!Array.isArray(rows) || !rows.length) {
-    els.history.innerHTML = '<div class="notes-empty">Belum ada riwayat catatan 7 hari terakhir.</div>';
+    els.history.innerHTML = `<div class="notes-empty">Belum ada riwayat catatan ${escapeHtml(scope.subject)} untuk 7 hari terakhir.</div>`;
+    state.historyRows = [];
+    state.activeHistoryNoteId = 0;
+    renderHistoryPreview(null);
     return;
   }
-  els.history.innerHTML = rows.slice(0, 12).map((n) => `
-    <article class="notes-history-item">
-      <h4>${escapeHtml(n.subject || 'Kelas')} | ${escapeHtml(String(n.class_date || '').slice(0, 10))}</h4>
-      <p>${escapeHtml(n.summary_text || n.next_action_text || 'Catatan tersimpan.')}</p>
-    </article>
-  `).join('');
+  state.historyRows = rows.slice(0, 12);
+  const preferredId = Number(state.activeNote?.id || 0);
+  const existingId = Number(state.activeHistoryNoteId || 0);
+  const selected = state.historyRows.find((x) => Number(x.id || 0) === existingId)
+    || state.historyRows.find((x) => Number(x.id || 0) === preferredId)
+    || state.historyRows[0];
+  state.activeHistoryNoteId = Number(selected?.id || 0);
+  renderHistoryList(state.historyRows);
+  renderHistoryPreview(selected || null);
 }
 
 async function saveNote(ev) {
@@ -903,6 +1274,8 @@ async function saveNote(ev) {
   };
   const saved = await post('/class_notes', body);
   state.activeNote = saved;
+  clearDraftPayload(scheduleId, classDate);
+  clearFormDirty();
   if (state.activeSession) {
     state.activeSession.is_minimum_completed = Boolean(saved?.is_minimum_completed);
   }
@@ -934,6 +1307,7 @@ function bindSessionClicks() {
 function bindLiveMinimumCheck() {
   ['input', 'change'].forEach((evtName) => {
     els.form.addEventListener(evtName, () => {
+      markFormDirty();
       setMinimumChip(minimumDoneFromForm());
     });
   });
@@ -949,6 +1323,64 @@ function bindEvents() {
     });
   }
   bindSessionClicks();
+  if (els.history) {
+    els.history.addEventListener('click', (ev) => {
+      const card = ev.target.closest('.notes-history-item[data-note-id]');
+      if (!card) return;
+      const id = Number(card.dataset.noteId || 0);
+      if (!id) return;
+      const note = state.historyRows.find((x) => Number(x.id || 0) === id);
+      if (!note) return;
+      state.activeHistoryNoteId = id;
+      renderHistoryList(state.historyRows);
+      renderHistoryPreview(note);
+    });
+  }
+  if (els.historyPreview) {
+    els.historyPreview.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('button[data-history-action][data-note-id]');
+      if (!btn) return;
+      const action = String(btn.dataset.historyAction || '').trim().toLowerCase();
+      const noteId = Number(btn.dataset.noteId || 0);
+      if (!noteId) return;
+      const note = state.historyRows.find((x) => Number(x.id || 0) === noteId);
+      if (!note) return;
+
+      if (action === 'copy') {
+        const ok = await copyTextToClipboard(buildHistoryMarkdown(note));
+        showToast(ok ? 'Markdown berhasil disalin.' : 'Gagal menyalin markdown.', ok ? 'success' : 'error');
+        return;
+      }
+
+      if (action === 'apply') {
+        applyHistoryNoteToEditor(note);
+        showToast('Riwayat catatan dimasukkan ke editor.', 'success');
+        return;
+      }
+
+      if (action === 'fullscreen') {
+        openHistoryMarkdownModal(note);
+        return;
+      }
+    });
+  }
+  if (els.markdownModalClose) {
+    els.markdownModalClose.addEventListener('click', () => {
+      closeHistoryMarkdownModal();
+    });
+  }
+  if (els.markdownModal) {
+    els.markdownModal.addEventListener('click', (ev) => {
+      if (ev.target === els.markdownModal) {
+        closeHistoryMarkdownModal();
+      }
+    });
+  }
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && els.markdownModal?.classList.contains('show')) {
+      closeHistoryMarkdownModal();
+    }
+  });
   bindLiveMinimumCheck();
   if (els.exportMd) {
     els.exportMd.addEventListener('click', () => {
@@ -983,6 +1415,7 @@ function startRealtimeWatcher() {
   }
   state.realtimeTimer = setInterval(async () => {
     try {
+      if (state.formDirty || isEditingNotesField() || state.typingPopupComposing) return;
       await loadSessions({ preserveActive: true });
       await maybeAutoOpenStartedSession();
     } catch {}
@@ -1005,10 +1438,15 @@ async function init() {
   startRealtimeWatcher();
   document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState !== 'visible') return;
+    if (state.formDirty || isEditingNotesField()) return;
     await loadSessions({ preserveActive: true });
     await maybeAutoOpenStartedSession();
   });
-  window.addEventListener('beforeunload', () => {
+  window.addEventListener('beforeunload', (ev) => {
+    if (state.formDirty) {
+      ev.preventDefault();
+      ev.returnValue = '';
+    }
     if (state.realtimeTimer) clearInterval(state.realtimeTimer);
   });
   if (els.pageSub) {
