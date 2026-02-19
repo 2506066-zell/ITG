@@ -17,6 +17,8 @@ let studyPlanData = null;
 let studyProgressSummary = null;
 let studyNotifyTimers = [];
 let studyAutoReplanLock = false;
+let notesGatePending = [];
+let notesGatePollTimer = null;
 
 const STUDY_TARGET_KEY = 'study_plan_target_min_v1';
 const DEFAULT_STUDY_TARGET = 150;
@@ -26,6 +28,41 @@ const STUDY_REPLAN_KEY_PREFIX = 'study_plan_replan_v1:';
 const STUDY_NOTIFY_PROMPT_KEY = 'study_plan_notif_prompted_v1';
 const STUDY_REPLAN_COOLDOWN_MS = 30 * 60 * 1000;
 const STUDY_PREP_ALERT_MINUTES = 5;
+const NOTES_GATE_AUTO_OPEN_PREFIX = 'notes_gate_auto_open_v1:';
+const NOTES_GATE_POLL_MS = 30000;
+
+function notesGateMarker(dateText, scheduleId) {
+  return `${NOTES_GATE_AUTO_OPEN_PREFIX}${dateText}:${Number(scheduleId || 0)}`;
+}
+
+function hasNotesGateAutoOpened(dateText, scheduleId) {
+  try {
+    return sessionStorage.getItem(notesGateMarker(dateText, scheduleId)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markNotesGateAutoOpened(dateText, scheduleId) {
+  try {
+    sessionStorage.setItem(notesGateMarker(dateText, scheduleId), '1');
+  } catch {}
+}
+
+function maybeAutoOpenNotesGateSession(session, dateText) {
+  if (!session) return;
+  if (!isTodayDateText(dateText)) return;
+  if (document.visibilityState !== 'visible') return;
+  const scheduleId = Number(session.schedule_id || 0);
+  if (!scheduleId) return;
+  if (hasNotesGateAutoOpened(dateText, scheduleId)) return;
+  markNotesGateAutoOpened(dateText, scheduleId);
+  showToast('Kelas aktif terdeteksi. Membuka editor catatan...', 'info');
+  const target = `/class-notes?enforce=1&date=${encodeURIComponent(dateText)}&schedule_id=${scheduleId}&auto_open=1`;
+  setTimeout(() => {
+    window.location.href = target;
+  }, 420);
+}
 
 function clamp(val, min, max) {
   return Math.min(max, Math.max(min, val));
@@ -38,6 +75,10 @@ function dateKey(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
+function isTodayDateText(text = '') {
+  return String(text || '').slice(0, 10) === dateKey();
+}
+
 function parseSessionMinutes(value) {
   if (!value || typeof value !== 'string') return null;
   const m = value.match(/^(\d{2}):(\d{2})$/);
@@ -46,6 +87,49 @@ function parseSessionMinutes(value) {
   const mm = Number(m[2]);
   if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
   return hh * 60 + mm;
+}
+
+function isClassStartedForGate(session, dateText) {
+  if (!session) return false;
+  if (!isTodayDateText(dateText)) return true;
+  const start = parseSessionMinutes(String(session.time_start || '').slice(0, 5));
+  if (!Number.isFinite(start)) return true;
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  return start <= nowMin;
+}
+
+function updateNotesGateOverlay(dateText = dateKey()) {
+  const overlay = document.getElementById('notes-gate-overlay');
+  const textEl = document.getElementById('notes-gate-text');
+  const openEl = document.getElementById('notes-gate-open');
+  if (!overlay || !textEl || !openEl) return;
+
+  const duePending = notesGatePending.filter((s) => isClassStartedForGate(s, dateText));
+  if (!duePending.length) {
+    overlay.style.display = 'none';
+    return;
+  }
+
+  const top = duePending[0];
+  const start = String(top.time_start || '').slice(0, 5);
+  const end = String(top.time_end || '').slice(0, 5);
+  textEl.textContent = `Kelas "${top.subject || 'Kelas'}" (${start}-${end}) belum punya catatan minimum. Lengkapi dulu sebelum lanjut.`;
+  openEl.href = `/class-notes?enforce=1&date=${encodeURIComponent(dateText)}&schedule_id=${Number(top.schedule_id || 0)}`;
+  overlay.style.display = 'flex';
+  maybeAutoOpenNotesGateSession(top, dateText);
+}
+
+async function refreshClassNotesGate(dateText = dateKey()) {
+  try {
+    const payload = await get(`/class_notes/session?date=${encodeURIComponent(dateText)}`);
+    const sessions = Array.isArray(payload && payload.sessions) ? payload.sessions : [];
+    notesGatePending = sessions.filter((s) => !s.is_minimum_completed);
+    updateNotesGateOverlay(dateText);
+  } catch {
+    notesGatePending = [];
+    updateNotesGateOverlay(dateText);
+  }
 }
 
 function parsePlanDateTime(planDate, hhmm) {
@@ -510,10 +594,13 @@ async function loadSchedule(options = {}) {
     renderGridView();
     renderOrbitalView();
     updateAssistantAdvice();
+    await refreshClassNotesGate(dateKey());
   } catch {
     studyProgressSummary = null;
     renderStudyAnalytics();
     container.innerHTML = '<div class="muted center">Failed to load schedule.</div>';
+    notesGatePending = [];
+    updateNotesGateOverlay(dateKey());
   }
 }
 
@@ -541,7 +628,7 @@ function renderGridView() {
     if (!grouped[d].length) {
       const empty = document.createElement('div');
       empty.className = 'muted small center';
-      empty.textContent = 'No classes.';
+      empty.textContent = 'Belum ada kelas.';
       card.appendChild(empty);
     } else {
       grouped[d].sort((a, b) => a.time_start.localeCompare(b.time_start));
@@ -552,17 +639,14 @@ function renderGridView() {
         const end = c.time_end.slice(0, 5);
 
         const delBtn = document.createElement('button');
-        delBtn.className = 'btn danger small';
-        delBtn.style.position = 'absolute';
-        delBtn.style.top = '10px';
-        delBtn.style.right = '10px';
-        delBtn.style.padding = '4px 8px';
+        delBtn.className = 'class-del-btn';
         delBtn.innerHTML = '<i class="fa-solid fa-times"></i>';
+        delBtn.addEventListener('click', (ev) => ev.stopPropagation());
         delBtn.onclick = async () => {
-          if (confirm(`Remove ${c.subject}?`)) {
+          if (confirm(`Hapus kelas "${c.subject}"?`)) {
             await del(`/schedule?id=${c.id}`);
             await loadSchedule();
-            showToast('Class removed');
+            showToast('Kelas dihapus');
           }
         };
 
@@ -572,6 +656,9 @@ function renderGridView() {
           <div class="class-room"><i class="fa-solid fa-location-dot"></i> ${c.room || 'TBA'}</div>
           ${c.lecturer ? `<div class="class-lecturer"><i class="fa-solid fa-user-tie"></i> ${c.lecturer}</div>` : ''}
         `;
+        item.addEventListener('click', () => {
+          window.location.href = `/class-notes?schedule_id=${Number(c.id)}&date=${encodeURIComponent(dateKey())}`;
+        });
         item.appendChild(delBtn);
         card.appendChild(item);
       });
@@ -797,6 +884,32 @@ function init() {
   initModal();
   initViewToggle();
   maybePromptStudyNotificationPermission();
+  const gateRefresh = document.getElementById('notes-gate-refresh');
+  if (gateRefresh) {
+    gateRefresh.addEventListener('click', async () => {
+      await refreshClassNotesGate(dateKey());
+      if (notesGatePending.length > 0) {
+        showToast('Masih ada kelas aktif yang belum dicatat.', 'error');
+      } else {
+        showToast('Catatan sesi sudah lengkap.', 'success');
+      }
+    });
+  }
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+      await refreshClassNotesGate(dateKey());
+    }
+  });
+  if (notesGatePollTimer) {
+    clearInterval(notesGatePollTimer);
+    notesGatePollTimer = null;
+  }
+  notesGatePollTimer = setInterval(() => {
+    refreshClassNotesGate(dateKey()).catch(() => {});
+  }, NOTES_GATE_POLL_MS);
+  window.addEventListener('beforeunload', () => {
+    if (notesGatePollTimer) clearInterval(notesGatePollTimer);
+  });
   loadSchedule();
 }
 

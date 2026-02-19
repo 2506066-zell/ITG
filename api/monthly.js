@@ -1,4 +1,5 @@
 import { pool, readBody, verifyToken, withErrorHandling, sendJson } from './_lib.js';
+import { sendNotificationToUser } from './notifications.js';
 
 export default withErrorHandling(async function handler(req, res) {
   const v = verifyToken(req, res);
@@ -102,10 +103,12 @@ export default withErrorHandling(async function handler(req, res) {
 
       // Check if month is archived (optional constraint check here or frontend)
       // "Toggling archived month must be disabled" -> Backend check
-      const todoRes = await pool.query('SELECT month FROM monthly_todos WHERE id = $1', [todo_id]);
+      const todoRes = await pool.query('SELECT month, title, user_id FROM monthly_todos WHERE id = $1', [todo_id]);
       if (todoRes.rowCount === 0) { res.status(404).json({ error: 'Todo not found' }); return; }
       
       const todoMonth = todoRes.rows[0].month;
+      const todoTitle = String(todoRes.rows[0].title || 'habit').trim();
+      const todoUser = String(todoRes.rows[0].user_id || user || '').trim();
       const now = new Date();
       const dLocal = typeof tz_offset_min === 'number'
         ? new Date(now.getTime() - (tz_offset_min * 60000))
@@ -131,6 +134,19 @@ export default withErrorHandling(async function handler(req, res) {
          RETURNING *`,
         [todo_id, date, completed]
       );
+
+      if (completed === true) {
+        const partner = todoUser === 'Zaldy' ? 'Nesya' : (todoUser === 'Nesya' ? 'Zaldy' : null);
+        if (partner) {
+          const body = `${todoUser} selesai checklist "${todoTitle}" hari ini. Kamu juga lanjut 1 habit sekarang.`;
+          sendNotificationToUser(partner, {
+            title: 'Progress Habit Pasangan',
+            body,
+            url: '/monthly-todos'
+          }).catch(console.error);
+        }
+      }
+
       sendJson(res, 200, r.rows[0]);
       return;
     }

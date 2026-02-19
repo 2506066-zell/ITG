@@ -1289,10 +1289,14 @@ function renderCouplePulse() {
 function renderUrgentRadar() {
   const container = document.getElementById('urgent-radar-list');
   const countEl = document.getElementById('urgent-count');
+  const radarCard = document.getElementById('urgent-radar-card');
   if (!container) return;
 
   const urgentItems = collectMissionItems().filter((i) => i.urgency === 'critical' || i.urgency === 'warning').slice(0, 6);
   if (countEl) countEl.textContent = `${urgentItems.length} item`;
+  if (radarCard) {
+    radarCard.classList.toggle('is-alert-pulse', urgentItems.length > 0);
+  }
 
   if (urgentItems.length === 0) {
     container.innerHTML = '<div class="cc-empty">Radar tenang. Tidak ada item kritis untuk 24 jam ke depan.</div>';

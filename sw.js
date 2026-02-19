@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cf-v26';
+const CACHE_NAME = 'cf-v27';
 const ASSETS = [
   '/',
   '/login',
@@ -15,6 +15,7 @@ const ASSETS = [
   'chat.html',
   'settings.html',
   'report.html',
+  'class-notes.html',
   'manifest.json',
   'css/style.css',
   'css/v2-system.css',
@@ -45,6 +46,7 @@ const ASSETS = [
   'js/college-widget.js',
   'js/settings.js',
   'js/report.js',
+  'js/class_notes.js',
   'icons/192.png',
   'icons/512.png',
   'icons/icon.svg'

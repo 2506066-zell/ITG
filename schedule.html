@@ -187,6 +187,21 @@
         gap: 6px;
       }
 
+      .study-summary,
+      .study-analytics {
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .study-title {
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .study-sub {
+        font-size: 12px;
+      }
+
       .study-method {
         justify-self: start;
       }
@@ -196,17 +211,18 @@
       }
 
       .schedule-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
+        grid-template-columns: 1fr;
+        gap: 10px;
       }
     }
 
     .day-card {
       background: var(--glass-bg);
       border-radius: 12px;
-      padding: 10px;
-      border: 1px solid var(--glass-border);
+      padding: 12px;
+      border: 1px solid hsla(0, 0%, 100%, 0.13);
       min-height: 100px;
+      box-shadow: 0 10px 24px -18px rgba(0, 0, 0, 0.85);
     }
 
     .day-header {
@@ -214,65 +230,94 @@
       color: var(--primary);
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 8px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 10px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.75rem;
+      font-size: 0.9rem;
     }
 
     .class-item {
       background: rgba(255, 255, 255, 0.03);
-      border-radius: 8px;
-      padding: 6px;
-      margin-bottom: 6px;
+      border-radius: 10px;
+      padding: 8px 36px 8px 8px;
+      margin-bottom: 8px;
       position: relative;
       transition: transform 0.2s;
+      border: 1px solid hsla(0, 0%, 100%, 0.12);
     }
 
     .class-time {
       font-family: monospace;
       font-weight: 600;
       color: var(--accent);
-      margin-bottom: 2px;
-      font-size: 0.65rem;
+      margin-bottom: 4px;
+      font-size: 0.78rem;
     }
 
     .class-subject {
       font-weight: 600;
-      font-size: 0.8rem;
-      margin-bottom: 2px;
-      line-height: 1.2;
+      font-size: 0.98rem;
+      margin-bottom: 4px;
+      line-height: 1.4;
+      color: hsl(var(--text-100));
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
     .class-room {
-      font-size: 0.6rem;
-      color: var(--muted);
+      font-size: 0.79rem;
+      color: hsl(var(--text-300));
       display: flex;
       align-items: center;
       gap: 4px;
     }
 
     .class-lecturer {
-      font-size: 0.6rem;
-      color: var(--muted);
+      font-size: 0.77rem;
+      color: hsl(var(--text-400));
       font-style: italic;
-      margin-top: 2px;
+      margin-top: 3px;
     }
 
     .today-badge {
-      font-size: 0.55rem;
-      background: var(--accent);
-      color: #000;
-      padding: 1px 4px;
-      border-radius: 4px;
+      font-size: 0.64rem;
+      background: hsla(var(--nebula-core), 0.18);
+      color: hsl(var(--nebula-core));
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid hsla(var(--nebula-core), 0.5);
+      letter-spacing: 0.05em;
+    }
+
+    .class-del-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      line-height: 1;
+      border: 1px solid hsla(0, 0%, 100%, 0.18);
+      background: hsla(0, 0%, 100%, 0.08);
+      color: hsl(var(--text-300));
+    }
+
+    .class-del-btn i {
+      font-size: 11px;
     }
 
     .add-btn-floating {
       position: fixed;
-      bottom: 30px;
+      bottom: calc(86px + env(safe-area-inset-bottom, 0px));
       right: 30px;
       width: 60px;
       height: 60px;
@@ -288,6 +333,79 @@
       z-index: 100;
       border: none;
       transition: transform 0.2s;
+    }
+
+    @media (max-width: 768px) {
+      .schedule-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .day-card {
+        border-radius: 14px;
+      }
+
+      .add-btn-floating {
+        right: 14px;
+        bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+        width: 54px;
+        height: 54px;
+        font-size: 22px;
+      }
+    }
+
+    @media (max-width: 412px) {
+      .day-card {
+        padding: 10px;
+        border-radius: 12px;
+      }
+
+      .day-header {
+        font-size: 0.84rem;
+        margin-bottom: 8px;
+      }
+
+      .class-item {
+        padding: 7px 34px 7px 8px;
+      }
+
+      .class-time {
+        font-size: 0.72rem;
+      }
+
+      .class-subject {
+        font-size: 0.9rem;
+        line-height: 1.36;
+      }
+
+      .class-room,
+      .class-lecturer {
+        font-size: 0.74rem;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .day-card {
+        padding: 9px;
+      }
+
+      .class-item {
+        padding: 7px 30px 7px 7px;
+      }
+
+      .class-subject {
+        font-size: 0.86rem;
+      }
+
+      .class-room,
+      .class-lecturer {
+        font-size: 0.7rem;
+      }
+
+      .today-badge {
+        font-size: 0.6rem;
+        padding: 2px 5px;
+      }
     }
 
     .add-btn-floating:hover {
@@ -339,6 +457,7 @@
   <nav class="navbar">
     <div class="brand"><i class="fa-solid fa-heart"></i> NZ</div>
     <div class="nav-actions">
+      <a class="btn secondary" href="/class-notes"><i class="fa-solid fa-note-sticky"></i> Catatan</a>
       <a class="btn" href="/"><i class="fa-solid fa-house"></i> Home</a>
     </div>
   </nav>
@@ -430,6 +549,17 @@
         <input class="input" name="lecturer" placeholder="Lecturer Name">
         <button class="btn" type="submit">Save Class</button>
       </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="notes-gate-overlay" style="display:none;z-index:3900;background:rgba(5,8,22,.88);backdrop-filter:blur(8px)">
+    <div class="modal" style="max-width:430px;border-color:hsla(var(--sem-danger, 352 82% 66%), .42);background:linear-gradient(165deg, hsla(var(--sem-danger, 352 82% 66%), .18), hsla(230,35%,8%,.95));">
+      <div class="section-title" style="font-size:1rem;margin-bottom:12px"><i class="fa-solid fa-triangle-exclamation"></i> Pencatatan Wajib</div>
+      <p id="notes-gate-text" style="margin:0 0 12px;font-size:.86rem;line-height:1.45;color:hsl(var(--text-100))">Sesi kelas aktif hari ini belum punya catatan minimum.</p>
+      <div style="display:grid;gap:8px">
+        <a class="btn" id="notes-gate-open" href="/class-notes?enforce=1"><i class="fa-solid fa-pen"></i> Isi Catatan Sekarang</a>
+        <button class="btn secondary" id="notes-gate-refresh" type="button"><i class="fa-solid fa-rotate-right"></i> Saya Sudah Catat</button>
+      </div>
     </div>
   </div>
 

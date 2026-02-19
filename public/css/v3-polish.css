@@ -340,21 +340,21 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
 }
 
 .zai-floating-widget[data-tone='critical'] .zai-floating-trigger {
-  border-color: rgba(255, 111, 143, 0.72);
-  background: rgba(159, 22, 56, 0.62);
+  border-color: hsla(var(--sem-danger, 352 82% 66%), 0.66);
+  background: hsla(var(--sem-danger, 352 82% 66%), 0.24);
   color: #fff;
   box-shadow:
     0 16px 28px -14px rgba(0, 0, 0, 0.9),
-    0 0 0 1px rgba(255, 111, 143, 0.28);
+    0 0 0 1px hsla(var(--sem-danger, 352 82% 66%), 0.26);
 }
 
 .zai-floating-widget[data-tone='critical'] .zai-floating-panel {
-  border-color: rgba(255, 111, 143, 0.66);
-  background: rgba(127, 16, 43, 0.56);
+  border-color: hsla(var(--sem-danger, 352 82% 66%), 0.6);
+  background: hsla(var(--sem-danger, 352 82% 66%), 0.2);
   color: #fff;
   box-shadow:
     0 24px 40px -18px rgba(0, 0, 0, 0.9),
-    0 0 0 1px rgba(255, 111, 143, 0.2);
+    0 0 0 1px hsla(var(--sem-danger, 352 82% 66%), 0.18);
 }
 
 .zai-floating-widget[data-tone='critical'] .zai-floating-tone {
@@ -363,7 +363,7 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
 
 .zai-floating-widget[data-tone='critical'] .zai-floating-icon {
   color: #fff;
-  background: rgba(208, 31, 78, 0.72);
+  background: hsla(var(--sem-danger, 352 82% 66%), 0.46);
 }
 
 .zai-floating-widget[data-tone='critical'] .zai-floating-message {
@@ -371,26 +371,26 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
 }
 
 .zai-floating-widget[data-tone='success'] .zai-floating-trigger {
-  border-color: rgba(108, 231, 164, 0.72);
-  background: rgba(15, 111, 62, 0.62);
+  border-color: hsla(var(--sem-safe, 152 62% 54%), 0.66);
+  background: hsla(var(--sem-safe, 152 62% 54%), 0.22);
   color: #fff;
   box-shadow:
     0 16px 28px -14px rgba(0, 0, 0, 0.9),
-    0 0 0 1px rgba(108, 231, 164, 0.28);
+    0 0 0 1px hsla(var(--sem-safe, 152 62% 54%), 0.24);
 }
 
 .zai-floating-widget[data-tone='success'] .zai-floating-panel {
-  border-color: rgba(108, 231, 164, 0.66);
-  background: rgba(13, 88, 50, 0.56);
+  border-color: hsla(var(--sem-safe, 152 62% 54%), 0.6);
+  background: hsla(var(--sem-safe, 152 62% 54%), 0.2);
   color: #fff;
   box-shadow:
     0 24px 40px -18px rgba(0, 0, 0, 0.9),
-    0 0 0 1px rgba(108, 231, 164, 0.2);
+    0 0 0 1px hsla(var(--sem-safe, 152 62% 54%), 0.17);
 }
 
 .zai-floating-widget[data-tone='success'] .zai-floating-icon {
   color: #fff;
-  background: rgba(16, 164, 90, 0.72);
+  background: hsla(var(--sem-safe, 152 62% 54%), 0.44);
 }
 
 .zai-floating-widget[data-tone='success'] .zai-floating-tone {
@@ -486,8 +486,8 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
   }
 
   .chat-page .container.chat-container {
-    height: calc(100dvh - 64px - 72px - env(safe-area-inset-bottom, 0px) - 12px);
-    min-height: 520px;
+    height: calc(100dvh - 58px - 72px - env(safe-area-inset-bottom, 0px));
+    min-height: 0;
     width: 100%;
     max-width: 880px;
     margin: 8px auto 0;
@@ -515,7 +515,7 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
 
   .chat-page .chat-input {
     position: static;
-    padding: 10px 12px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
     gap: 8px;
     background: hsla(var(--space-950), 0.95);
     border-top: 1px solid hsla(0, 0%, 100%, 0.12);
@@ -524,6 +524,10 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
   .chat-page .chat-input .btn {
     width: 40px;
     height: 40px;
+  }
+
+  .chat-page.chat-keyboard-open .bottom-nav {
+    display: none;
   }
 
   .zai-floating-widget {
@@ -567,28 +571,29 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
   }
 
   .schedule-page .schedule-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .schedule-page .day-card {
-    padding: 8px;
+    padding: 12px;
     min-height: 0;
   }
 
   .schedule-page .class-item {
-    padding: 5px;
-    margin-bottom: 5px;
+    padding: 8px 36px 8px 8px;
+    margin-bottom: 8px;
   }
 
   .schedule-page .class-subject {
-    font-size: 0.72rem;
+    font-size: 0.88rem;
+    line-height: 1.32;
   }
 
   .schedule-page .class-time,
   .schedule-page .class-room,
   .schedule-page .class-lecturer {
-    font-size: 0.58rem;
+    font-size: 0.7rem;
   }
 
   .schedule-page .assistant-advice-box {
@@ -698,6 +703,31 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
 
   .schedule-page .schedule-grid {
     grid-template-columns: 1fr;
+  }
+
+  .chat-page .container.chat-container {
+    height: calc(100dvh - 52px - 72px - env(safe-area-inset-bottom, 0px));
+  }
+
+  .chat-page .assistant-mode-indicator {
+    display: none;
+  }
+
+  .schedule-page .day-card {
+    padding: 9px;
+  }
+
+  .schedule-page .class-item {
+    padding: 7px 30px 7px 7px;
+  }
+
+  .schedule-page .class-subject {
+    font-size: 0.78rem;
+  }
+
+  .schedule-page .class-room,
+  .schedule-page .class-lecturer {
+    font-size: 0.62rem;
   }
 
   .command-center-page .cc-countdown .time-box label {
@@ -893,6 +923,48 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
 
   .settings-page .activity-analytics-head .btn {
     width: 100%;
+  }
+
+  .chat-page .container.chat-container {
+    height: calc(100dvh - 54px - 72px - env(safe-area-inset-bottom, 0px));
+    padding: 0 6px;
+  }
+
+  .chat-page .chat-msg {
+    max-width: 91%;
+  }
+
+  .chat-page .bubble-content {
+    font-size: 0.88rem;
+    padding: 9px 11px;
+  }
+
+  .schedule-page .day-card {
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .schedule-page .day-header {
+    font-size: 0.76rem;
+    margin-bottom: 8px;
+  }
+
+  .schedule-page .class-item {
+    padding: 7px 34px 7px 8px;
+  }
+
+  .schedule-page .class-time {
+    font-size: 0.64rem;
+  }
+
+  .schedule-page .class-subject {
+    font-size: 0.82rem;
+    line-height: 1.28;
+  }
+
+  .schedule-page .class-room,
+  .schedule-page .class-lecturer {
+    font-size: 0.66rem;
   }
 }
 

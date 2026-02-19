@@ -34,6 +34,7 @@ const routes = new Set([
   'chatbot_profile',
   'study_plan',
   'study_progress',
+  'class_notes',
   'unified_memory',
   'push_metrics'
 ]);

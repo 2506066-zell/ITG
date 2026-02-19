@@ -47,6 +47,7 @@
     { "source": "/chat", "destination": "/chat.html" },
     { "source": "/settings", "destination": "/settings.html" },
     { "source": "/monthly-todos", "destination": "/monthly-todos.html" },
+    { "source": "/class-notes", "destination": "/class-notes.html" },
     { "source": "/report", "destination": "/report.html" },
     { "source": "/(.*)", "destination": "/$1" }
   ],

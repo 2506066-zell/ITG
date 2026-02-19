@@ -388,7 +388,7 @@ function renderTodos() {
         }
 
         return `
-            <div class="todo-card">
+            <div class="todo-card todo-tier-${intelligence.level}">
                 <div class="todo-header">
                     <span>${todo.title}</span>
                     ${!isPastMonth ? `<i class="fa-solid fa-trash" style="font-size:12px;color:var(--danger);cursor:pointer;opacity:0.5" onclick="window.deleteTodo(${todo.id})"></i>` : ''}

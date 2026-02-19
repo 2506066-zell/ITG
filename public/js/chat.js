@@ -12,6 +12,8 @@ let lastDraftTemplatePattern = '';
 let lastDraftPlaceholderIndex = -1;
 let botProfileSyncBusy = false;
 let lastBotProfileSyncedHash = '';
+let chatKeyboardModeReady = false;
+let chatKeyboardOpen = false;
 
 const ASSISTANT_ALWAYS_ON_KEY = 'assistant_always_on_v1';
 const CHATBOT_STATELESS_MODE_KEY = 'chatbot_stateless_mode_v1';
@@ -33,6 +35,73 @@ const BASE_COMMAND_SUGGESTIONS = [
   { label: 'Tugas Kuliah Tertunda', command: 'tugas kuliah pending saya apa' },
   { label: 'Bundle Cepat', command: 'buat tugas review materi deadline besok 19:00 lalu atur target belajar 180 menit' },
 ];
+
+function isMobileChatViewport() {
+  try {
+    return Boolean(window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+  } catch {
+    return false;
+  }
+}
+
+function setChatKeyboardOpen(open) {
+  const next = Boolean(open);
+  if (chatKeyboardOpen === next) return;
+  chatKeyboardOpen = next;
+  document.body.classList.toggle('chat-keyboard-open', next);
+  if (!next) return;
+  const wrap = document.getElementById('chat-messages');
+  if (wrap) {
+    requestAnimationFrame(() => {
+      wrap.scrollTop = wrap.scrollHeight;
+    });
+  }
+}
+
+function detectViewportKeyboardState() {
+  if (!isMobileChatViewport()) return false;
+  if (!window.visualViewport) return false;
+  const vv = window.visualViewport;
+  const heightDelta = Math.max(0, window.innerHeight - vv.height);
+  return heightDelta > 120;
+}
+
+function initMobileKeyboardMode() {
+  if (chatKeyboardModeReady) return;
+  chatKeyboardModeReady = true;
+
+  const input = document.getElementById('chat-input');
+  if (!input) return;
+
+  const onViewportChange = () => {
+    if (!isMobileChatViewport()) {
+      setChatKeyboardOpen(false);
+      return;
+    }
+    setChatKeyboardOpen(detectViewportKeyboardState());
+  };
+
+  const onFocus = () => {
+    if (!isMobileChatViewport()) return;
+    setTimeout(() => setChatKeyboardOpen(true), 120);
+  };
+
+  const onBlur = () => {
+    if (!isMobileChatViewport()) return;
+    setTimeout(() => {
+      if (!detectViewportKeyboardState()) setChatKeyboardOpen(false);
+    }, 140);
+  };
+
+  input.addEventListener('focus', onFocus, { passive: true });
+  input.addEventListener('blur', onBlur, { passive: true });
+  window.addEventListener('resize', onViewportChange, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', onViewportChange, { passive: true });
+    window.visualViewport.addEventListener('scroll', onViewportChange, { passive: true });
+  }
+  onViewportChange();
+}
 
 function trackZaiActivity(eventName, payload = {}, options = {}) {
   try {
@@ -1322,6 +1391,7 @@ function init() {
   }
 
   renderCommandSuggestions(lastAssistantPayload);
+  initMobileKeyboardMode();
   loadMessages();
   consumePendingAiFromUrl();
 

@@ -223,6 +223,33 @@ CREATE TABLE IF NOT EXISTS z_ai_reminders (
   cancelled_at TIMESTAMPTZ
 );
 
+-- 16. Class Notes (lecture notes bound to schedule sessions)
+CREATE TABLE IF NOT EXISTS class_notes (
+  id BIGSERIAL PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  schedule_id INTEGER NOT NULL REFERENCES schedule(id) ON DELETE CASCADE,
+  class_date DATE NOT NULL,
+  day_id INTEGER,
+  subject VARCHAR(140) NOT NULL,
+  room VARCHAR(80),
+  lecturer VARCHAR(140),
+  time_start TIME,
+  time_end TIME,
+  key_points TEXT DEFAULT '',
+  action_items TEXT DEFAULT '',
+  questions TEXT DEFAULT '',
+  free_text TEXT DEFAULT '',
+  mood_focus INTEGER,
+  confidence VARCHAR(10),
+  summary_text TEXT DEFAULT '',
+  next_action_text TEXT DEFAULT '',
+  risk_hint TEXT DEFAULT '',
+  is_minimum_completed BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, schedule_id, class_date)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed) WHERE is_deleted = FALSE;
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to) WHERE is_deleted = FALSE;
@@ -242,3 +269,6 @@ CREATE INDEX IF NOT EXISTS idx_zai_router_events_time ON z_ai_router_events(crea
 CREATE INDEX IF NOT EXISTS idx_zai_router_events_engine ON z_ai_router_events(engine_final, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_zai_reminders_due ON z_ai_reminders(status, remind_at ASC);
 CREATE INDEX IF NOT EXISTS idx_zai_reminders_user ON z_ai_reminders(target_user, status, remind_at ASC);
+CREATE INDEX IF NOT EXISTS idx_class_notes_user_date ON class_notes(user_id, class_date DESC);
+CREATE INDEX IF NOT EXISTS idx_class_notes_schedule_date ON class_notes(schedule_id, class_date DESC);
+CREATE INDEX IF NOT EXISTS idx_class_notes_subject_date ON class_notes(subject, class_date DESC);

@@ -10,13 +10,36 @@
   --v2-space-7: 32px;
   --v2-space-8: 40px;
 
-  --v2-status-good: #22c55e;
-  --v2-status-warning: #f59e0b;
-  --v2-status-critical: #f43f5e;
-  --v2-status-info: #38bdf8;
+  --v2-status-good: hsl(var(--sem-safe, 152 62% 54%));
+  --v2-status-warning: hsl(var(--sem-info, 205 86% 65%));
+  --v2-status-critical: hsl(var(--sem-danger, 352 82% 66%));
+  --v2-status-info: hsl(var(--sem-info, 205 86% 65%));
 
   --v2-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --v2-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (max-width: 768px) {
+  .v2-page .container {
+    padding-left: var(--m-space-page-x, 14px);
+    padding-right: var(--m-space-page-x, 14px);
+  }
+
+  .v2-page .card,
+  .v2-page .report-card,
+  .v2-page .goal-card,
+  .v2-page .todo-card,
+  .v2-page .day-card,
+  .v2-page .memory-card,
+  .v2-page .task-item,
+  .v2-page .chat-card {
+    border-radius: var(--m-radius-card, 16px);
+  }
+
+  .v2-page .btn {
+    min-height: 40px;
+    border-radius: 12px;
+  }
 }
 
 .v2-page {

@@ -451,12 +451,39 @@
     .todo-card {
       padding: 12px 14px;
       border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(7, 10, 24, 0.74));
+      box-shadow: 0 12px 24px -18px rgba(0, 0, 0, 0.86);
+    }
+
+    /* Hierarchy V1: high/medium/low visual clarity */
+    .todo-card.todo-tier-high {
+      border-color: hsla(var(--sem-safe, 152 62% 54%), 0.45);
+      background: linear-gradient(165deg, hsla(var(--sem-safe, 152 62% 54%), 0.15), rgba(7, 10, 24, 0.74));
+      box-shadow:
+        0 16px 30px -20px rgba(0, 0, 0, 0.88),
+        0 0 0 1px hsla(var(--sem-safe, 152 62% 54%), 0.2);
+    }
+
+    .todo-card.todo-tier-medium {
+      border-color: hsla(var(--sem-info, 205 86% 65%), 0.42);
+      background: linear-gradient(165deg, hsla(var(--sem-info, 205 86% 65%), 0.14), rgba(7, 10, 24, 0.72));
+      box-shadow: 0 14px 28px -20px rgba(0, 0, 0, 0.86);
+    }
+
+    .todo-card.todo-tier-low {
+      border-color: hsla(var(--sem-danger, 352 82% 66%), 0.44);
+      background: linear-gradient(165deg, hsla(var(--sem-danger, 352 82% 66%), 0.15), rgba(7, 10, 24, 0.74));
+      box-shadow:
+        0 16px 30px -20px rgba(0, 0, 0, 0.88),
+        0 0 0 1px hsla(var(--sem-danger, 352 82% 66%), 0.2);
     }
 
     .todo-header {
       align-items: center;
       margin-bottom: 8px;
-      font-size: 13px;
+      font-size: 14px;
+      line-height: 1.4;
     }
 
     .todo-meta {
@@ -469,7 +496,7 @@
     .habit-chip {
       padding: 3px 8px;
       border-radius: 999px;
-      font-size: 10px;
+      font-size: 11px;
       letter-spacing: .04em;
       font-weight: 700;
       border: 1px solid rgba(255, 255, 255, 0.14);
@@ -560,8 +587,8 @@
       border-radius: 9px;
       border: 1px dashed rgba(255, 255, 255, 0.2);
       background: rgba(255, 255, 255, 0.04);
-      font-size: 10px;
-      line-height: 1.35;
+      font-size: 11px;
+      line-height: 1.42;
       color: rgba(222, 235, 255, 0.88);
     }
 
@@ -595,7 +622,7 @@
       flex: 0 0 23px;
       height: 23px;
       border-radius: 6px;
-      font-size: 10px;
+      font-size: 11px;
       border-color: rgba(255, 255, 255, 0.14);
       color: rgba(222, 235, 255, 0.75);
     }
@@ -669,6 +696,14 @@
 
       .summary-value {
         font-size: 13px;
+      }
+
+      .todo-header {
+        font-size: 13.5px;
+      }
+
+      .habit-chip {
+        font-size: 10.5px;
       }
     }
   </style>
