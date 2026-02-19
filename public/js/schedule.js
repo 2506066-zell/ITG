@@ -885,6 +885,15 @@ function init() {
   initViewToggle();
   maybePromptStudyNotificationPermission();
   const gateRefresh = document.getElementById('notes-gate-refresh');
+  const gateOpen = document.getElementById('notes-gate-open');
+  if (gateOpen) {
+    gateOpen.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const href = gateOpen.getAttribute('href') || '/class-notes?enforce=1';
+      window.location.assign(href);
+    });
+  }
   if (gateRefresh) {
     gateRefresh.addEventListener('click', async () => {
       await refreshClassNotesGate(dateKey());

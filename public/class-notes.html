@@ -31,6 +31,92 @@
       flex-wrap: wrap;
       align-items: center;
     }
+    .notes-subhead {
+      font-size: 0.76rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: hsl(var(--text-400));
+      margin: 4px 0 8px;
+    }
+    .notes-nearest-list {
+      display: grid;
+      gap: 9px;
+      margin-bottom: 12px;
+    }
+    .notes-nearest-item {
+      position: relative;
+      border: 1px solid hsla(0, 0%, 100%, 0.12);
+      background: linear-gradient(150deg, hsla(0, 0%, 100%, 0.05), hsla(0, 0%, 100%, 0.02));
+      border-radius: 13px;
+      padding: 10px 11px 10px 13px;
+      cursor: pointer;
+      transition: border-color .2s ease, transform .2s ease, box-shadow .24s ease;
+      overflow: hidden;
+    }
+    .notes-nearest-item::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--subject-accent, hsl(var(--sem-info, 205 86% 65%)));
+    }
+    .notes-nearest-item:hover {
+      transform: translateY(-1px);
+      border-color: hsla(var(--sem-info, 205 86% 65%), 0.4);
+    }
+    .notes-nearest-item.active {
+      border-color: var(--subject-accent, hsl(var(--sem-info, 205 86% 65%)));
+      box-shadow: 0 0 0 1px var(--subject-soft, hsla(var(--sem-info, 205 86% 65%), 0.24));
+      background: linear-gradient(160deg, var(--subject-soft, hsla(var(--sem-info, 205 86% 65%), 0.12)), hsla(0, 0%, 100%, 0.03));
+    }
+    .notes-nearest-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .notes-nearest-subject {
+      margin: 0;
+      font-size: 0.93rem;
+      line-height: 1.34;
+      font-weight: 700;
+      color: hsl(var(--text-100));
+    }
+    .notes-nearest-meta {
+      margin: 4px 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.76rem;
+      color: hsl(var(--text-300));
+      line-height: 1.35;
+    }
+    .notes-nearest-chip {
+      border: 1px solid hsla(0, 0%, 100%, 0.2);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 0.64rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .notes-nearest-chip.date {
+      border-color: var(--subject-accent, hsl(var(--sem-info, 205 86% 65%)));
+      color: var(--subject-accent, hsl(var(--sem-info, 205 86% 65%)));
+      background: var(--subject-soft, hsla(var(--sem-info, 205 86% 65%), 0.16));
+    }
+    .notes-nearest-chip.done {
+      border-color: hsla(var(--sem-safe, 152 62% 54%), 0.46);
+      color: hsl(var(--sem-safe, 152 62% 54%));
+      background: hsla(var(--sem-safe, 152 62% 54%), 0.14);
+    }
+    .notes-nearest-chip.pending {
+      border-color: hsla(var(--sem-danger, 352 82% 66%), 0.46);
+      color: hsl(var(--sem-danger, 352 82% 66%));
+      background: hsla(var(--sem-danger, 352 82% 66%), 0.14);
+    }
     .notes-session-list {
       display: grid;
       gap: 10px;
@@ -226,6 +312,9 @@
         </div>
         <input id="notes-date" type="date" class="input" style="max-width:170px">
       </div>
+      <p class="notes-subhead"><i class="fa-solid fa-bolt"></i> Mata Kuliah Terdekat</p>
+      <div id="notes-nearest-list" class="notes-nearest-list"></div>
+      <p id="notes-day-subhead" class="notes-subhead"><i class="fa-regular fa-calendar"></i> Sesi Tanggal Dipilih</p>
       <div id="notes-session-list" class="notes-session-list"></div>
     </section>
 

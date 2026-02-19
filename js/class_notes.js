@@ -4,6 +4,12 @@ import { initProtected, normalizeLinks, showToast } from './main.js';
 const state = {
   date: localDateText(),
   sessions: [],
+  todaySessions: [],
+  tomorrowSessions: [],
+  nearestSessions: [],
+  activeSessionId: null,
+  activeSessionKey: '',
+  subjectColorMap: {},
   activeSession: null,
   activeNote: null,
   enforce: false,
@@ -12,6 +18,8 @@ const state = {
 
 const els = {
   dateInput: document.getElementById('notes-date'),
+  nearestList: document.getElementById('notes-nearest-list'),
+  daySubhead: document.getElementById('notes-day-subhead'),
   sessionList: document.getElementById('notes-session-list'),
   pageSub: document.getElementById('notes-page-sub'),
   form: document.getElementById('class-note-form'),
@@ -42,6 +50,16 @@ const NOTES_AUTO_OPEN_PREFIX = 'class_notes_auto_open_v2:';
 
 function localDateText() {
   const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(dateText, days = 0) {
+  const d = new Date(`${String(dateText || '').slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return localDateText();
+  d.setDate(d.getDate() + Number(days || 0));
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -101,6 +119,123 @@ function formatDateLabel(dateText = '') {
     month: 'short',
     year: 'numeric',
   });
+}
+
+function parseStartDate(session) {
+  if (!session) return null;
+  const dateText = String(session.class_date || '').slice(0, 10);
+  const hm = String(session.time_start || '').slice(0, 5);
+  const m = hm.match(/^(\d{2}):(\d{2})$/);
+  if (!dateText || !m) return null;
+  const d = new Date(`${dateText}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  return d;
+}
+
+function parseEndDate(session) {
+  if (!session) return null;
+  const dateText = String(session.class_date || '').slice(0, 10);
+  const hm = String(session.time_end || '').slice(0, 5);
+  const m = hm.match(/^(\d{2}):(\d{2})$/);
+  if (!dateText || !m) return null;
+  const d = new Date(`${dateText}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  return d;
+}
+
+function sessionKey(session) {
+  if (!session) return '';
+  const sid = Number(session.schedule_id || 0);
+  const dt = String(session.class_date || '').slice(0, 10);
+  return `${sid}:${dt}`;
+}
+
+function dedupeSessions(sessions = []) {
+  const seen = new Set();
+  return (Array.isArray(sessions) ? sessions : []).filter((s) => {
+    const key = sessionKey(s);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getSubjectColor(subject = '') {
+  const key = String(subject || 'kelas').trim().toLowerCase();
+  if (state.subjectColorMap[key]) return state.subjectColorMap[key];
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  const color = {
+    solid: `hsl(${hue}, 72%, 62%)`,
+    soft: `hsla(${hue}, 72%, 62%, 0.16)`,
+  };
+  state.subjectColorMap[key] = color;
+  return color;
+}
+
+function dateBadgeLabel(sessionDate = '', todayDate = localDateText(), tomorrowDate = addDays(localDateText(), 1)) {
+  const dt = String(sessionDate || '').slice(0, 10);
+  if (dt === todayDate) return 'Hari Ini';
+  if (dt === tomorrowDate) return 'Besok';
+  return formatDateLabel(dt);
+}
+
+function buildNearestSessions(todaySessions = [], tomorrowSessions = [], now = new Date()) {
+  const todayDate = localDateText();
+  const tomorrowDate = addDays(todayDate, 1);
+  const nowMs = now.getTime();
+  const mixed = dedupeSessions([...todaySessions, ...tomorrowSessions]).map((session) => {
+    const start = parseStartDate(session);
+    const end = parseEndDate(session);
+    const date = String(session.class_date || '').slice(0, 10);
+    let bucket = 3;
+    if (date === todayDate) {
+      if (end && end.getTime() >= nowMs) bucket = 0; // in progress or upcoming today
+      else bucket = 2; // already passed today
+    } else if (date === tomorrowDate) {
+      bucket = 1;
+    }
+    return {
+      ...session,
+      __bucket: bucket,
+      __startMs: start ? start.getTime() : Number.MAX_SAFE_INTEGER,
+      __distance: start ? Math.abs(start.getTime() - nowMs) : Number.MAX_SAFE_INTEGER,
+    };
+  });
+
+  mixed.sort((a, b) => {
+    if (a.__bucket !== b.__bucket) return a.__bucket - b.__bucket;
+    if (a.__bucket === 2) return b.__startMs - a.__startMs; // nearest past first
+    if (a.__distance !== b.__distance) return a.__distance - b.__distance;
+    return a.__startMs - b.__startMs;
+  });
+
+  return mixed.slice(0, 8).map(({ __bucket, __startMs, __distance, ...rest }) => rest);
+}
+
+function allKnownSessions() {
+  return dedupeSessions([
+    ...(state.todaySessions || []),
+    ...(state.tomorrowSessions || []),
+    ...(state.sessions || []),
+  ]);
+}
+
+function findSession(scheduleId, classDate = '') {
+  const sid = Number(scheduleId || 0);
+  const dt = String(classDate || '').slice(0, 10);
+  if (!sid) return null;
+  const rows = allKnownSessions();
+  if (dt) {
+    const exact = rows.find((s) => Number(s.schedule_id) === sid && String(s.class_date || '').slice(0, 10) === dt);
+    if (exact) return exact;
+  }
+  return rows.find((s) => Number(s.schedule_id) === sid) || null;
 }
 
 function weekRange(dateText = localDateText()) {
@@ -191,9 +326,10 @@ function applyAi(note = null) {
 }
 
 function fillForm(note = null, session = null) {
+  const noteDate = String(session?.class_date || note?.class_date || state.date || localDateText()).slice(0, 10);
   els.noteId.value = note?.id || '';
   els.scheduleId.value = String(session?.schedule_id || note?.schedule_id || '');
-  els.classDate.value = state.date;
+  els.classDate.value = noteDate;
   els.keyPoints.value = note?.key_points || '';
   els.actionItems.value = note?.action_items || '';
   els.questions.value = note?.questions || '';
@@ -207,19 +343,23 @@ function fillForm(note = null, session = null) {
 function renderSessions() {
   if (!els.sessionList) return;
   const rows = Array.isArray(state.sessions) ? state.sessions : [];
+  if (els.daySubhead) {
+    els.daySubhead.innerHTML = `<i class="fa-regular fa-calendar"></i> Sesi ${escapeHtml(formatDateLabel(state.date))}`;
+  }
   if (!rows.length) {
-    els.sessionList.innerHTML = '<div class="notes-empty">Hari ini tidak ada jadwal kuliah. Kamu bisa pakai waktu ini untuk review mandiri bareng Z AI.</div>';
+    els.sessionList.innerHTML = '<div class="notes-empty">Tidak ada sesi pada tanggal ini.</div>';
     return;
   }
 
   els.sessionList.innerHTML = rows.map((s) => {
-    const active = state.activeSession && Number(state.activeSession.schedule_id) === Number(s.schedule_id);
+    const active = state.activeSessionKey && state.activeSessionKey === sessionKey(s);
     const statusClass = s.is_minimum_completed ? 'complete' : 'incomplete';
     const chip = s.is_minimum_completed
       ? '<span class="notes-chip done">Sudah Tercatat</span>'
       : '<span class="notes-chip pending">Wajib Catat</span>';
+    const color = getSubjectColor(s.subject || 'Kelas');
     return `
-      <article class="notes-session ${statusClass} ${active ? 'active' : ''}" data-session-id="${Number(s.schedule_id)}">
+      <article class="notes-session ${statusClass} ${active ? 'active' : ''}" data-session-id="${Number(s.schedule_id)}" data-class-date="${escapeHtml(String(s.class_date || state.date).slice(0, 10))}" style="border-left:4px solid ${color.solid}">
         <div class="notes-session-row">
           <p class="notes-session-title">${escapeHtml(s.subject || 'Kelas')}</p>
           ${chip}
@@ -234,18 +374,47 @@ function renderSessions() {
   }).join('');
 }
 
+function renderNearestSubjectList() {
+  if (!els.nearestList) return;
+  const rows = Array.isArray(state.nearestSessions) ? state.nearestSessions : [];
+  if (!rows.length) {
+    els.nearestList.innerHTML = '<div class="notes-empty">Belum ada mata kuliah terdekat untuk hari ini dan besok.</div>';
+    return;
+  }
+  const todayDate = localDateText();
+  const tomorrowDate = addDays(todayDate, 1);
+  els.nearestList.innerHTML = rows.map((s) => {
+    const color = getSubjectColor(s.subject || 'Kelas');
+    const key = sessionKey(s);
+    const active = state.activeSessionKey && state.activeSessionKey === key;
+    const statusClass = s.is_minimum_completed ? 'done' : 'pending';
+    const statusLabel = s.is_minimum_completed ? 'Sudah Tercatat' : 'Perlu Catat';
+    const dateLabel = dateBadgeLabel(s.class_date, todayDate, tomorrowDate);
+    return `
+      <article class="notes-nearest-item ${active ? 'active' : ''}" data-session-id="${Number(s.schedule_id)}" data-class-date="${escapeHtml(String(s.class_date || '').slice(0, 10))}" style="--subject-accent:${color.solid};--subject-soft:${color.soft}">
+        <div class="notes-nearest-top">
+          <p class="notes-nearest-subject">${escapeHtml(s.subject || 'Kelas')}</p>
+          <span class="notes-nearest-chip date">${escapeHtml(dateLabel)}</span>
+        </div>
+        <p class="notes-nearest-meta">
+          <span><i class="fa-regular fa-clock"></i> ${escapeHtml(String(s.time_start || '').slice(0, 5))} - ${escapeHtml(String(s.time_end || '').slice(0, 5))}</span>
+          <span><i class="fa-solid fa-location-dot"></i> ${escapeHtml(s.room || 'TBA')}</span>
+          ${s.lecturer ? `<span><i class="fa-solid fa-user-tie"></i> ${escapeHtml(s.lecturer)}</span>` : ''}
+        </p>
+        <span class="notes-nearest-chip ${statusClass}">${statusLabel}</span>
+      </article>
+    `;
+  }).join('');
+}
+
 function getPendingStartedSessions() {
-  return state.sessions.filter((s) => !s.is_minimum_completed && isSessionStarted(s, state.date));
+  return (state.todaySessions || []).filter((s) => !s.is_minimum_completed && isSessionStarted(s, localDateText()));
 }
 
 async function focusSession(session, opts = {}) {
   if (!session) return;
   const silent = Boolean(opts.silent);
-  state.activeSession = session;
-  await loadActiveNote(session.schedule_id);
-  renderSessions();
-  renderGate();
-  if (els.keyPoints) els.keyPoints.focus();
+  await setActiveSession(session, { focusEditor: true });
   if (!silent) {
     showToast(`Sesi ${session.subject || 'kelas'} aktif. Lanjut catat sekarang.`, 'info');
   }
@@ -261,6 +430,25 @@ async function maybeAutoOpenStartedSession(opts = {}) {
   if (!force && (activeId === topId || hasAutoOpened(topId))) return;
   markAutoOpened(topId);
   await focusSession(top, { silent: false });
+}
+
+async function setActiveSession(session, opts = {}) {
+  if (!session) return;
+  const focusEditor = opts.focusEditor !== false;
+  const dateText = String(session.class_date || state.date || localDateText()).slice(0, 10);
+  state.activeSession = { ...session, class_date: dateText };
+  state.activeSessionId = Number(state.activeSession.schedule_id || 0) || null;
+  state.activeSessionKey = sessionKey(state.activeSession);
+  state.date = dateText;
+  if (els.dateInput) els.dateInput.value = state.date;
+  await loadActiveNote(state.activeSessionId, state.date);
+  renderNearestSubjectList();
+  renderSessions();
+  renderGate();
+  if (focusEditor && els.keyPoints) {
+    els.keyPoints.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    els.keyPoints.focus();
+  }
 }
 
 function renderExportMarkdown(notes = [], from = '', to = '') {
@@ -380,31 +568,64 @@ function renderGate() {
   els.gate.classList.add('show');
 }
 
-async function loadSessions(opts = {}) {
-  const preserveActive = opts.preserveActive !== false;
-  const payload = await get(`/class_notes/session?date=${encodeURIComponent(state.date)}`);
-  state.sessions = Array.isArray(payload?.sessions) ? payload.sessions : [];
-  renderSessions();
-
-  const q = qs();
-  const activeId = preserveActive ? Number(state.activeSession?.schedule_id || 0) : 0;
-  const targetScheduleId = activeId || Number(q.get('schedule_id') || 0);
-  const preferred = targetScheduleId > 0
-    ? state.sessions.find((x) => Number(x.schedule_id) === targetScheduleId)
-    : null;
-  const fallback = state.sessions.find((x) => !x.is_minimum_completed) || state.sessions[0] || null;
-  state.activeSession = preferred || fallback;
-  if (state.activeSession) {
-    await loadActiveNote(state.activeSession.schedule_id);
-  } else {
-    fillForm(null, null);
-  }
-  renderSessions();
-  renderGate();
+async function fetchSessionsByDate(dateText) {
+  const payload = await get(`/class_notes/session?date=${encodeURIComponent(dateText)}`);
+  const dt = String(payload?.date || dateText || '').slice(0, 10);
+  const sessions = Array.isArray(payload?.sessions) ? payload.sessions : [];
+  return sessions.map((s) => ({ ...s, class_date: dt }));
 }
 
-async function loadActiveNote(scheduleId) {
-  const rows = await get(`/class_notes?date=${encodeURIComponent(state.date)}&schedule_id=${Number(scheduleId)}`);
+async function loadSessions(opts = {}) {
+  const preserveActive = opts.preserveActive !== false;
+  const preferSelectedDate = Boolean(opts.preferSelectedDate);
+
+  const selectedDate = String(state.date || localDateText()).slice(0, 10);
+  const todayDate = localDateText();
+  const tomorrowDate = addDays(todayDate, 1);
+
+  const [todaySessions, tomorrowSessions] = await Promise.all([
+    fetchSessionsByDate(todayDate),
+    fetchSessionsByDate(tomorrowDate),
+  ]);
+  state.todaySessions = todaySessions;
+  state.tomorrowSessions = tomorrowSessions;
+  state.nearestSessions = buildNearestSessions(todaySessions, tomorrowSessions, new Date());
+
+  if (selectedDate === todayDate) {
+    state.sessions = [...todaySessions];
+  } else if (selectedDate === tomorrowDate) {
+    state.sessions = [...tomorrowSessions];
+  } else {
+    state.sessions = await fetchSessionsByDate(selectedDate);
+  }
+
+  const q = qs();
+  const queryScheduleId = Number(q.get('schedule_id') || 0);
+  const queryDate = String(q.get('date') || '').slice(0, 10);
+  const currentActive = preserveActive && state.activeSession ? findSession(state.activeSession.schedule_id, state.activeSession.class_date || state.date) : null;
+  const queryPreferred = queryScheduleId > 0 ? findSession(queryScheduleId, queryDate) : null;
+  const nearestPreferred = state.nearestSessions[0] || null;
+  const selectedDatePreferred = state.sessions.find((x) => !x.is_minimum_completed) || state.sessions[0] || null;
+  const chosen = preferSelectedDate
+    ? (selectedDatePreferred || currentActive || queryPreferred || nearestPreferred)
+    : (currentActive || queryPreferred || nearestPreferred || selectedDatePreferred);
+
+  if (chosen) {
+    await setActiveSession(chosen, { focusEditor: false });
+  } else {
+    state.activeSession = null;
+    state.activeSessionId = null;
+    state.activeSessionKey = '';
+    renderNearestSubjectList();
+    renderSessions();
+    renderGate();
+    fillForm(null, null);
+  }
+}
+
+async function loadActiveNote(scheduleId, classDate = state.date) {
+  const dateText = String(classDate || state.date || localDateText()).slice(0, 10);
+  const rows = await get(`/class_notes?date=${encodeURIComponent(dateText)}&schedule_id=${Number(scheduleId)}`);
   const note = Array.isArray(rows) && rows.length ? rows[0] : null;
   state.activeNote = note;
   fillForm(note, state.activeSession);
@@ -431,6 +652,7 @@ async function loadHistory() {
 async function saveNote(ev) {
   ev.preventDefault();
   const scheduleId = Number(els.scheduleId.value || 0);
+  const classDate = String(els.classDate.value || state.date || localDateText()).slice(0, 10);
   if (!scheduleId) {
     showToast('Pilih sesi kelas dulu.', 'error');
     return;
@@ -438,7 +660,7 @@ async function saveNote(ev) {
   const body = {
     id: Number(els.noteId.value || 0) || undefined,
     schedule_id: scheduleId,
-    class_date: state.date,
+    class_date: classDate,
     key_points: els.keyPoints.value,
     action_items: els.actionItems.value,
     questions: els.questions.value,
@@ -454,18 +676,22 @@ async function saveNote(ev) {
   await loadHistory();
 }
 
-function bindSessionClick() {
-  els.sessionList.addEventListener('click', async (ev) => {
-    const card = ev.target.closest('.notes-session[data-session-id]');
+function bindSessionClicks() {
+  const onClick = async (ev) => {
+    const card = ev.target.closest('[data-session-id][data-class-date]');
     if (!card) return;
     const id = Number(card.dataset.sessionId || 0);
-    const session = state.sessions.find((s) => Number(s.schedule_id) === id);
+    const dateText = String(card.dataset.classDate || '').slice(0, 10);
+    const session = findSession(id, dateText);
     if (!session) return;
-    state.activeSession = session;
-    await loadActiveNote(id);
-    renderSessions();
-    renderGate();
-  });
+    await setActiveSession(session, { focusEditor: true });
+  };
+  if (els.sessionList) {
+    els.sessionList.addEventListener('click', onClick);
+  }
+  if (els.nearestList) {
+    els.nearestList.addEventListener('click', onClick);
+  }
 }
 
 function bindLiveMinimumCheck() {
@@ -480,10 +706,10 @@ function bindEvents() {
   els.form.addEventListener('submit', saveNote);
   els.dateInput.addEventListener('change', async () => {
     state.date = els.dateInput.value || localDateText();
-    await loadSessions();
+    await loadSessions({ preserveActive: false, preferSelectedDate: true });
     await loadHistory();
   });
-  bindSessionClick();
+  bindSessionClicks();
   bindLiveMinimumCheck();
   if (els.exportMd) {
     els.exportMd.addEventListener('click', () => {
@@ -500,14 +726,10 @@ function bindEvents() {
     });
   }
   if (els.gateFocus) {
-    els.gateFocus.addEventListener('click', () => {
+    els.gateFocus.addEventListener('click', async () => {
       const pending = getPendingStartedSessions();
       if (pending.length) {
-        state.activeSession = pending[0];
-        loadActiveNote(state.activeSession.schedule_id).then(() => {
-          renderSessions();
-          els.keyPoints.focus();
-        }).catch(() => {});
+        await setActiveSession(pending[0], { focusEditor: true });
       } else {
         els.gate.classList.remove('show');
       }

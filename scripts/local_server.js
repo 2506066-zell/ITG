@@ -66,6 +66,8 @@ const routes = [
   { path: '/api/reports', file: '../api/reports.js' },
   { path: '/api/notifications', file: '../api/notifications.js' },
   { path: '/api/proactive', file: '../api/proactive.js' },
+  { path: '/api/class_notes', file: '../api/class_notes.js' },
+  { path: '/api/class_notes/session', file: '../api/class_notes.js' },
   { path: '/api/cron/proactive-engine', file: '../api/cron/proactive_engine.js' }
 ];
 
@@ -82,6 +84,7 @@ const pages = [
   'goals',
   'schedule',
   'chat',
+  'class-notes',
   'settings',
   'monthly-todos',
   'report'
