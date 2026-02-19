@@ -1,8 +1,10 @@
-const CACHE_NAME = 'cf-v27';
+const CACHE_NAME = 'cf-v29';
 const ASSETS = [
   '/',
   '/login',
   '/college-widget',
+  '/class-notes-editor',
+  '/class-notes-vault',
   'login.html',
   'index.html',
   'college-widget.html',
@@ -16,6 +18,8 @@ const ASSETS = [
   'settings.html',
   'report.html',
   'class-notes.html',
+  'class-notes-editor.html',
+  'class-notes-vault.html',
   'manifest.json',
   'css/style.css',
   'css/v2-system.css',
@@ -47,6 +51,8 @@ const ASSETS = [
   'js/settings.js',
   'js/report.js',
   'js/class_notes.js',
+  'js/class_notes_editor.js',
+  'js/class_notes_vault.js',
   'icons/192.png',
   'icons/512.png',
   'icons/icon.svg'

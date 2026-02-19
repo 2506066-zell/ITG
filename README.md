@@ -218,3 +218,20 @@ Response:
 ## Catatan
 - Endpoint API membutuhkan `Authorization: Bearer <token>`
 - Di lokal tanpa DB, beberapa fitur yang butuh DB akan fallback ke Mock (UI tetap berfungsi)
+
+## Smart Notes Vault API
+- Endpoint utama catatan tetap:
+  - `GET /api/class_notes`
+  - `POST /api/class_notes`
+  - `PUT /api/class_notes`
+  - `GET /api/class_notes/session?date=YYYY-MM-DD`
+- Endpoint vault arsip:
+  - `GET /api/class_notes/vault`
+  - `POST /api/class_notes/vault/action` body: `{ note_id, action }`
+    - action: `archive|unarchive|pin|unpin|trash|restore|purge`
+  - `GET /api/class_notes/vault/insight`
+- Endpoint revisi:
+  - `GET /api/class_notes/revisions?note_id=...`
+  - `POST /api/class_notes/revisions/restore` body: `{ note_id, revision_id }`
+- Cron maintenance:
+  - `GET /api/cron/notes-vault-maintenance` (pakai header `Authorization: Bearer <CRON_SECRET>` bila env aktif)

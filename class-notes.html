@@ -11,7 +11,7 @@
   <link rel="icon" href="icons/192.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
   <script src="js/perf-mode.js"></script>
-  <title>NZ - Pencatatan Kuliah Z AI</title>
+  <title>NZ - List Catatan Kuliah</title>
   <style>
     .class-notes-page .container {
       max-width: 760px;
@@ -38,12 +38,14 @@
       color: hsl(var(--text-400));
       margin: 4px 0 8px;
     }
-    .notes-nearest-list {
+    .notes-nearest-list,
+    .notes-session-list {
       display: grid;
-      gap: 9px;
+      gap: 10px;
       margin-bottom: 12px;
     }
-    .notes-nearest-item {
+    .notes-nearest-item,
+    .notes-session {
       position: relative;
       border: 1px solid hsla(0, 0%, 100%, 0.12);
       background: linear-gradient(150deg, hsla(0, 0%, 100%, 0.05), hsla(0, 0%, 100%, 0.02));
@@ -53,7 +55,8 @@
       transition: border-color .2s ease, transform .2s ease, box-shadow .24s ease;
       overflow: hidden;
     }
-    .notes-nearest-item::before {
+    .notes-nearest-item::before,
+    .notes-session::before {
       content: "";
       position: absolute;
       left: 0;
@@ -62,29 +65,34 @@
       width: 4px;
       background: var(--subject-accent, hsl(var(--sem-info, 205 86% 65%)));
     }
-    .notes-nearest-item:hover {
+    .notes-nearest-item:hover,
+    .notes-session:hover {
       transform: translateY(-1px);
       border-color: hsla(var(--sem-info, 205 86% 65%), 0.4);
     }
-    .notes-nearest-item.active {
+    .notes-nearest-item.active,
+    .notes-session.active {
       border-color: var(--subject-accent, hsl(var(--sem-info, 205 86% 65%)));
       box-shadow: 0 0 0 1px var(--subject-soft, hsla(var(--sem-info, 205 86% 65%), 0.24));
       background: linear-gradient(160deg, var(--subject-soft, hsla(var(--sem-info, 205 86% 65%), 0.12)), hsla(0, 0%, 100%, 0.03));
     }
-    .notes-nearest-top {
+    .notes-nearest-top,
+    .notes-session-row {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
       gap: 8px;
     }
-    .notes-nearest-subject {
+    .notes-nearest-subject,
+    .notes-session-title {
       margin: 0;
       font-size: 0.93rem;
       line-height: 1.34;
       font-weight: 700;
       color: hsl(var(--text-100));
     }
-    .notes-nearest-meta {
+    .notes-nearest-meta,
+    .notes-session-meta {
       margin: 4px 0 0;
       display: flex;
       flex-wrap: wrap;
@@ -93,7 +101,8 @@
       color: hsl(var(--text-300));
       line-height: 1.35;
     }
-    .notes-nearest-chip {
+    .notes-nearest-chip,
+    .notes-chip {
       border: 1px solid hsla(0, 0%, 100%, 0.2);
       border-radius: 999px;
       padding: 4px 8px;
@@ -107,131 +116,28 @@
       color: var(--subject-accent, hsl(var(--sem-info, 205 86% 65%)));
       background: var(--subject-soft, hsla(var(--sem-info, 205 86% 65%), 0.16));
     }
-    .notes-nearest-chip.done {
+    .notes-nearest-chip.done,
+    .notes-chip.done {
       border-color: hsla(var(--sem-safe, 152 62% 54%), 0.46);
       color: hsl(var(--sem-safe, 152 62% 54%));
       background: hsla(var(--sem-safe, 152 62% 54%), 0.14);
     }
-    .notes-nearest-chip.pending {
+    .notes-nearest-chip.pending,
+    .notes-chip.pending {
       border-color: hsla(var(--sem-danger, 352 82% 66%), 0.46);
       color: hsl(var(--sem-danger, 352 82% 66%));
       background: hsla(var(--sem-danger, 352 82% 66%), 0.14);
     }
-    .notes-session-list {
-      display: grid;
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-    .notes-session {
-      border: 1px solid hsla(0, 0%, 100%, 0.14);
-      background: hsla(0, 0%, 100%, 0.03);
-      border-radius: 13px;
-      padding: 11px;
-      cursor: pointer;
-      transition: border-color .2s ease, transform .2s ease;
-    }
-    .notes-session.active {
-      border-color: hsla(var(--sem-info, 205 86% 65%), 0.56);
-      box-shadow: 0 0 0 1px hsla(var(--sem-info, 205 86% 65%), 0.24);
-    }
-    .notes-session.incomplete {
-      border-color: hsla(var(--sem-danger, 352 82% 66%), 0.45);
-      background: hsla(var(--sem-danger, 352 82% 66%), 0.1);
-    }
-    .notes-session.complete {
-      border-color: hsla(var(--sem-safe, 152 62% 54%), 0.45);
-      background: hsla(var(--sem-safe, 152 62% 54%), 0.1);
-    }
-    .notes-session-row {
-      display: flex;
+    .notes-open {
+      margin-top: 7px;
+      font-size: 0.75rem;
+      color: hsl(var(--sem-info, 205 86% 65%));
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      display: inline-flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .notes-session-title {
-      margin: 0;
-      font-size: 0.95rem;
+      gap: 6px;
       font-weight: 700;
-      line-height: 1.35;
-      color: hsl(var(--text-100));
-    }
-    .notes-session-meta {
-      margin: 3px 0 0;
-      font-size: 0.78rem;
-      color: hsl(var(--text-300));
-      line-height: 1.4;
-    }
-    .notes-chip {
-      font-size: 0.66rem;
-      border-radius: 999px;
-      border: 1px solid hsla(0, 0%, 100%, 0.2);
-      padding: 5px 9px;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-    .notes-chip.done {
-      color: hsl(var(--sem-safe, 152 62% 54%));
-      border-color: hsla(var(--sem-safe, 152 62% 54%), 0.44);
-      background: hsla(var(--sem-safe, 152 62% 54%), 0.14);
-    }
-    .notes-chip.pending {
-      color: hsl(var(--sem-danger, 352 82% 66%));
-      border-color: hsla(var(--sem-danger, 352 82% 66%), 0.44);
-      background: hsla(var(--sem-danger, 352 82% 66%), 0.14);
-    }
-    .notes-form-grid {
-      display: grid;
-      gap: 10px;
-    }
-    .notes-label {
-      margin: 0 0 4px;
-      font-size: 0.76rem;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      color: hsl(var(--text-400));
-    }
-    .notes-textarea {
-      min-height: 82px;
-      resize: vertical;
-      line-height: 1.45;
-    }
-    .notes-inline {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .notes-ai-box {
-      border: 1px solid hsla(var(--sem-info, 205 86% 65%), 0.34);
-      border-radius: 13px;
-      padding: 11px;
-      background: hsla(var(--sem-info, 205 86% 65%), 0.08);
-      display: grid;
-      gap: 8px;
-    }
-    .notes-ai-line {
-      font-size: 0.86rem;
-      line-height: 1.46;
-      color: hsl(var(--text-100));
-      margin: 0;
-    }
-    .notes-history-item {
-      border: 1px solid hsla(0, 0%, 100%, 0.11);
-      border-radius: 11px;
-      padding: 10px;
-      background: hsla(0, 0%, 100%, 0.03);
-      margin-bottom: 8px;
-    }
-    .notes-history-item h4 {
-      margin: 0;
-      font-size: 0.9rem;
-      line-height: 1.35;
-    }
-    .notes-history-item p {
-      margin: 5px 0 0;
-      font-size: 0.78rem;
-      color: hsl(var(--text-300));
-      line-height: 1.42;
     }
     .notes-empty {
       border: 1px dashed hsla(0, 0%, 100%, 0.2);
@@ -241,55 +147,28 @@
       color: hsl(var(--text-400));
       text-align: center;
     }
-
-    .notes-hardgate {
-      position: fixed;
-      inset: 0;
-      z-index: 3800;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      background: rgba(5, 8, 22, 0.86);
-      backdrop-filter: blur(10px);
-    }
-    .notes-hardgate.show {
-      display: flex;
-    }
-    .notes-hardgate-card {
-      width: min(460px, 100%);
-      border-radius: 18px;
+    .notes-gate {
+      margin-bottom: 12px;
+      border-radius: 14px;
       border: 1px solid hsla(var(--sem-danger, 352 82% 66%), 0.45);
       background: linear-gradient(165deg, hsla(var(--sem-danger, 352 82% 66%), 0.18), hsla(230, 35%, 8%, 0.95));
-      box-shadow: 0 22px 46px -24px rgba(0, 0, 0, 0.92);
-      padding: 16px;
+      padding: 12px;
+      display: none;
+      gap: 8px;
+    }
+    .notes-gate.show {
       display: grid;
-      gap: 10px;
     }
-    .notes-hardgate-title {
+    .notes-gate h3 {
       margin: 0;
-      font-size: 1rem;
-      font-weight: 800;
+      font-size: 0.9rem;
       line-height: 1.35;
-      color: hsl(var(--text-100));
     }
-    .notes-hardgate-sub {
+    .notes-gate p {
       margin: 0;
-      font-size: 0.84rem;
+      font-size: 0.8rem;
       color: hsl(var(--text-200));
       line-height: 1.45;
-    }
-
-    @media (max-width: 520px) {
-      .notes-inline {
-        grid-template-columns: 1fr;
-      }
-      .notes-session-title {
-        font-size: 0.91rem;
-      }
-      .notes-session-meta {
-        font-size: 0.76rem;
-      }
     }
   </style>
 </head>
@@ -307,101 +186,28 @@
     <section class="card">
       <div class="notes-head">
         <div>
-          <div class="section-title" style="margin:0"><i class="fa-solid fa-note-sticky"></i> Pencatatan Kuliah Z AI</div>
-          <div class="muted small" id="notes-page-sub">Catat per sesi kuliah hari ini, lalu biarkan Z AI bantu merangkum.</div>
+          <div class="section-title" style="margin:0"><i class="fa-solid fa-book-open"></i> List Mata Kuliah Catatan</div>
+          <div class="muted small" id="notes-page-sub">Pilih mata kuliah, lalu masuk ke halaman editor catatan.</div>
         </div>
-        <input id="notes-date" type="date" class="input" style="max-width:170px">
+        <div class="notes-head-actions">
+          <a class="btn small secondary" href="/class-notes-vault"><i class="fa-solid fa-vault"></i> Buka Vault Arsip</a>
+          <input id="notes-date" type="date" class="input" style="max-width:170px">
+        </div>
       </div>
+
+      <div id="notes-gate-card" class="notes-gate" aria-live="polite">
+        <h3><i class="fa-solid fa-triangle-exclamation"></i> Catatan sesi wajib dilengkapi</h3>
+        <p id="notes-gate-text">Ada sesi aktif yang belum punya catatan minimum.</p>
+        <button id="notes-gate-open" type="button" class="btn"><i class="fa-solid fa-pen"></i> Buka Editor Sekarang</button>
+      </div>
+
       <p class="notes-subhead"><i class="fa-solid fa-bolt"></i> Mata Kuliah Terdekat</p>
       <div id="notes-nearest-list" class="notes-nearest-list"></div>
+
       <p id="notes-day-subhead" class="notes-subhead"><i class="fa-regular fa-calendar"></i> Sesi Tanggal Dipilih</p>
       <div id="notes-session-list" class="notes-session-list"></div>
     </section>
-
-    <section class="card" style="margin-top:12px">
-      <div class="notes-head">
-        <h3 class="section-title" style="margin:0;font-size:1rem"><i class="fa-solid fa-pen"></i> Editor Catatan</h3>
-        <span class="notes-chip pending" id="notes-minimum-chip">Belum lengkap</span>
-      </div>
-      <form id="class-note-form" class="notes-form-grid">
-        <input type="hidden" id="note-id">
-        <input type="hidden" id="note-schedule-id">
-        <input type="hidden" id="note-class-date">
-
-        <div>
-          <p class="notes-label">Poin Penting</p>
-          <textarea id="note-key-points" class="input notes-textarea" placeholder="Tulis konsep inti, rumus, atau highlight kelas..."></textarea>
-        </div>
-        <div>
-          <p class="notes-label">Langkah Lanjutan</p>
-          <textarea id="note-action-items" class="input notes-textarea" placeholder="Contoh: review bab 3, lanjut latihan no 4-8..."></textarea>
-        </div>
-        <div>
-          <p class="notes-label">Pertanyaan</p>
-          <textarea id="note-questions" class="input notes-textarea" placeholder="Apa yang belum paham dari sesi ini?"></textarea>
-        </div>
-        <div>
-          <p class="notes-label">Catatan Bebas</p>
-          <textarea id="note-free-text" class="input notes-textarea" placeholder="Catatan bebas, insight dosen, atau konteks tambahan..."></textarea>
-        </div>
-
-        <div class="notes-inline">
-          <div>
-            <p class="notes-label">Mood Fokus (opsional)</p>
-            <select id="note-mood-focus" class="input">
-              <option value="">-</option>
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-            </select>
-          </div>
-          <div>
-            <p class="notes-label">Keyakinan Materi (opsional)</p>
-            <select id="note-confidence" class="input">
-              <option value="">-</option>
-              <option value="low">Rendah</option>
-              <option value="medium">Sedang</option>
-              <option value="high">Tinggi</option>
-            </select>
-          </div>
-        </div>
-        <button type="submit" class="btn"><i class="fa-solid fa-floppy-disk"></i> Simpan Catatan Sesi</button>
-      </form>
-    </section>
-
-    <section class="card" style="margin-top:12px">
-      <div class="notes-head">
-        <h3 class="section-title" style="margin:0;font-size:1rem"><i class="fa-solid fa-robot"></i> Insight Z AI</h3>
-        <a id="notes-chat-cta" class="btn small secondary" href="/chat"><i class="fa-solid fa-message-heart"></i> Buka Obrolan</a>
-      </div>
-      <div class="notes-ai-box" id="notes-ai-box">
-        <p class="notes-ai-line" id="notes-ai-summary">Z AI akan merangkum setelah catatan sesi disimpan.</p>
-        <p class="notes-ai-line" id="notes-ai-next">Z AI akan memberi langkah lanjutan setelah catatan disimpan.</p>
-        <p class="notes-ai-line" id="notes-ai-risk">Z AI akan menampilkan catatan risiko jika terdeteksi.</p>
-      </div>
-    </section>
-
-    <section class="card" style="margin-top:12px">
-      <div class="notes-head">
-        <h3 class="section-title" style="margin:0;font-size:1rem"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Catatan</h3>
-        <div class="notes-head-actions">
-          <button id="notes-export-md" type="button" class="btn small secondary"><i class="fa-solid fa-file-lines"></i> Unduh Markdown</button>
-          <button id="notes-export-pdf" type="button" class="btn small secondary"><i class="fa-solid fa-file-pdf"></i> Unduh PDF</button>
-        </div>
-      </div>
-      <div id="notes-history-list"></div>
-    </section>
   </main>
-
-  <div id="notes-hardgate" class="notes-hardgate" aria-live="assertive">
-    <div class="notes-hardgate-card">
-      <h3 class="notes-hardgate-title">Catatan sesi belum lengkap</h3>
-      <p class="notes-hardgate-sub" id="notes-hardgate-sub">Isi minimum satu catatan agar sesi kuliah tercatat rapi.</p>
-      <button class="btn" id="notes-hardgate-focus"><i class="fa-solid fa-pen"></i> Isi Catatan Sekarang</button>
-    </div>
-  </div>
 
   <nav class="bottom-nav">
     <a href="/" class="nav-item">
@@ -424,4 +230,3 @@
   <script type="module" src="js/class_notes.js"></script>
 </body>
 </html>
-

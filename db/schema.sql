@@ -245,9 +245,47 @@ CREATE TABLE IF NOT EXISTS class_notes (
   next_action_text TEXT DEFAULT '',
   risk_hint TEXT DEFAULT '',
   is_minimum_completed BOOLEAN DEFAULT FALSE,
+  archive_status VARCHAR(20) NOT NULL DEFAULT 'active',
+  archived_at TIMESTAMPTZ,
+  pinned BOOLEAN NOT NULL DEFAULT FALSE,
+  quality_score SMALLINT DEFAULT 0,
+  deleted_at TIMESTAMPTZ,
+  deleted_by VARCHAR(60),
+  purge_after TIMESTAMPTZ,
+  updated_by VARCHAR(60),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (user_id, schedule_id, class_date)
+);
+
+-- Backward-compatible migration for existing class_notes table
+ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS archive_status VARCHAR(20) NOT NULL DEFAULT 'active';
+ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS quality_score SMALLINT DEFAULT 0;
+ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS deleted_by VARCHAR(60);
+ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS purge_after TIMESTAMPTZ;
+ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS updated_by VARCHAR(60);
+
+-- 17. Class Note Revisions (version snapshot on every save)
+CREATE TABLE IF NOT EXISTS class_note_revisions (
+  id BIGSERIAL PRIMARY KEY,
+  note_id BIGINT NOT NULL REFERENCES class_notes(id) ON DELETE CASCADE,
+  version_no INTEGER NOT NULL,
+  user_id VARCHAR(60) NOT NULL,
+  key_points TEXT DEFAULT '',
+  action_items TEXT DEFAULT '',
+  questions TEXT DEFAULT '',
+  free_text TEXT DEFAULT '',
+  mood_focus INTEGER,
+  confidence VARCHAR(10),
+  summary_text TEXT DEFAULT '',
+  next_action_text TEXT DEFAULT '',
+  risk_hint TEXT DEFAULT '',
+  change_reason VARCHAR(40) DEFAULT 'save',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (note_id, version_no)
 );
 
 -- Indexes for performance
@@ -272,3 +310,7 @@ CREATE INDEX IF NOT EXISTS idx_zai_reminders_user ON z_ai_reminders(target_user,
 CREATE INDEX IF NOT EXISTS idx_class_notes_user_date ON class_notes(user_id, class_date DESC);
 CREATE INDEX IF NOT EXISTS idx_class_notes_schedule_date ON class_notes(schedule_id, class_date DESC);
 CREATE INDEX IF NOT EXISTS idx_class_notes_subject_date ON class_notes(subject, class_date DESC);
+CREATE INDEX IF NOT EXISTS idx_class_notes_status_date ON class_notes(user_id, archive_status, class_date DESC);
+CREATE INDEX IF NOT EXISTS idx_class_notes_partner_read ON class_notes(archive_status, class_date DESC);
+CREATE INDEX IF NOT EXISTS idx_class_notes_subject_status ON class_notes(subject, archive_status, class_date DESC);
+CREATE INDEX IF NOT EXISTS idx_class_note_revisions_note_time ON class_note_revisions(note_id, created_at DESC);

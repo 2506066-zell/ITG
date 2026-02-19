@@ -58,7 +58,7 @@ function maybeAutoOpenNotesGateSession(session, dateText) {
   if (hasNotesGateAutoOpened(dateText, scheduleId)) return;
   markNotesGateAutoOpened(dateText, scheduleId);
   showToast('Kelas aktif terdeteksi. Membuka editor catatan...', 'info');
-  const target = `/class-notes?enforce=1&date=${encodeURIComponent(dateText)}&schedule_id=${scheduleId}&auto_open=1`;
+  const target = `/class-notes-editor?enforce=1&date=${encodeURIComponent(dateText)}&schedule_id=${scheduleId}&auto_open=1`;
   setTimeout(() => {
     window.location.href = target;
   }, 420);
@@ -115,7 +115,7 @@ function updateNotesGateOverlay(dateText = dateKey()) {
   const start = String(top.time_start || '').slice(0, 5);
   const end = String(top.time_end || '').slice(0, 5);
   textEl.textContent = `Kelas "${top.subject || 'Kelas'}" (${start}-${end}) belum punya catatan minimum. Lengkapi dulu sebelum lanjut.`;
-  openEl.href = `/class-notes?enforce=1&date=${encodeURIComponent(dateText)}&schedule_id=${Number(top.schedule_id || 0)}`;
+  openEl.href = `/class-notes-editor?enforce=1&date=${encodeURIComponent(dateText)}&schedule_id=${Number(top.schedule_id || 0)}`;
   overlay.style.display = 'flex';
   maybeAutoOpenNotesGateSession(top, dateText);
 }
@@ -657,7 +657,7 @@ function renderGridView() {
           ${c.lecturer ? `<div class="class-lecturer"><i class="fa-solid fa-user-tie"></i> ${c.lecturer}</div>` : ''}
         `;
         item.addEventListener('click', () => {
-          window.location.href = `/class-notes?schedule_id=${Number(c.id)}&date=${encodeURIComponent(dateKey())}`;
+          window.location.href = `/class-notes-editor?schedule_id=${Number(c.id)}&date=${encodeURIComponent(dateKey())}`;
         });
         item.appendChild(delBtn);
         card.appendChild(item);
@@ -890,7 +890,7 @@ function init() {
     gateOpen.addEventListener('click', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      const href = gateOpen.getAttribute('href') || '/class-notes?enforce=1';
+      const href = gateOpen.getAttribute('href') || '/class-notes-editor?enforce=1';
       window.location.assign(href);
     });
   }

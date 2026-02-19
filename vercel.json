@@ -13,6 +13,10 @@
     {
       "path": "/api/cron/report-notifications",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/notes-vault-maintenance",
+      "schedule": "0 3 * * *"
     }
   ],
   "builds": [
@@ -24,6 +28,7 @@
     { "src": "api/cron/hourly_checks.js", "use": "@vercel/node" },
     { "src": "api/cron/proactive_engine.js", "use": "@vercel/node" },
     { "src": "api/cron/report_notifications.js", "use": "@vercel/node" },
+    { "src": "api/cron/notes_vault_maintenance.js", "use": "@vercel/node" },
     { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "public", "buildCommand": "node scripts/build_public.js" } }
   ],
   "rewrites": [
@@ -35,6 +40,7 @@
     { "source": "/api/cron/hourly", "destination": "/api/cron/hourly_checks.js" },
     { "source": "/api/cron/proactive-engine", "destination": "/api/cron/proactive_engine.js" },
     { "source": "/api/cron/report-notifications", "destination": "/api/cron/report_notifications.js" },
+    { "source": "/api/cron/notes-vault-maintenance", "destination": "/api/cron/notes_vault_maintenance.js" },
     { "source": "/api/(.*)", "destination": "/api/router.js?path=$1" },
     { "source": "/login", "destination": "/login.html" },
     { "source": "/memories", "destination": "/memories.html" },
@@ -48,6 +54,8 @@
     { "source": "/settings", "destination": "/settings.html" },
     { "source": "/monthly-todos", "destination": "/monthly-todos.html" },
     { "source": "/class-notes", "destination": "/class-notes.html" },
+    { "source": "/class-notes-editor", "destination": "/class-notes-editor.html" },
+    { "source": "/class-notes-vault", "destination": "/class-notes-vault.html" },
     { "source": "/report", "destination": "/report.html" },
     { "source": "/(.*)", "destination": "/$1" }
   ],

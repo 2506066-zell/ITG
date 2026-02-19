@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/v2-system.css">
+  <link rel="stylesheet" href="css/v3-polish.css">
+  <link rel="icon" href="icons/192.png">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">
+  <script src="js/perf-mode.js"></script>
+  <title>NZ - Vault Arsip Catatan</title>
+  <style>
+    .notes-vault-page .container { max-width: 980px; padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
+    .vault-toolbar { display: grid; gap: 10px; margin-bottom: 12px; }
+    .vault-search { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .vault-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .vault-chip { border: 1px solid hsla(0,0%,100%,0.2); border-radius: 999px; padding: 6px 10px; font-size: .72rem; background: hsla(0,0%,100%,0.04); color: hsl(var(--text-200)); cursor: pointer; }
+    .vault-chip.active { border-color: hsla(var(--sem-info,205 86% 65%),0.54); background: hsla(var(--sem-info,205 86% 65%),0.18); color: hsl(var(--sem-info,205 86% 65%)); }
+    .vault-layout { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); }
+    .vault-list { display: grid; gap: 10px; }
+    .vault-group { border: 1px solid hsla(0,0%,100%,0.12); border-radius: 14px; background: hsla(0,0%,100%,0.03); padding: 10px; }
+    .vault-group h3 { margin: 0 0 8px; font-size: .92rem; letter-spacing: .03em; }
+    .vault-week { border: 1px solid hsla(0,0%,100%,0.1); border-radius: 11px; padding: 8px; margin-bottom: 8px; }
+    .vault-week-head { font-size: .72rem; color: hsl(var(--text-400)); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+    .vault-item { border: 1px solid hsla(0,0%,100%,0.12); border-radius: 11px; padding: 9px; margin-bottom: 7px; background: hsla(0,0%,100%,0.03); cursor: pointer; position: relative; overflow: hidden; }
+    .vault-item::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background: var(--subject-accent, hsl(var(--sem-info,205 86% 65%))); }
+    .vault-item.active { border-color: hsla(var(--sem-info,205 86% 65%),0.5); box-shadow: 0 0 0 1px hsla(var(--sem-info,205 86% 65%),0.2); }
+    .vault-item-title { margin: 0; font-size: .9rem; font-weight: 700; color: hsl(var(--text-100)); }
+    .vault-item-meta { margin: 4px 0 0; font-size: .74rem; color: hsl(var(--text-300)); line-height: 1.4; }
+    .vault-badge-row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+    .vault-badge { border-radius: 999px; padding: 4px 8px; font-size: .62rem; letter-spacing: .07em; text-transform: uppercase; border: 1px solid hsla(0,0%,100%,0.2); }
+    .vault-badge.archived { border-color: hsla(var(--sem-info,205 86% 65%),0.4); color: hsl(var(--sem-info,205 86% 65%)); background: hsla(var(--sem-info,205 86% 65%),0.14); }
+    .vault-badge.active { border-color: hsla(var(--sem-safe,152 62% 54%),0.42); color: hsl(var(--sem-safe,152 62% 54%)); background: hsla(var(--sem-safe,152 62% 54%),0.13); }
+    .vault-badge.trashed { border-color: hsla(var(--sem-danger,352 82% 66%),0.42); color: hsl(var(--sem-danger,352 82% 66%)); background: hsla(var(--sem-danger,352 82% 66%),0.14); }
+    .vault-insight { border: 1px solid hsla(var(--sem-info,205 86% 65%),0.35); border-radius: 12px; background: hsla(var(--sem-info,205 86% 65%),0.1); padding: 10px; margin-bottom: 10px; }
+    .vault-insight p { margin: 0 0 6px; font-size: .82rem; line-height: 1.45; }
+    .vault-detail { border: 1px solid hsla(0,0%,100%,0.14); border-radius: 14px; background: hsla(0,0%,100%,0.03); padding: 11px; position: sticky; top: 84px; height: fit-content; }
+    .vault-detail h3 { margin: 0 0 8px; font-size: .92rem; }
+    .vault-detail p { margin: 0 0 6px; font-size: .8rem; color: hsl(var(--text-200)); line-height: 1.45; }
+    .vault-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+    .vault-revisions { margin-top: 10px; border-top: 1px dashed hsla(0,0%,100%,0.18); padding-top: 10px; }
+    .vault-rev { border: 1px solid hsla(0,0%,100%,0.1); border-radius: 10px; padding: 7px; margin-bottom: 7px; font-size: .74rem; }
+    .vault-empty { border: 1px dashed hsla(0,0%,100%,0.2); border-radius: 11px; padding: 14px; font-size: .82rem; color: hsl(var(--text-400)); text-align: center; }
+    @media (max-width: 860px) { .vault-layout { grid-template-columns: 1fr; } .vault-detail { position: static; } }
+  </style>
+</head>
+<body class="v2-page notes-vault-page">
+  <nav class="navbar">
+    <div class="brand"><i class="fa-solid fa-vault"></i> Vault Catatan</div>
+    <div class="nav-actions">
+      <a class="btn small secondary" href="/class-notes"><i class="fa-solid fa-arrow-left"></i> Kembali</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="card">
+      <div class="vault-toolbar">
+        <div class="vault-search">
+          <input id="vault-search" class="input" placeholder="Cari catatan, contoh: minggu lalu catatan kalkulus">
+          <button id="vault-search-btn" class="btn small"><i class="fa-solid fa-magnifying-glass"></i> Cari</button>
+        </div>
+        <div class="vault-chip-row" id="vault-status-chips">
+          <button class="vault-chip active" data-status="archived">Arsip</button>
+          <button class="vault-chip" data-status="active">Aktif</button>
+          <button class="vault-chip" data-status="trashed">Trash</button>
+          <button class="vault-chip" data-status="all">Semua</button>
+        </div>
+        <div class="vault-chip-row">
+          <button id="vault-owner-me" class="vault-chip active" data-owner="me">Punya Saya</button>
+          <button id="vault-owner-partner" class="vault-chip" data-owner="partner">Punya Pasangan</button>
+          <button id="vault-toggle-partner" class="vault-chip">Lihat pasangan: Off</button>
+        </div>
+      </div>
+
+      <div class="vault-insight" id="vault-insight-box">
+        <p id="vault-insight-summary">Memuat insight vault...</p>
+        <p id="vault-insight-next">Aksi berikutnya akan muncul di sini.</p>
+        <p id="vault-insight-risk">Catatan risiko akan tampil otomatis.</p>
+      </div>
+
+      <div class="vault-layout">
+        <div id="vault-list" class="vault-list"></div>
+        <aside class="vault-detail">
+          <h3 id="vault-detail-title">Pilih Catatan</h3>
+          <p id="vault-detail-meta">Klik salah satu card untuk lihat detail.</p>
+          <p id="vault-detail-summary"></p>
+          <p id="vault-detail-next"></p>
+          <p id="vault-detail-risk"></p>
+          <div class="vault-actions" id="vault-actions"></div>
+          <div class="vault-revisions">
+            <h3 style="margin:0 0 8px;font-size:.84rem">Riwayat Revisi</h3>
+            <div id="vault-revisions-list"></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="/" class="nav-item"><i class="fa-solid fa-house-chimney"></i><span>Beranda</span></a>
+    <a href="/daily-tasks" class="nav-item"><i class="fa-solid fa-list-check"></i><span>Tugas</span></a>
+    <a href="/goals" class="nav-item"><i class="fa-solid fa-bullseye"></i><span>Tujuan</span></a>
+    <a href="/chat" class="nav-item"><i class="fa-solid fa-message-heart"></i><span>Obrolan</span></a>
+    <a href="/settings" class="nav-item"><i class="fa-solid fa-gear"></i><span>Pengaturan</span></a>
+  </nav>
+
+  <script type="module" src="js/class_notes_vault.js"></script>
+</body>
+</html>
