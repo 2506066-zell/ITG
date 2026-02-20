@@ -510,6 +510,8 @@
 
     .chat-page .chat-card {
         height: 100%;
+        width: 100%;
+        max-width: 100%;
         border-radius: 0;
         border-left: 0;
         border-right: 0;
@@ -523,11 +525,14 @@
 
     .chat-page .chat-messages {
         min-height: 0;
+        width: 100%;
+        max-width: 100%;
         overflow-y: auto;
+        overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
         mask-image: none;
-        padding: 8px 8px 6px;
+        padding: 8px calc(8px + env(safe-area-inset-right, 0px)) 6px calc(8px + env(safe-area-inset-left, 0px));
         gap: 8px;
     }
 
@@ -539,10 +544,12 @@
 
     .chat-page .chat-msg {
         max-width: 88%;
+        width: fit-content;
     }
 
     .chat-page .chat-msg.me {
         max-width: 82%;
+        margin-left: auto;
     }
 
     .chat-page .bubble-content {
@@ -556,10 +563,13 @@
     .chat-page .chat-control-rail.assistant-command-bar {
         position: relative;
         z-index: 5;
-        padding: 6px 8px 4px;
+        width: 100%;
+        max-width: 100%;
+        padding: 6px calc(8px + env(safe-area-inset-right, 0px)) 4px calc(8px + env(safe-area-inset-left, 0px));
         border-top: 1px solid hsla(0, 0%, 100%, 0.09);
         background: linear-gradient(180deg, hsla(var(--space-950), 0.34), hsla(var(--space-950), 0.56));
         gap: 5px;
+        overflow: hidden;
     }
 
     .chat-page .assistant-command-head {
@@ -628,15 +638,24 @@
     .chat-page .chat-composer.chat-input {
         position: relative;
         z-index: 6;
-        gap: 5px;
-        padding: 7px 8px calc(7px + env(safe-area-inset-bottom, 0px));
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: center;
+        column-gap: 5px;
+        row-gap: 0;
+        width: 100%;
+        max-width: 100%;
+        padding: 7px calc(8px + env(safe-area-inset-right, 0px)) calc(7px + env(safe-area-inset-bottom, 0px)) calc(8px + env(safe-area-inset-left, 0px));
         background: hsla(var(--space-950), 0.97);
         border-top: 1px solid hsla(0, 0%, 100%, 0.12);
         backdrop-filter: blur(8px);
+        overflow: hidden;
     }
 
     .chat-page .chat-input-main {
+        width: 100%;
         min-height: 42px;
+        min-width: 0;
         border-radius: 14px;
         border-color: hsla(0, 0%, 100%, 0.17);
         background: hsla(0, 0%, 100%, 0.04);
@@ -664,6 +683,7 @@
         height: 40px;
         min-width: 40px;
         min-height: 40px;
+        flex: 0 0 auto;
     }
 
     .chat-page .footer {
@@ -703,7 +723,9 @@
 
     .chat-page.chat-keyboard-open .chat-composer.chat-input {
         padding-top: 6px;
+        padding-right: calc(8px + env(safe-area-inset-right, 0px));
         padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+        padding-left: calc(8px + env(safe-area-inset-left, 0px));
     }
 }
 
