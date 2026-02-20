@@ -339,6 +339,71 @@
       backdrop-filter: blur(10px);
     }
 
+    .month-archive-wrap {
+      margin-top: 10px;
+    }
+
+    .month-archive-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .month-archive-year {
+      color: var(--text);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .month-archive-rail {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .month-archive-rail::-webkit-scrollbar {
+      display: none;
+    }
+
+    .month-chip {
+      flex: 0 0 auto;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      padding: 6px 10px;
+      cursor: pointer;
+      transition: all .2s ease;
+      white-space: nowrap;
+    }
+
+    .month-chip:hover {
+      border-color: rgba(77, 163, 255, 0.4);
+      color: var(--text);
+    }
+
+    .month-chip.active {
+      background: linear-gradient(135deg, rgba(77, 163, 255, 0.2), rgba(138, 92, 255, 0.2));
+      border-color: rgba(77, 163, 255, 0.45);
+      color: #fff;
+      box-shadow: 0 0 12px var(--primary-glow);
+    }
+
+    .month-chip.current {
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
     .summary-item {
       padding: 8px;
       border-radius: 10px;
@@ -723,6 +788,14 @@
       <div class="user-tabs">
         <div class="user-tab active" data-user="Zaldy">Zaldy</div>
         <div class="user-tab" data-user="Nesya">Nesya</div>
+      </div>
+
+      <div class="month-archive-wrap">
+        <div class="month-archive-head">
+          <span>Arsip Per Bulan</span>
+          <span class="month-archive-year" id="month-archive-year">----</span>
+        </div>
+        <div class="month-archive-rail" id="month-archive-rail"></div>
       </div>
     </header>
 

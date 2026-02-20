@@ -11,6 +11,25 @@ function localDate() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+const MONTH_NAMES_ID = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
+function parseYearMonth(value) {
+    const raw = String(value || '').trim();
+    const m = raw.match(/^(\d{4})-(\d{2})$/);
+    if (!m) return null;
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return null;
+    return { year, month };
+}
+
+function buildYearMonth(year, month) {
+    return `${String(year)}-${String(month).padStart(2, '0')}`;
+}
+
 const state = {
     user: 'Zaldy', // Default user
     month: localMonth(), // Current YYYY-MM (local)
@@ -22,6 +41,8 @@ const state = {
 
 const els = {
     monthPicker: document.getElementById('month-picker'),
+    monthArchiveRail: document.getElementById('month-archive-rail'),
+    monthArchiveYear: document.getElementById('month-archive-year'),
     userTabs: document.querySelectorAll('.user-tab'),
     todoList: document.getElementById('todo-list'),
     fab: document.getElementById('fab-add'),
@@ -51,6 +72,39 @@ const els = {
     weeklyReviewAction: document.getElementById('weekly-review-action'),
     weeklyReviewSendChat: document.getElementById('weekly-review-send-chat')
 };
+
+function renderMonthArchiveRail() {
+    if (!els.monthArchiveRail) return;
+    const selected = parseYearMonth(state.month) || parseYearMonth(localMonth());
+    const current = parseYearMonth(localMonth());
+    const year = selected ? selected.year : (current ? current.year : new Date().getFullYear());
+
+    if (els.monthArchiveYear) {
+        els.monthArchiveYear.textContent = String(year);
+    }
+
+    els.monthArchiveRail.innerHTML = MONTH_NAMES_ID.map((name, idx) => {
+        const month = idx + 1;
+        const value = buildYearMonth(year, month);
+        const isActive = value === state.month;
+        const isCurrent = current && current.year === year && current.month === month;
+        const classes = ['month-chip'];
+        if (isActive) classes.push('active');
+        if (isCurrent) classes.push('current');
+        return `<button type="button" class="${classes.join(' ')}" data-month-value="${value}">${name}</button>`;
+    }).join('');
+}
+
+function setActiveMonth(nextMonth, options = {}) {
+    const parsed = parseYearMonth(nextMonth);
+    if (!parsed) return;
+    const reload = options.reload !== false;
+    const value = buildYearMonth(parsed.year, parsed.month);
+    state.month = value;
+    if (els.monthPicker) els.monthPicker.value = value;
+    renderMonthArchiveRail();
+    if (reload) loadAll();
+}
 
 function motionReduced() {
     return document.body.classList.contains('no-anim')
@@ -256,11 +310,17 @@ function init() {
     normalizeLinks();
     // Set initial month value
     els.monthPicker.value = state.month;
+    renderMonthArchiveRail();
 
     // Event Listeners
     els.monthPicker.addEventListener('change', (e) => {
-        state.month = e.target.value;
-        loadAll();
+        setActiveMonth(e.target.value, { reload: true });
+    });
+
+    els.monthArchiveRail?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.month-chip');
+        if (!btn) return;
+        setActiveMonth(btn.dataset.monthValue, { reload: true });
     });
 
     els.userTabs.forEach(tab => {
