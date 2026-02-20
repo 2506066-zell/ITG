@@ -231,9 +231,15 @@ Response:
 ## Smart Notes Vault API
 - Endpoint utama catatan tetap:
   - `GET /api/class_notes`
+    - query opsional baru: `semester_key`, `include_semester=1`
   - `POST /api/class_notes`
   - `PUT /api/class_notes`
   - `GET /api/class_notes/session?date=YYYY-MM-DD`
+  - `GET /api/class_notes/semester?subject=<mapel>&owner=<user>`
+    - untuk daftar bucket semester per mapel + owner
+- Endpoint preferensi semester:
+  - `GET /api/academic_semester`
+  - `PUT /api/academic_semester` body: `{ "academic_year_start_month": 8 }`
 - Endpoint vault arsip:
   - `GET /api/class_notes/vault`
   - `POST /api/class_notes/vault/action` body: `{ note_id, action }`

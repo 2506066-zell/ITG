@@ -1,4 +1,10 @@
 import { pool, readBody, verifyToken, withErrorHandling, sendJson, logActivity } from './_lib.js';
+import {
+  buildSemesterMeta,
+  ensureAcademicSemesterPreferenceSchema,
+  getAcademicSemesterPreference,
+  parseSemesterKey,
+} from './_academic_semester.js';
 
 const DEFAULT_TRASH_RETENTION_DAYS = 30;
 
@@ -324,6 +330,7 @@ async function buildSmartLayer(client, userId, source = {}) {
 
 export async function ensureClassNotesSchema(client = null) {
   if (global._classNotesSchemaReady) return;
+  await ensureAcademicSemesterPreferenceSchema(client);
   const run = (sql, params = []) => (client ? client.query(sql, params) : pool.query(sql, params));
 
   await run(`
@@ -575,6 +582,14 @@ function buildNoteWhereClause(baseVisibility, filters = {}, alias = 'n') {
   if (filters.to) {
     where.push(`${alias}.class_date <= $${i++}::date`);
     params.push(filters.to);
+  }
+  if (filters.semester_from) {
+    where.push(`${alias}.class_date >= $${i++}::date`);
+    params.push(filters.semester_from);
+  }
+  if (filters.semester_to) {
+    where.push(`${alias}.class_date <= $${i++}::date`);
+    params.push(filters.semester_to);
   }
   if (filters.requireQuestions) {
     where.push(`LENGTH(TRIM(COALESCE(${alias}.questions, ''))) > 0`);
@@ -850,6 +865,87 @@ async function handleVaultInsightGet(req, res, user, url) {
     );
 
     sendJson(res, 200, buildVaultInsightFromRows(result.rows, scope), 8);
+  } finally {
+    client.release();
+  }
+}
+
+async function handleSemesterGet(req, res, user, url) {
+  const withPartner = parseBool(url.searchParams.get('with_partner'));
+  const owner = normalizeUserId(url.searchParams.get('owner') || '');
+  const subject = normalizeText(url.searchParams.get('subject') || '', 120);
+  if (!subject) {
+    res.status(400).json({ error: 'subject wajib diisi' });
+    return;
+  }
+
+  const visibility = await resolveVisibilityClause({
+    requestUser: user,
+    ownerParam: owner,
+    withPartner,
+    alias: 'n',
+  });
+
+  if (visibility.blocked) {
+    sendJson(res, 200, {
+      items: [],
+      current_semester_key: '',
+      current_semester_label: '',
+      academic_year_start_month: 8,
+    });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await ensureClassNotesSchema(client);
+    await autoArchiveForOwners(client, visibility.owners);
+    const pref = await getAcademicSemesterPreference(client, user);
+    const startMonth = Number(pref.academic_year_start_month || 8);
+    const currentMeta = buildSemesterMeta(localDateText(), startMonth);
+
+    const built = buildNoteWhereClause(visibility, {
+      archive_status: 'all',
+      subject,
+    });
+    const result = await client.query(
+      `SELECT n.class_date
+         FROM class_notes n
+        WHERE ${built.where.join(' AND ')}`,
+      built.params
+    );
+
+    const buckets = new Map();
+    for (const row of result.rows || []) {
+      const meta = buildSemesterMeta(row.class_date, startMonth);
+      if (!meta?.semester_key) continue;
+      if (!buckets.has(meta.semester_key)) {
+        buckets.set(meta.semester_key, {
+          semester_key: meta.semester_key,
+          semester_label: meta.semester_label,
+          from: meta.from,
+          to: meta.to,
+          total: 0,
+        });
+      }
+      buckets.get(meta.semester_key).total += 1;
+    }
+
+    const items = [...buckets.values()].sort((a, b) => {
+      const af = String(a.from || '');
+      const bf = String(b.from || '');
+      return bf.localeCompare(af);
+    });
+
+    sendJson(res, 200, {
+      items,
+      current_semester_key: currentMeta?.semester_key || pref.current_semester_key || '',
+      current_semester_label: currentMeta?.semester_label || pref.current_semester_label || '',
+      academic_year_start_month: startMonth,
+      subject,
+      owner,
+      with_partner: withPartner,
+    }, 20);
   } finally {
     client.release();
   }
@@ -1148,6 +1244,11 @@ export default withErrorHandling(async function handler(req, res) {
     }
   }
 
+  if (req.method === 'GET' && mode === 'semester') {
+    await handleSemesterGet(req, res, user, url);
+    return;
+  }
+
   if (req.method === 'GET' && mode === 'vault') {
     await handleVaultGet(req, res, user, url);
     return;
@@ -1176,6 +1277,8 @@ export default withErrorHandling(async function handler(req, res) {
   if (req.method === 'GET' && !mode) {
     const withPartner = parseBool(url.searchParams.get('with_partner'));
     const owner = normalizeUserId(url.searchParams.get('owner') || '');
+    const includeSemester = parseBool(url.searchParams.get('include_semester'));
+    const semesterKey = normalizeText(url.searchParams.get('semester_key') || '', 40);
     const naturalEnabled = parseBool(url.searchParams.get('natural'));
     const visibility = await resolveVisibilityClause({
       requestUser: user,
@@ -1196,6 +1299,7 @@ export default withErrorHandling(async function handler(req, res) {
       subject: normalizeText(url.searchParams.get('subject') || '', 120),
       from: String(url.searchParams.get('from') || '').trim().slice(0, 10),
       to: String(url.searchParams.get('to') || '').trim().slice(0, 10),
+      semester_key: semesterKey,
     };
     const naturalParsed = naturalEnabled ? parseNaturalQuery(rawFilters.q, new Date()) : null;
     const filters = applyNaturalToFilters(rawFilters, naturalParsed);
@@ -1203,6 +1307,18 @@ export default withErrorHandling(async function handler(req, res) {
 
     const client = await pool.connect();
     try {
+      const pref = await getAcademicSemesterPreference(client, user);
+      const semester = filters.semester_key
+        ? parseSemesterKey(filters.semester_key, Number(pref.academic_year_start_month || 8))
+        : null;
+      if (filters.semester_key && !semester) {
+        res.status(400).json({ error: 'semester_key tidak valid' });
+        return;
+      }
+      if (semester) {
+        filters.semester_from = semester.from;
+        filters.semester_to = semester.to;
+      }
       await autoArchiveForOwners(client, visibility.owners);
       const built = buildNoteWhereClause(visibility, filters);
       const result = await client.query(
@@ -1214,7 +1330,19 @@ export default withErrorHandling(async function handler(req, res) {
           ORDER BY n.class_date DESC, n.time_start ASC, n.updated_at DESC`,
         [...built.params, user, user]
       );
-      sendJson(res, 200, result.rows, 10);
+      const rows = result.rows || [];
+      const withSemester = includeSemester || Boolean(filters.semester_key);
+      const out = withSemester
+        ? rows.map((row) => {
+            const meta = buildSemesterMeta(row.class_date, Number(pref.academic_year_start_month || 8));
+            return {
+              ...row,
+              semester_key: meta?.semester_key || '',
+              semester_label: meta?.semester_label || '',
+            };
+          })
+        : rows;
+      sendJson(res, 200, out, 10);
       return;
     } finally {
       client.release();

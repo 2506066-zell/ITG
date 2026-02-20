@@ -16,6 +16,9 @@ const state = {
   realtimeTimer: null,
   historyRows: [],
   activeHistoryNoteId: 0,
+  historySemesterKey: '',
+  historySemesterBuckets: [],
+  historyCurrentSemesterKey: '',
   typingPopupEnabled: false,
   typingPopupRafPending: false,
   typingPopupQueue: [],
@@ -56,6 +59,7 @@ const els = {
   aiNext: document.getElementById('notes-ai-next'),
   aiRisk: document.getElementById('notes-ai-risk'),
   historyScope: document.getElementById('notes-history-scope'),
+  historySemesters: document.getElementById('notes-history-semesters'),
   history: document.getElementById('notes-history-list'),
   historyPreview: document.getElementById('notes-history-preview'),
   viewCompactBtn: document.getElementById('notes-view-compact'),
@@ -1088,6 +1092,79 @@ function activeHistoryScope() {
   return { subject, owner };
 }
 
+function activeHistorySemesterLabel() {
+  const key = String(state.historySemesterKey || '');
+  const found = (state.historySemesterBuckets || []).find((x) => String(x.semester_key || '') === key);
+  return found?.semester_label || '';
+}
+
+function renderHistorySemesterChips() {
+  if (!els.historySemesters) return;
+  const rows = Array.isArray(state.historySemesterBuckets) ? state.historySemesterBuckets : [];
+  if (!rows.length) {
+    els.historySemesters.innerHTML = '<div class="notes-history-sem-empty">Belum ada semester untuk mapel ini.</div>';
+    return;
+  }
+  els.historySemesters.innerHTML = rows.map((row) => {
+    const key = String(row.semester_key || '');
+    const active = key && key === String(state.historySemesterKey || '');
+    const label = String(row.semester_label || key || 'Semester');
+    const total = Number(row.total || 0);
+    return `
+      <button
+        type="button"
+        class="notes-history-sem-chip ${active ? 'active' : ''}"
+        data-semester-key="${escapeHtml(key)}"
+      >${escapeHtml(label)} (${total})</button>
+    `;
+  }).join('');
+}
+
+async function loadHistorySemesters(scope) {
+  const qs = new URLSearchParams();
+  qs.set('subject', scope.subject);
+  if (scope.owner) qs.set('owner', scope.owner);
+  const payload = await get(`/class_notes/semester?${qs.toString()}`);
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  state.historySemesterBuckets = items;
+  state.historyCurrentSemesterKey = String(payload?.current_semester_key || '');
+
+  const existing = String(state.historySemesterKey || '');
+  const hasExisting = items.some((x) => String(x.semester_key || '') === existing);
+  const hasCurrent = items.some((x) => String(x.semester_key || '') === state.historyCurrentSemesterKey);
+  if (hasExisting) {
+    state.historySemesterKey = existing;
+  } else if (hasCurrent) {
+    state.historySemesterKey = state.historyCurrentSemesterKey;
+  } else {
+    state.historySemesterKey = String(items[0]?.semester_key || '');
+  }
+  renderHistorySemesterChips();
+}
+
+async function loadHistoryRows(scope) {
+  const qs = new URLSearchParams();
+  qs.set('subject', scope.subject);
+  qs.set('include_semester', '1');
+  if (scope.owner) qs.set('owner', scope.owner);
+  if (state.historySemesterKey) qs.set('semester_key', state.historySemesterKey);
+
+  const rows = await get(`/class_notes?${qs.toString()}`);
+  if (!Array.isArray(rows) || !rows.length) {
+    const semLabel = activeHistorySemesterLabel();
+    const semPart = semLabel ? ` di ${escapeHtml(semLabel)}` : '';
+    els.history.innerHTML = `<div class="notes-empty">Belum ada riwayat catatan ${escapeHtml(scope.subject)}${semPart}.</div>`;
+    state.historyRows = [];
+    state.activeHistoryNoteId = 0;
+    renderHistoryPreview(null);
+    return;
+  }
+  state.historyRows = rows;
+  state.activeHistoryNoteId = 0;
+  renderHistoryList(state.historyRows);
+  renderHistoryPreview(null);
+}
+
 function renderActiveSessionContext(note = null, session = null) {
   if (!els.activeSessionCard || !els.activeSubject || !els.activeMeta || !els.activeStatus) return;
 
@@ -1423,6 +1500,10 @@ async function loadHistory() {
     if (els.historyScope) {
       els.historyScope.textContent = 'Pilih mata kuliah dulu untuk melihat riwayat catatan per mapel.';
     }
+    state.historySemesterBuckets = [];
+    state.historySemesterKey = '';
+    state.historyCurrentSemesterKey = '';
+    renderHistorySemesterChips();
     els.history.innerHTML = '<div class="notes-empty">Belum ada mata kuliah aktif untuk menampilkan riwayat.</div>';
     state.historyRows = [];
     state.activeHistoryNoteId = 0;
@@ -1430,27 +1511,14 @@ async function loadHistory() {
     return;
   }
 
+  await loadHistorySemesters(scope);
+  const ownerText = scope.owner ? ` | Owner: ${scope.owner}` : '';
+  const semLabel = activeHistorySemesterLabel();
   if (els.historyScope) {
-    const ownerText = scope.owner ? ` | Owner: ${scope.owner}` : '';
-    els.historyScope.textContent = `Riwayat mapel: ${scope.subject}${ownerText} | Semua waktu`;
+    const semText = semLabel ? ` | Semester: ${semLabel}` : '';
+    els.historyScope.textContent = `Riwayat mapel: ${scope.subject}${ownerText}${semText}`;
   }
-
-  const qs = new URLSearchParams();
-  qs.set('subject', scope.subject);
-  if (scope.owner) qs.set('owner', scope.owner);
-
-  const rows = await get(`/class_notes?${qs.toString()}`);
-  if (!Array.isArray(rows) || !rows.length) {
-    els.history.innerHTML = `<div class="notes-empty">Belum ada riwayat catatan ${escapeHtml(scope.subject)}.</div>`;
-    state.historyRows = [];
-    state.activeHistoryNoteId = 0;
-    renderHistoryPreview(null);
-    return;
-  }
-  state.historyRows = rows;
-  state.activeHistoryNoteId = 0;
-  renderHistoryList(state.historyRows);
-  renderHistoryPreview(null);
+  await loadHistoryRows(scope);
 }
 
 async function saveNote(ev) {
@@ -1540,6 +1608,29 @@ function bindEvents() {
       state.activeHistoryNoteId = id;
       renderHistoryList(state.historyRows);
       renderHistoryPreview(note);
+    });
+  }
+  if (els.historySemesters) {
+    els.historySemesters.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('[data-semester-key]');
+      if (!btn) return;
+      const nextKey = String(btn.dataset.semesterKey || '').trim();
+      if (!nextKey || nextKey === String(state.historySemesterKey || '')) return;
+      state.historySemesterKey = nextKey;
+      renderHistorySemesterChips();
+      const scope = activeHistoryScope();
+      const ownerText = scope.owner ? ` | Owner: ${scope.owner}` : '';
+      const semLabel = activeHistorySemesterLabel();
+      if (els.historyScope) {
+        const semText = semLabel ? ` | Semester: ${semLabel}` : '';
+        els.historyScope.textContent = `Riwayat mapel: ${scope.subject}${ownerText}${semText}`;
+      }
+      try {
+        await loadHistoryRows(scope);
+      } catch (err) {
+        console.error(err);
+        showToast('Gagal memuat riwayat semester.', 'error');
+      }
     });
   }
   if (els.viewCompactBtn) {

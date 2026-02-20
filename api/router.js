@@ -35,6 +35,7 @@ const routes = new Set([
   'study_plan',
   'study_progress',
   'class_notes',
+  'academic_semester',
   'unified_memory',
   'push_metrics'
 ]);

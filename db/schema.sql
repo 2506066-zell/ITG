@@ -288,6 +288,13 @@ CREATE TABLE IF NOT EXISTS class_note_revisions (
   UNIQUE (note_id, version_no)
 );
 
+-- 18. Academic Semester Preferences (per user)
+CREATE TABLE IF NOT EXISTS academic_semester_preferences (
+  user_id VARCHAR(60) PRIMARY KEY,
+  academic_year_start_month SMALLINT NOT NULL DEFAULT 8,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed) WHERE is_deleted = FALSE;
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to) WHERE is_deleted = FALSE;
@@ -314,3 +321,4 @@ CREATE INDEX IF NOT EXISTS idx_class_notes_status_date ON class_notes(user_id, a
 CREATE INDEX IF NOT EXISTS idx_class_notes_partner_read ON class_notes(archive_status, class_date DESC);
 CREATE INDEX IF NOT EXISTS idx_class_notes_subject_status ON class_notes(subject, archive_status, class_date DESC);
 CREATE INDEX IF NOT EXISTS idx_class_note_revisions_note_time ON class_note_revisions(note_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_academic_semester_preferences_updated_at ON academic_semester_preferences(updated_at DESC);

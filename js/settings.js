@@ -1,8 +1,12 @@
 import { initProtected, setTheme, logout, showToast } from './main.js';
-import { get } from './api.js';
+import { get, put } from './api.js';
 
 const LMS_URL_KEY = 'college_lms_url';
 const DEFAULT_LMS_URL = 'https://elearning.itg.ac.id/student_area/tugas/index';
+const SEMESTER_MONTH_LABELS = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
 
 const ACTIVITY_WINDOW_DAYS = 7;
 const ACTIVITY_LIMIT = 300;
@@ -461,6 +465,63 @@ function initLmsSettings() {
   });
 }
 
+function monthLabel(monthNum = 8) {
+  const idx = Math.max(1, Math.min(12, Number(monthNum || 8))) - 1;
+  return SEMESTER_MONTH_LABELS[idx] || SEMESTER_MONTH_LABELS[7];
+}
+
+function renderSemesterPreview(el, payload = null) {
+  if (!el) return;
+  if (!payload) {
+    el.textContent = 'Semester aktif belum tersedia.';
+    return;
+  }
+  const month = Number(payload.academic_year_start_month || 8);
+  const semesterLabel = String(payload.current_semester_label || '-');
+  el.textContent = `Mulai tahun ajaran: ${monthLabel(month)} | Semester aktif: ${semesterLabel}`;
+}
+
+function initSemesterArchiveSettings() {
+  const select = document.getElementById('semester-start-month-select');
+  const saveBtn = document.getElementById('save-semester-settings-btn');
+  const preview = document.getElementById('semester-current-preview');
+  if (!select || !saveBtn || !preview) return;
+
+  const loadConfig = async () => {
+    try {
+      const payload = await get('/academic_semester');
+      const month = Number(payload?.academic_year_start_month || 8);
+      select.value = String(month);
+      renderSemesterPreview(preview, payload);
+    } catch {
+      select.value = '8';
+      renderSemesterPreview(preview, {
+        academic_year_start_month: 8,
+        current_semester_label: '-',
+      });
+    }
+  };
+
+  saveBtn.addEventListener('click', async () => {
+    const month = Number(select.value || 8);
+    if (!Number.isFinite(month) || month < 1 || month > 12) {
+      showToast('Bulan semester tidak valid.', 'error');
+      return;
+    }
+    try {
+      const payload = await put('/academic_semester', {
+        academic_year_start_month: month,
+      });
+      renderSemesterPreview(preview, payload);
+      showToast('Pengaturan semester berhasil disimpan.', 'success');
+    } catch {
+      showToast('Gagal menyimpan pengaturan semester.', 'error');
+    }
+  });
+
+  loadConfig().catch(() => {});
+}
+
 function initThemeAndPerformance() {
   const current = localStorage.getItem('theme') || 'dark';
   const themeSelect = document.querySelector('#theme-select');
@@ -546,6 +607,7 @@ function init() {
   initThemeAndPerformance();
   document.querySelector('#logout-btn')?.addEventListener('click', logout);
   initLmsSettings();
+  initSemesterArchiveSettings();
   initActivityAnalytics();
   initInstallButton();
 }
