@@ -14,6 +14,7 @@ let botProfileSyncBusy = false;
 let lastBotProfileSyncedHash = '';
 let chatKeyboardModeReady = false;
 let chatKeyboardOpen = false;
+let chatLayoutRaf = 0;
 
 const ASSISTANT_ALWAYS_ON_KEY = 'assistant_always_on_v1';
 const CHATBOT_STATELESS_MODE_KEY = 'chatbot_stateless_mode_v1';
@@ -44,18 +45,60 @@ function isMobileChatViewport() {
   }
 }
 
+function isWrapNearBottom(wrap, threshold = 96) {
+  if (!wrap) return true;
+  const distance = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight;
+  return distance <= threshold;
+}
+
+function syncChatLayoutMetrics() {
+  const root = document.documentElement;
+  const header = document.querySelector('.chat-header.navbar');
+  const rail = document.getElementById('assistant-command-bar');
+  const composer = document.querySelector('.chat-composer');
+  const wrap = document.getElementById('chat-messages');
+  const vv = window.visualViewport;
+  const viewportHeight = Math.max(320, Math.round(vv ? vv.height : window.innerHeight));
+  const keyboardOffset = Math.max(0, Math.round(window.innerHeight - viewportHeight));
+
+  root.style.setProperty('--chat-viewport-height', `${viewportHeight}px`);
+  root.style.setProperty('--chat-keyboard-offset', `${keyboardOffset}px`);
+  if (header) {
+    const headerHeight = Math.max(48, Math.round(header.getBoundingClientRect().height));
+    root.style.setProperty('--chat-header-height', `${headerHeight}px`);
+  }
+
+  const railHeight = rail ? Math.round(rail.getBoundingClientRect().height) : 0;
+  const composerHeight = composer ? Math.round(composer.getBoundingClientRect().height) : 0;
+  root.style.setProperty('--chat-control-rail-height', `${railHeight}px`);
+  root.style.setProperty('--chat-composer-height', `${composerHeight}px`);
+
+  if (wrap) {
+    const scrollPad = Math.max(18, railHeight + composerHeight + 18);
+    wrap.style.scrollPaddingBottom = `${scrollPad}px`;
+  }
+}
+
+function queueChatLayoutSync() {
+  if (chatLayoutRaf) return;
+  chatLayoutRaf = requestAnimationFrame(() => {
+    chatLayoutRaf = 0;
+    syncChatLayoutMetrics();
+  });
+}
+
 function setChatKeyboardOpen(open) {
   const next = Boolean(open);
   if (chatKeyboardOpen === next) return;
+  const wrap = document.getElementById('chat-messages');
+  const keepBottom = isWrapNearBottom(wrap, 130);
   chatKeyboardOpen = next;
   document.body.classList.toggle('chat-keyboard-open', next);
-  if (!next) return;
-  const wrap = document.getElementById('chat-messages');
-  if (wrap) {
-    requestAnimationFrame(() => {
-      wrap.scrollTop = wrap.scrollHeight;
-    });
-  }
+  queueChatLayoutSync();
+  if (!keepBottom || !wrap) return;
+  requestAnimationFrame(() => {
+    wrap.scrollTop = wrap.scrollHeight;
+  });
 }
 
 function detectViewportKeyboardState() {
@@ -76,25 +119,29 @@ function initMobileKeyboardMode() {
   const onViewportChange = () => {
     if (!isMobileChatViewport()) {
       setChatKeyboardOpen(false);
+      queueChatLayoutSync();
       return;
     }
+    queueChatLayoutSync();
     setChatKeyboardOpen(detectViewportKeyboardState());
   };
 
   const onFocus = () => {
     if (!isMobileChatViewport()) return;
     setTimeout(() => {
+      queueChatLayoutSync();
       setChatKeyboardOpen(true);
-      const composer = document.querySelector('.chat-composer');
-      try {
-        composer?.scrollIntoView?.({ block: 'end', behavior: 'smooth' });
-      } catch {}
+      const wrap = document.getElementById('chat-messages');
+      if (wrap && isWrapNearBottom(wrap, 180)) {
+        wrap.scrollTop = wrap.scrollHeight;
+      }
     }, 120);
   };
 
   const onBlur = () => {
     if (!isMobileChatViewport()) return;
     setTimeout(() => {
+      queueChatLayoutSync();
       if (!detectViewportKeyboardState()) setChatKeyboardOpen(false);
     }, 140);
   };
@@ -108,7 +155,9 @@ function initMobileKeyboardMode() {
   }
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') setChatKeyboardOpen(false);
+    queueChatLayoutSync();
   });
+  queueChatLayoutSync();
   onViewportChange();
 }
 
@@ -328,12 +377,16 @@ function syncAssistantModeUI() {
   }
   if (indicatorText) indicatorText.textContent = assistantAlwaysOn ? 'AI ON' : (chatbotStatelessMode ? 'BOT' : 'CHAT');
   if (input) {
+    const mobileCompact = isMobileChatViewport();
     input.placeholder = assistantAlwaysOn
-      ? 'Z AI aktif: ketik natural. Gunakan /chat ... untuk chat biasa'
+      ? (mobileCompact
+          ? 'Z AI aktif. Ketik natural...'
+          : 'Z AI aktif: ketik natural. Gunakan /chat ... untuk chat biasa')
       : (chatbotStatelessMode
-          ? 'Mode Bot aktif: chat ke bot stateless'
+          ? (mobileCompact ? 'Mode Bot aktif...' : 'Mode Bot aktif: chat ke bot stateless')
           : 'Ketik pesan, /ai ..., atau tap saran');
   }
+  queueChatLayoutSync();
 }
 
 function escapeHtml(text = '') {
@@ -1056,6 +1109,7 @@ function renderCommandSuggestions(payload) {
     });
     wrap.appendChild(chip);
   }
+  queueChatLayoutSync();
 }
 
 async function runAssistant(promptOrCommand) {
@@ -1401,6 +1455,12 @@ function init() {
 
   renderCommandSuggestions(lastAssistantPayload);
   initMobileKeyboardMode();
+  queueChatLayoutSync();
+  window.addEventListener('resize', queueChatLayoutSync, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', queueChatLayoutSync, { passive: true });
+    window.visualViewport.addEventListener('scroll', queueChatLayoutSync, { passive: true });
+  }
   loadMessages();
   consumePendingAiFromUrl();
 
