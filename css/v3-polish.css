@@ -267,10 +267,12 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
   width: min(82vw, 320px);
   pointer-events: auto;
   border-radius: 16px;
-  border: 1px solid hsla(var(--nebula-core), 0.28);
-  background: linear-gradient(150deg, hsla(var(--space-900), 0.96), hsla(var(--space-800), 0.88));
+  border: 1px solid hsla(var(--nebula-core), 0.36);
+  background: linear-gradient(150deg, rgba(10, 16, 34, 0.985), rgba(12, 20, 40, 0.97));
   padding: 10px 10px 12px;
-  box-shadow: 0 28px 50px -24px rgba(0, 0, 0, 0.85);
+  box-shadow: 0 28px 50px -24px rgba(0, 0, 0, 0.88), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   opacity: 0;
   transform: translateY(8px) scale(0.98);
   transition: opacity 180ms ease, transform 200ms var(--v3-ease);
@@ -300,9 +302,9 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
 
 .zai-floating-close {
   appearance: none;
-  border: 1px solid hsla(var(--nebula-core), 0.26);
-  color: hsl(var(--text-200));
-  background: hsla(var(--space-700), 0.52);
+  border: 1px solid hsla(var(--nebula-core), 0.34);
+  color: hsl(var(--text-100));
+  background: rgba(20, 29, 55, 0.92);
   width: 24px;
   height: 24px;
   border-radius: 999px;
@@ -315,8 +317,9 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
   margin: 8px 0 10px;
   font-size: 0.82rem;
   line-height: 1.42;
-  color: hsl(var(--text-100));
+  color: rgba(248, 250, 255, 0.96);
   white-space: pre-line;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }
 
 .zai-floating-actions {
@@ -327,6 +330,21 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
 
 .zai-floating-actions .btn.small {
   padding: 8px 10px;
+  border-radius: 11px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.zai-floating-actions .btn.small:not(.secondary) {
+  color: #f8fbff;
+  background: linear-gradient(145deg, rgba(26, 95, 196, 0.96), rgba(18, 69, 158, 0.96));
+  border-color: rgba(126, 184, 255, 0.45);
+}
+
+.zai-floating-actions .btn.small.secondary {
+  color: rgba(225, 241, 255, 0.96);
+  background: rgba(20, 31, 59, 0.96);
+  border-color: rgba(158, 193, 235, 0.36);
 }
 
 .zai-floating-widget.is-urgent .zai-floating-trigger {
@@ -341,7 +359,7 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
 
 .zai-floating-widget[data-tone='critical'] .zai-floating-trigger {
   border-color: hsla(var(--sem-danger, 352 82% 66%), 0.66);
-  background: hsla(var(--sem-danger, 352 82% 66%), 0.24);
+  background: linear-gradient(145deg, rgba(94, 26, 43, 0.94), rgba(68, 19, 33, 0.94));
   color: #fff;
   box-shadow:
     0 16px 28px -14px rgba(0, 0, 0, 0.9),
@@ -350,11 +368,11 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
 
 .zai-floating-widget[data-tone='critical'] .zai-floating-panel {
   border-color: hsla(var(--sem-danger, 352 82% 66%), 0.6);
-  background: hsla(var(--sem-danger, 352 82% 66%), 0.2);
+  background: linear-gradient(155deg, rgba(58, 16, 28, 0.97), rgba(34, 11, 19, 0.97));
   color: #fff;
   box-shadow:
     0 24px 40px -18px rgba(0, 0, 0, 0.9),
-    0 0 0 1px hsla(var(--sem-danger, 352 82% 66%), 0.18);
+    0 0 0 1px hsla(var(--sem-danger, 352 82% 66%), 0.26);
 }
 
 .zai-floating-widget[data-tone='critical'] .zai-floating-tone {
@@ -372,7 +390,7 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
 
 .zai-floating-widget[data-tone='success'] .zai-floating-trigger {
   border-color: hsla(var(--sem-safe, 152 62% 54%), 0.66);
-  background: hsla(var(--sem-safe, 152 62% 54%), 0.22);
+  background: linear-gradient(145deg, rgba(19, 95, 71, 0.94), rgba(15, 73, 56, 0.94));
   color: #fff;
   box-shadow:
     0 16px 28px -14px rgba(0, 0, 0, 0.9),
@@ -381,11 +399,11 @@ html.perf-lite .zai-floating-widget.is-urgent .zai-floating-trigger {
 
 .zai-floating-widget[data-tone='success'] .zai-floating-panel {
   border-color: hsla(var(--sem-safe, 152 62% 54%), 0.6);
-  background: hsla(var(--sem-safe, 152 62% 54%), 0.2);
+  background: linear-gradient(155deg, rgba(13, 50, 40, 0.975), rgba(10, 38, 31, 0.97));
   color: #fff;
   box-shadow:
     0 24px 40px -18px rgba(0, 0, 0, 0.9),
-    0 0 0 1px hsla(var(--sem-safe, 152 62% 54%), 0.17);
+    0 0 0 1px hsla(var(--sem-safe, 152 62% 54%), 0.24);
 }
 
 .zai-floating-widget[data-tone='success'] .zai-floating-icon {
@@ -486,7 +504,7 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
   }
 
   .chat-page .container.chat-container {
-    height: calc(100dvh - 58px - 72px - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - 58px - env(safe-area-inset-bottom, 0px));
     min-height: 0;
     width: 100%;
     max-width: 880px;
@@ -706,7 +724,7 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
   }
 
   .chat-page .container.chat-container {
-    height: calc(100dvh - 52px - 72px - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - 52px - env(safe-area-inset-bottom, 0px));
   }
 
   .chat-page .assistant-mode-indicator {
@@ -926,7 +944,7 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
   }
 
   .chat-page .container.chat-container {
-    height: calc(100dvh - 54px - 72px - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - 54px - env(safe-area-inset-bottom, 0px));
     padding: 0 6px;
   }
 

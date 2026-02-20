@@ -837,19 +837,8 @@ function renderHistoryPreview(note = null) {
   const markdown = buildHistoryMarkdown(note);
   els.historyPreview.style.display = 'block';
   els.historyPreview.innerHTML = `
-    <p class="notes-markdown-head"><i class="fa-solid fa-file-lines"></i> Preview Markdown</p>
+    <p class="notes-markdown-head"><i class="fa-solid fa-file-lines"></i> Detail Catatan Markdown</p>
     <pre class="notes-markdown-pre">${escapeHtml(markdown)}</pre>
-    <div class="notes-markdown-actions">
-      <button type="button" class="btn small secondary" data-history-action="copy" data-note-id="${Number(note.id || 0)}">
-        <i class="fa-solid fa-copy"></i> Copy Markdown
-      </button>
-      <button type="button" class="btn small secondary" data-history-action="apply" data-note-id="${Number(note.id || 0)}">
-        <i class="fa-solid fa-pen-to-square"></i> Masukkan ke Editor
-      </button>
-      <button type="button" class="btn small secondary" data-history-action="fullscreen" data-note-id="${Number(note.id || 0)}">
-        <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Buka versi full
-      </button>
-    </div>
   `;
 }
 
@@ -858,10 +847,30 @@ function renderHistoryList(rows = []) {
   els.history.innerHTML = rows.map((n) => {
     const id = Number(n.id || 0);
     const active = id > 0 && id === Number(state.activeHistoryNoteId || 0);
+    const color = getSubjectColor(n.subject || 'Kelas');
+    const statusDone = Boolean(n.is_minimum_completed);
+    const statusLabel = statusDone ? 'Lengkap' : 'Belum';
+    const statusClass = statusDone ? 'done' : 'pending';
+    const dateText = String(n.class_date || '').slice(0, 10) || '-';
+    const start = String(n.time_start || '').slice(0, 5);
+    const end = String(n.time_end || '').slice(0, 5);
+    const timeText = start && end ? `${start}-${end}` : '-';
+    const owner = normalizeOwnerLabel(n.user_id || n.viewer_user || '');
+    const desc = String(n.summary_text || n.next_action_text || n.risk_hint || 'Catatan tersimpan. Klik untuk lihat detail markdown.')
+      .replace(/\s+/g, ' ')
+      .trim();
     return `
-      <article class="notes-history-item ${active ? 'active' : ''}" data-note-id="${id}">
-        <h4>${escapeHtml(n.subject || 'Kelas')} | ${escapeHtml(String(n.class_date || '').slice(0, 10))}</h4>
-        <p>${escapeHtml(n.summary_text || n.next_action_text || 'Catatan tersimpan. Klik untuk lihat versi markdown.')}</p>
+      <article class="notes-history-item ${active ? 'active' : ''}" data-note-id="${id}" style="--subject-accent:${color.solid};--subject-soft:${color.soft}">
+        <div class="notes-history-top">
+          <h4 class="notes-history-title">${escapeHtml(n.subject || 'Kelas')}</h4>
+          <span class="notes-history-status ${statusClass}">${statusLabel}</span>
+        </div>
+        <p class="notes-history-meta">
+          <span class="notes-history-chip"><i class="fa-regular fa-calendar"></i> ${escapeHtml(dateText)}</span>
+          <span class="notes-history-chip"><i class="fa-regular fa-clock"></i> ${escapeHtml(timeText)}</span>
+          ${owner ? `<span class="notes-history-chip owner"><i class="fa-regular fa-user"></i> ${escapeHtml(owner)}</span>` : ''}
+        </p>
+        <p class="notes-history-desc">${escapeHtml(desc)}</p>
       </article>
     `;
   }).join('');
@@ -1243,14 +1252,9 @@ async function loadHistory() {
     return;
   }
   state.historyRows = rows.slice(0, 12);
-  const preferredId = Number(state.activeNote?.id || 0);
-  const existingId = Number(state.activeHistoryNoteId || 0);
-  const selected = state.historyRows.find((x) => Number(x.id || 0) === existingId)
-    || state.historyRows.find((x) => Number(x.id || 0) === preferredId)
-    || state.historyRows[0];
-  state.activeHistoryNoteId = Number(selected?.id || 0);
+  state.activeHistoryNoteId = 0;
   renderHistoryList(state.historyRows);
-  renderHistoryPreview(selected || null);
+  renderHistoryPreview(null);
 }
 
 async function saveNote(ev) {
@@ -1329,6 +1333,12 @@ function bindEvents() {
       if (!card) return;
       const id = Number(card.dataset.noteId || 0);
       if (!id) return;
+      if (Number(state.activeHistoryNoteId || 0) === id) {
+        state.activeHistoryNoteId = 0;
+        renderHistoryList(state.historyRows);
+        renderHistoryPreview(null);
+        return;
+      }
       const note = state.historyRows.find((x) => Number(x.id || 0) === id);
       if (!note) return;
       state.activeHistoryNoteId = id;
@@ -1336,51 +1346,6 @@ function bindEvents() {
       renderHistoryPreview(note);
     });
   }
-  if (els.historyPreview) {
-    els.historyPreview.addEventListener('click', async (ev) => {
-      const btn = ev.target.closest('button[data-history-action][data-note-id]');
-      if (!btn) return;
-      const action = String(btn.dataset.historyAction || '').trim().toLowerCase();
-      const noteId = Number(btn.dataset.noteId || 0);
-      if (!noteId) return;
-      const note = state.historyRows.find((x) => Number(x.id || 0) === noteId);
-      if (!note) return;
-
-      if (action === 'copy') {
-        const ok = await copyTextToClipboard(buildHistoryMarkdown(note));
-        showToast(ok ? 'Markdown berhasil disalin.' : 'Gagal menyalin markdown.', ok ? 'success' : 'error');
-        return;
-      }
-
-      if (action === 'apply') {
-        applyHistoryNoteToEditor(note);
-        showToast('Riwayat catatan dimasukkan ke editor.', 'success');
-        return;
-      }
-
-      if (action === 'fullscreen') {
-        openHistoryMarkdownModal(note);
-        return;
-      }
-    });
-  }
-  if (els.markdownModalClose) {
-    els.markdownModalClose.addEventListener('click', () => {
-      closeHistoryMarkdownModal();
-    });
-  }
-  if (els.markdownModal) {
-    els.markdownModal.addEventListener('click', (ev) => {
-      if (ev.target === els.markdownModal) {
-        closeHistoryMarkdownModal();
-      }
-    });
-  }
-  document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape' && els.markdownModal?.classList.contains('show')) {
-      closeHistoryMarkdownModal();
-    }
-  });
   bindLiveMinimumCheck();
   if (els.exportMd) {
     els.exportMd.addEventListener('click', () => {

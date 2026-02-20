@@ -7,6 +7,8 @@ const state = {
   todaySessions: [],
   tomorrowSessions: [],
   nearestSessions: [],
+  scheduleRows: [],
+  sessionsByDate: {},
   subjectColorMap: {},
   activeSessionId: null,
   enforce: false,
@@ -44,6 +46,15 @@ function addDays(dateText, days = 0) {
   return `${y}-${m}-${day}`;
 }
 
+function dateTextFromDate(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return localDateText();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function qs() {
   return new URLSearchParams(window.location.search);
 }
@@ -57,6 +68,11 @@ function parseHmToMinutes(hm = '') {
 function currentMinutes() {
   const d = new Date();
   return d.getHours() * 60 + d.getMinutes();
+}
+
+function toScheduleDayId(date = new Date()) {
+  const js = date.getDay();
+  return js === 0 ? 7 : js;
 }
 
 function isToday(dateText = '') {
@@ -156,11 +172,9 @@ function getSubjectColor(subject = '') {
 }
 
 function allKnownSessions() {
-  return dedupeSessions([
-    ...(state.todaySessions || []),
-    ...(state.tomorrowSessions || []),
-    ...(state.sessions || []),
-  ]);
+  const fromCache = Object.values(state.sessionsByDate || {})
+    .flatMap((rows) => (Array.isArray(rows) ? rows : []));
+  return dedupeSessions([...fromCache, ...(state.sessions || [])]);
 }
 
 function findSession(scheduleId, classDate = '') {
@@ -208,6 +222,89 @@ function buildNearestSessions(todaySessions = [], tomorrowSessions = [], now = n
   return mixed.slice(0, 8).map(({ __bucket, __startMs, __distance, ...rest }) => rest);
 }
 
+function nextOccurrenceForScheduleRow(row, now = new Date()) {
+  const dayId = Number(row?.day_id || 0);
+  const start = String(row?.time_start || '').slice(0, 5);
+  const end = String(row?.time_end || '').slice(0, 5);
+  const startMin = parseHmToMinutes(start);
+  const endMin = parseHmToMinutes(end);
+  if (!dayId || !Number.isFinite(startMin)) return null;
+
+  const currentDayId = toScheduleDayId(now);
+  let deltaDays = (dayId - currentDayId + 7) % 7;
+  const base = new Date(now);
+  base.setSeconds(0, 0);
+  base.setHours(0, 0, 0, 0);
+  base.setDate(base.getDate() + deltaDays);
+  base.setMinutes(startMin, 0, 0);
+  if (base.getTime() < now.getTime()) {
+    base.setDate(base.getDate() + 7);
+    deltaDays += 7;
+  }
+
+  const endDate = new Date(base);
+  if (Number.isFinite(endMin)) endDate.setMinutes(endMin, 0, 0);
+  else endDate.setMinutes(startMin + 90, 0, 0);
+
+  return {
+    schedule_id: Number(row?.id || 0),
+    day_id: dayId,
+    subject: String(row?.subject || '').trim(),
+    room: String(row?.room || '').trim(),
+    lecturer: String(row?.lecturer || '').trim(),
+    time_start: start,
+    time_end: end,
+    class_date: dateTextFromDate(base),
+    __nextStartMs: base.getTime(),
+    __nextEndMs: endDate.getTime(),
+    __deltaDays: deltaDays,
+  };
+}
+
+function buildAllSubjectsSortedByNearest(scheduleRows = [], now = new Date()) {
+  const rows = Array.isArray(scheduleRows) ? scheduleRows : [];
+  const bySubject = new Map();
+  rows.forEach((row) => {
+    const subject = String(row?.subject || '').trim();
+    if (!subject) return;
+    const nearest = nextOccurrenceForScheduleRow(row, now);
+    if (!nearest) return;
+    const key = subject.toLowerCase();
+    const prev = bySubject.get(key);
+    if (!prev || nearest.__nextStartMs < prev.__nextStartMs) {
+      bySubject.set(key, nearest);
+    }
+  });
+
+  return [...bySubject.values()]
+    .sort((a, b) => {
+      if (a.__nextStartMs !== b.__nextStartMs) return a.__nextStartMs - b.__nextStartMs;
+      return String(a.subject || '').localeCompare(String(b.subject || ''), 'id');
+    })
+    .map(({ __nextStartMs, __nextEndMs, __deltaDays, ...rest }) => rest);
+}
+
+async function fetchScheduleRows() {
+  const payload = await get('/schedule');
+  return Array.isArray(payload) ? payload : [];
+}
+
+function sessionStatusMap() {
+  const map = new Map();
+  allKnownSessions().forEach((s) => {
+    map.set(sessionKey(s), Boolean(s?.is_minimum_completed));
+  });
+  return map;
+}
+
+async function ensureDatesLoaded(dateList = []) {
+  const uniqueDates = [...new Set((Array.isArray(dateList) ? dateList : []).map((x) => String(x || '').slice(0, 10)).filter(Boolean))];
+  if (!uniqueDates.length) return;
+  const missing = uniqueDates.filter((dt) => !Array.isArray(state.sessionsByDate?.[dt]));
+  if (!missing.length) return;
+  await Promise.all(missing.map((dt) => fetchSessionsByDate(dt)));
+}
+
 function openEditor(session, options = {}) {
   const scheduleId = Number(session?.schedule_id || 0);
   if (!scheduleId) return;
@@ -224,7 +321,7 @@ function openEditor(session, options = {}) {
 function renderNearestSubjectList() {
   if (!els.nearestList) return;
   if (!state.nearestSessions.length) {
-    els.nearestList.innerHTML = '<div class="notes-empty">Tidak ada kelas hari ini dan besok.</div>';
+    els.nearestList.innerHTML = '<div class="notes-empty">Belum ada mata kuliah di jadwal.</div>';
     return;
   }
   const todayDate = localDateText();
@@ -323,10 +420,14 @@ function renderGate() {
 }
 
 async function fetchSessionsByDate(dateText) {
+  const dt = String(dateText || '').slice(0, 10) || localDateText();
+  if (Array.isArray(state.sessionsByDate?.[dt])) return state.sessionsByDate[dt];
   const payload = await get(`/class_notes/session?date=${encodeURIComponent(dateText)}`);
-  const dt = String(payload?.date || dateText || '').slice(0, 10);
+  const safeDate = String(payload?.date || dt || '').slice(0, 10);
   const sessions = Array.isArray(payload?.sessions) ? payload.sessions : [];
-  return sessions.map((s) => ({ ...s, class_date: dt }));
+  const normalized = sessions.map((s) => ({ ...s, class_date: safeDate }));
+  state.sessionsByDate[safeDate] = normalized;
+  return normalized;
 }
 
 function selectPreferredSession() {
@@ -346,14 +447,24 @@ async function loadSessions() {
   const todayDate = localDateText();
   const tomorrowDate = addDays(todayDate, 1);
 
-  const [todaySessions, tomorrowSessions] = await Promise.all([
+  const [todaySessions, tomorrowSessions, scheduleRows] = await Promise.all([
     fetchSessionsByDate(todayDate),
     fetchSessionsByDate(tomorrowDate),
+    fetchScheduleRows(),
   ]);
 
   state.todaySessions = todaySessions;
   state.tomorrowSessions = tomorrowSessions;
-  state.nearestSessions = buildNearestSessions(todaySessions, tomorrowSessions, new Date());
+  state.scheduleRows = scheduleRows;
+  state.nearestSessions = buildAllSubjectsSortedByNearest(scheduleRows, new Date());
+
+  const nearestDates = state.nearestSessions.map((s) => String(s.class_date || '').slice(0, 10)).filter(Boolean);
+  await ensureDatesLoaded(nearestDates);
+  const statusIdx = sessionStatusMap();
+  state.nearestSessions = state.nearestSessions.map((s) => ({
+    ...s,
+    is_minimum_completed: Boolean(statusIdx.get(sessionKey(s))),
+  }));
 
   if (selectedDate === todayDate) {
     state.sessions = [...todaySessions];

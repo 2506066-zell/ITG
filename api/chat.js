@@ -528,7 +528,7 @@ function buildPlannerActions(message = '') {
       const titleProbe = explicitCreateAssignment
         ? segment.replace(/(?:buat|buatkan|tambah|add|create|catat|simpan)\s+(?:assignment|tugas kuliah)/ig, '').trim()
         : segment.replace(/^(?:assignment|tugas kuliah)\s*/i, '').trim();
-      if (titleProbe.length < 3) missing.push('title');
+      if (titleProbe.length < 3) missing.push('subject');
     } else if (explicitCreateTask || shorthandCreateTask) {
       kind = 'create_task';
       summary = 'Buat tugas baru';
@@ -650,6 +650,161 @@ function stripActionMetaFromTitle(command = '') {
   value = value.replace(/\b(?:deskripsi|desc)\s+(.+?)(?=\s+\b(?:deadline|priority|prioritas|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/ig, '');
   value = value.replace(/\b(?:assign(?:ed)?(?:\s*to)?|untuk)\s+[a-zA-Z0-9_.-]+\b/ig, '');
   return normalizeActionText(value).replace(/^[\s,:\-]+|[\s,:\-]+$/g, '');
+}
+
+function normalizeActionTokens(raw = '') {
+  const stop = new Set([
+    'buat', 'buatkan', 'tambah', 'add', 'create', 'catat', 'simpan',
+    'tugas', 'kuliah', 'assignment', 'deadline', 'prioritas', 'priority',
+    'deskripsi', 'desc', 'untuk', 'yang', 'dan', 'atau', 'di', 'ke', 'dari',
+    'aku', 'saya', 'gue', 'gw', 'besok', 'lusa', 'hari', 'ini', 'jam', 'pukul',
+    'mata', 'kuliah', 'matkul', 'mapel', 'kelas',
+  ]);
+  return String(raw || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\u00C0-\u024F]/gi, ' ')
+    .split(/\s+/)
+    .map((x) => x.trim())
+    .filter((x) => x.length >= 2 && !stop.has(x));
+}
+
+function extractAssignmentSubjectHint(command = '') {
+  const text = normalizeActionText(command);
+  if (!text) return '';
+  const patterns = [
+    /\b(?:mata\s*kuliah|matkul|mapel|mk|kelas)\s+(.+?)(?=\s+\b(?:deadline|priority|prioritas|deskripsi|desc|assign(?:ed)?(?:\s*to)?|untuk)\b|$)/i,
+    /\btugas\s+kuliah\s+(?:untuk\s+)?(.+?)(?=\s+\b(?:deadline|priority|prioritas|deskripsi|desc)\b|$)/i,
+  ];
+  for (const pattern of patterns) {
+    const found = extractActionField(text, pattern);
+    if (found) {
+      return normalizeActionText(found).replace(/^[,:\-]+|[,:\-]+$/g, '');
+    }
+  }
+  return '';
+}
+
+function overlapRatio(subjectTokens = [], queryTokens = []) {
+  if (!subjectTokens.length || !queryTokens.length) return 0;
+  const querySet = new Set(queryTokens);
+  let hit = 0;
+  for (const token of subjectTokens) {
+    if (querySet.has(token)) hit += 1;
+  }
+  return hit / subjectTokens.length;
+}
+
+function pickBestScheduleSubject(scheduleSubjects = [], candidates = []) {
+  if (!Array.isArray(scheduleSubjects) || !scheduleSubjects.length) return null;
+  const cleanedCandidates = candidates
+    .map((item) => normalizeActionText(item))
+    .filter(Boolean)
+    .slice(0, 4);
+  if (!cleanedCandidates.length) return null;
+
+  const scored = scheduleSubjects.map((entry) => {
+    const subject = normalizeActionText(entry?.subject || '');
+    const lowerSubject = subject.toLowerCase();
+    const subjectTokens = normalizeActionTokens(subject);
+    let score = 0;
+
+    cleanedCandidates.forEach((candidate, idx) => {
+      const lowerCandidate = candidate.toLowerCase();
+      const candidateTokens = normalizeActionTokens(candidate);
+      const weight = idx === 0 ? 1.25 : idx === 1 ? 1 : 0.85;
+      if (lowerCandidate.includes(lowerSubject)) score += 1.2 * weight;
+      if (lowerSubject.includes(lowerCandidate) && lowerCandidate.length >= 4) score += 0.72 * weight;
+      score += overlapRatio(subjectTokens, candidateTokens) * (0.92 * weight);
+      if (subjectTokens[0] && candidateTokens[0] && subjectTokens[0] === candidateTokens[0]) {
+        score += 0.28 * weight;
+      }
+    });
+
+    return { entry, score };
+  }).sort((a, b) => b.score - a.score);
+
+  if (!scored.length) return null;
+  const top = scored[0];
+  if (top.score < 0.52) return null;
+  return { subject: top.entry.subject, score: top.score };
+}
+
+function deriveDescriptionFromSubjectTitle(rawTitle = '', resolvedSubject = '') {
+  const title = normalizeActionText(rawTitle);
+  const subject = normalizeActionText(resolvedSubject);
+  if (!title || !subject) return '';
+
+  const lowerTitle = title.toLowerCase();
+  const lowerSubject = subject.toLowerCase();
+  if (lowerTitle === lowerSubject) return '';
+
+  let detail = title;
+  if (lowerTitle.startsWith(`${lowerSubject} `)) {
+    detail = title.slice(subject.length).trim();
+  } else if (lowerTitle.startsWith(lowerSubject)) {
+    detail = title.slice(subject.length).trim();
+  }
+
+  detail = detail.replace(/^[,:\-]+/, '').trim();
+  detail = detail.replace(/^(?:tentang|untuk)\s+/i, '').trim();
+  if (!detail || detail.toLowerCase() === lowerSubject) return '';
+  return detail;
+}
+
+async function fetchScheduleSubjects(client) {
+  const res = await client.query(
+    `SELECT day_id, time_start, subject
+     FROM schedule
+     WHERE subject IS NOT NULL AND LENGTH(TRIM(subject)) > 0
+     ORDER BY day_id ASC, time_start ASC, id ASC
+     LIMIT 200`
+  );
+  const rows = Array.isArray(res?.rows) ? res.rows : [];
+  const unique = new Map();
+  rows.forEach((row) => {
+    const subject = normalizeActionText(row?.subject || '');
+    const key = subject.toLowerCase();
+    if (!subject || unique.has(key)) return;
+    unique.set(key, { subject, day_id: Number(row?.day_id || 0), time_start: String(row?.time_start || '') });
+  });
+  return [...unique.values()];
+}
+
+async function resolveAssignmentDraftWithSchedule(client, draft = {}) {
+  if (!draft || String(draft.kind || '').toLowerCase() !== 'create_assignment') return draft;
+
+  const rawTitle = normalizeActionText(draft.raw_title || draft.title || '');
+  const explicitHint = extractAssignmentSubjectHint(draft.command || '');
+  const scheduleSubjects = await fetchScheduleSubjects(client).catch(() => []);
+  if (!scheduleSubjects.length) {
+    return {
+      ...draft,
+      title: rawTitle || draft.title || '',
+      description: draft.description || null,
+    };
+  }
+
+  const best = pickBestScheduleSubject(scheduleSubjects, [explicitHint, rawTitle, draft.command || '']);
+  const fallbackSingle = !rawTitle && scheduleSubjects.length === 1 ? scheduleSubjects[0].subject : '';
+  const resolvedTitle = normalizeActionText(best?.subject || fallbackSingle || rawTitle || draft.title || '');
+  const derivedDescription = draft.description
+    ? ''
+    : deriveDescriptionFromSubjectTitle(rawTitle, resolvedTitle);
+
+  const mergedMissing = new Set(Array.isArray(draft.missing) ? draft.missing : []);
+  if (!resolvedTitle) mergedMissing.add('subject');
+  else {
+    mergedMissing.delete('subject');
+    mergedMissing.delete('title');
+  }
+
+  return {
+    ...draft,
+    title: resolvedTitle,
+    description: draft.description || (derivedDescription || null),
+    missing: [...mergedMissing],
+    subject_source: best ? 'schedule_match' : (fallbackSingle ? 'single_schedule' : 'raw'),
+  };
 }
 
 function parseNaturalMonthIndex(raw = '') {
@@ -841,6 +996,11 @@ function parseNaturalDeadlineIso(raw = '') {
 function buildActionClarificationQuestion(kind = '', field = '') {
   const actionKind = String(kind || '').toLowerCase();
   const key = String(field || '').toLowerCase();
+  if (key === 'subject') {
+    return actionKind === 'create_assignment'
+      ? 'Mata kuliahnya apa? Contoh: Kalkulus II.'
+      : 'Subjeknya apa?';
+  }
   if (key === 'time') {
     return 'Pengingatnya mau kapan? Contoh: besok 19:00 atau 30 menit lagi.';
   }
@@ -875,11 +1035,15 @@ function parseCreateActionDraft(action = {}, fallbackUser = '') {
     extractActionField(command, /\b(?:assign(?:ed)?(?:\s*to)?|untuk)\s+([a-zA-Z0-9_.-]+)/i),
     fallbackUser
   );
-  const title = stripActionMetaFromTitle(command);
+  const strippedTitle = stripActionMetaFromTitle(command);
+  const subjectHint = kind === 'create_assignment' ? extractAssignmentSubjectHint(command) : '';
+  const title = kind === 'create_assignment'
+    ? normalizeActionText(strippedTitle || subjectHint)
+    : strippedTitle;
   const deadline = parseNaturalDeadlineIso(deadlineChunk || (hasDeadlineSignal(command) ? command : ''));
 
   const missing = [];
-  if (!title) missing.push('title');
+  if (!title) missing.push(kind === 'create_assignment' ? 'subject' : 'title');
   if (!deadline) missing.push('deadline');
 
   return {
@@ -887,6 +1051,7 @@ function parseCreateActionDraft(action = {}, fallbackUser = '') {
     kind,
     command,
     title,
+    raw_title: strippedTitle || subjectHint || title,
     deadline,
     priority,
     description: description || null,
@@ -978,6 +1143,24 @@ function parseReminderText(command = '') {
   return cleaned || 'lanjutkan prioritas utama';
 }
 
+function isGenericReminderText(text = '') {
+  const normalized = normalizeActionText(text).toLowerCase();
+  if (!normalized) return true;
+  const generic = new Set([
+    'lanjutkan prioritas utama',
+    'ingatkan',
+    'reminder',
+    'tugas',
+    'tugas kuliah',
+    'kuliah',
+    'belajar',
+    'cek tugas',
+  ]);
+  if (generic.has(normalized)) return true;
+  if (/^(?:cek|review|ingatkan)\s+(?:deadline|tugas|kuliah)$/i.test(normalized)) return true;
+  return false;
+}
+
 function parseReminderActionDraft(action = {}, fallbackUser = '') {
   const command = normalizeActionText(action?.command || '');
   const remindAt = parseReminderAtIso(command);
@@ -994,6 +1177,40 @@ function parseReminderActionDraft(action = {}, fallbackUser = '') {
     target_user: targetUser,
     missing,
   };
+}
+
+async function resolveReminderDraftWithSchedule(client, draft = {}) {
+  if (!draft || String(draft.kind || '').toLowerCase() !== 'set_reminder') return draft;
+  const scheduleSubjects = await fetchScheduleSubjects(client).catch(() => []);
+  if (!scheduleSubjects.length) return draft;
+
+  const subjectHint = extractAssignmentSubjectHint(draft.command || '');
+  const best = pickBestScheduleSubject(scheduleSubjects, [
+    subjectHint,
+    draft.reminder_text || '',
+    draft.command || '',
+  ]);
+  const subject = normalizeActionText(best?.subject || '');
+  if (!subject) return draft;
+
+  const currentText = normalizeActionText(draft.reminder_text || '');
+  if (isGenericReminderText(currentText)) {
+    return {
+      ...draft,
+      reminder_text: `kerjakan tugas kuliah ${subject}`,
+      subject_source: 'schedule_match',
+    };
+  }
+
+  if (/\btugas\s+kuliah\b/i.test(currentText) && !new RegExp(subject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(currentText)) {
+    return {
+      ...draft,
+      reminder_text: `${currentText} (${subject})`,
+      subject_source: 'schedule_match',
+    };
+  }
+
+  return draft;
 }
 
 function buildActionEnginePlan(planner = null, fallbackUser = '') {
@@ -1177,23 +1394,29 @@ async function executeActionEngineWrites(userId = '', actionPlan = null) {
             deadline: row.deadline || draft.deadline,
           });
         } else if (draft.kind === 'create_assignment') {
-          const row = await insertAssignmentFromAction(client, draft);
+          const normalizedDraft = await resolveAssignmentDraftWithSchedule(client, draft);
+          if (Array.isArray(normalizedDraft?.missing) && normalizedDraft.missing.length) {
+            throw new Error(buildActionClarificationQuestion('create_assignment', normalizedDraft.missing[0]));
+          }
+          const row = await insertAssignmentFromAction(client, normalizedDraft);
           await logActivity(client, 'assignment', row?.id, 'CREATE', userId, {
-            title: row?.title || draft.title,
-            description: row?.description || draft.description || null,
-            deadline: row?.deadline || draft.deadline || null,
-            assigned_to: row?.assigned_to || draft.assigned_to || userId,
+            title: row?.title || normalizedDraft.title,
+            description: row?.description || normalizedDraft.description || null,
+            deadline: row?.deadline || normalizedDraft.deadline || null,
+            assigned_to: row?.assigned_to || normalizedDraft.assigned_to || userId,
             source: 'z_ai_action_v2',
+            subject_source: normalizedDraft.subject_source || 'raw',
           });
           executed.push({
             action_id: draft.action_id,
             kind: draft.kind,
             entity: 'assignment',
             id: row?.id,
-            title: row?.title || draft.title,
-            deadline: row?.deadline || draft.deadline,
+            title: row?.title || normalizedDraft.title,
+            deadline: row?.deadline || normalizedDraft.deadline,
           });
         } else if (draft.kind === 'set_reminder') {
+          const normalizedReminderDraft = await resolveReminderDraftWithSchedule(client, draft);
           const rowRes = await client.query(
             `INSERT INTO z_ai_reminders (
                user_id,
@@ -1209,31 +1432,33 @@ async function executeActionEngineWrites(userId = '', actionPlan = null) {
              RETURNING id, user_id, target_user, reminder_text, remind_at, status`,
             [
               userId,
-              draft.target_user || userId,
-              draft.reminder_text || 'lanjutkan prioritas utama',
-              draft.remind_at ? new Date(draft.remind_at) : null,
-              draft.command || '',
+              normalizedReminderDraft.target_user || userId,
+              normalizedReminderDraft.reminder_text || 'lanjutkan prioritas utama',
+              normalizedReminderDraft.remind_at ? new Date(normalizedReminderDraft.remind_at) : null,
+              normalizedReminderDraft.command || '',
               JSON.stringify({
                 source: 'z_ai_action_v2',
                 kind: 'set_reminder',
+                subject_source: normalizedReminderDraft.subject_source || 'raw',
               }),
             ]
           );
           const row = rowRes.rows[0] || {};
           await logActivity(client, 'reminder', row.id, 'CREATE', userId, {
-            reminder_text: row.reminder_text || draft.reminder_text || '',
-            remind_at: row.remind_at || draft.remind_at || null,
-            target_user: row.target_user || draft.target_user || userId,
+            reminder_text: row.reminder_text || normalizedReminderDraft.reminder_text || '',
+            remind_at: row.remind_at || normalizedReminderDraft.remind_at || null,
+            target_user: row.target_user || normalizedReminderDraft.target_user || userId,
             source: 'z_ai_action_v2',
+            subject_source: normalizedReminderDraft.subject_source || 'raw',
           });
           executed.push({
             action_id: draft.action_id,
             kind: draft.kind,
             entity: 'reminder',
             id: row.id,
-            title: row.reminder_text || draft.reminder_text || 'Pengingat',
-            deadline: row.remind_at || draft.remind_at || null,
-            target_user: row.target_user || draft.target_user || userId,
+            title: row.reminder_text || normalizedReminderDraft.reminder_text || 'Pengingat',
+            deadline: row.remind_at || normalizedReminderDraft.remind_at || null,
+            target_user: row.target_user || normalizedReminderDraft.target_user || userId,
           });
         }
         await client.query(`RELEASE SAVEPOINT ${savepoint}`);
@@ -1406,8 +1631,12 @@ function buildDueReminderFollowup(reminders = []) {
   return `Pengingat jatuh tempo: ${sample.join(', ')}${suffix}.`;
 }
 
-function buildActionExecutionSuggestions(execution = null, clarifications = []) {
+function buildActionExecutionSuggestions(execution = null, clarifications = [], scheduleSubjects = [], options = {}) {
+  const contextAssignment = Boolean(options?.assignment_context);
+  const contextReminder = Boolean(options?.reminder_context);
   const suggestions = [];
+  const subjectSuggestions = [];
+  const reminderSuggestions = [];
   const executed = Array.isArray(execution?.executed) ? execution.executed : [];
   const hasTask = executed.some((item) => item?.entity === 'task');
   const hasAssignment = executed.some((item) => item?.entity === 'assignment');
@@ -1425,9 +1654,14 @@ function buildActionExecutionSuggestions(execution = null, clarifications = []) 
   suggestions.push({ label: 'Radar Mendesak', command: 'risiko deadline 48 jam ke depan', tone: 'warning' });
 
   const asks = Array.isArray(clarifications) ? clarifications : [];
+  let shouldSuggestSubjects = false;
+  const needsDeadlineHint = asks.some((item) => item?.field === 'deadline');
   for (const item of asks) {
     if (item?.field === 'deadline') {
       suggestions.push({ label: 'Isi Deadline', command: 'deadline besok 19:00', tone: 'warning' });
+    } else if (item?.field === 'subject') {
+      suggestions.push({ label: 'Isi Mata Kuliah', command: 'mata kuliah Kalkulus II deadline besok 19:00', tone: 'info' });
+      shouldSuggestSubjects = true;
     } else if (item?.field === 'title') {
       suggestions.push({ label: 'Isi Judul', command: 'judul [isi judul tugas]', tone: 'info' });
     } else if (item?.field === 'time') {
@@ -1435,7 +1669,43 @@ function buildActionExecutionSuggestions(execution = null, clarifications = []) 
     }
   }
 
-  return normalizeChatbotSuggestions(suggestions);
+  const subjectList = Array.isArray(scheduleSubjects) ? scheduleSubjects : [];
+  const includeSubjectPresets = shouldSuggestSubjects || hasAssignment || contextAssignment;
+  if (includeSubjectPresets && subjectList.length) {
+    subjectList.slice(0, 3).forEach((row) => {
+      const subject = normalizeActionText(row?.subject || '');
+      if (!subject) return;
+      const baseCommand = `buat tugas kuliah ${subject}`;
+      const command = `${baseCommand} deadline besok 19:00`;
+      subjectSuggestions.push({
+        label: needsDeadlineHint ? `Buat ${subject} + deadline` : `Buat ${subject}`,
+        command,
+        tone: 'info',
+      });
+    });
+  }
+
+  const includeReminderPresets = hasReminder || contextReminder;
+  if (includeReminderPresets && subjectList.length) {
+    subjectList.slice(0, 2).forEach((row) => {
+      const subject = normalizeActionText(row?.subject || '');
+      if (!subject) return;
+      reminderSuggestions.push({
+        label: `Ingatkan ${subject}`,
+        command: `ingatkan aku besok 19:00 untuk kerjakan tugas kuliah ${subject}`,
+        tone: 'success',
+      });
+    });
+  }
+  if (includeReminderPresets) {
+    reminderSuggestions.push({
+      label: 'Ingatkan Pasangan',
+      command: 'ingatkan pasangan besok 19:00 untuk cek tugas kuliah',
+      tone: 'info',
+    });
+  }
+
+  return normalizeChatbotSuggestions([...subjectSuggestions, ...reminderSuggestions, ...suggestions]);
 }
 
 function buildActionExecutionMemoryUpdate(memory, intent, message, execution = null, clarifications = []) {
@@ -3619,6 +3889,16 @@ export default withErrorHandling(async function handler(req, res) {
         const execution = await executeActionEngineWrites(optionalUser, actionPlan);
         const plannerOut = buildActionPlannerResult(planner, actionPlan, execution);
         const clarifications = Array.isArray(plannerOut.clarifications) ? plannerOut.clarifications : [];
+        const hasAssignmentDraft = Array.isArray(actionPlan?.drafts)
+          ? actionPlan.drafts.some((item) => String(item?.kind || '').toLowerCase() === 'create_assignment')
+          : false;
+        const hasReminderDraft = Array.isArray(actionPlan?.drafts)
+          ? actionPlan.drafts.some((item) => String(item?.kind || '').toLowerCase() === 'set_reminder')
+          : false;
+        const needsSubjectRecommendation = clarifications.some((item) => String(item?.field || '').toLowerCase() === 'subject');
+        const subjectRecommendations = (needsSubjectRecommendation || hasAssignmentDraft || hasReminderDraft)
+          ? await fetchScheduleSubjects(pool).catch(() => [])
+          : [];
         const reliability = buildReliabilityAssessment(message, plannerOut, intent);
         const rawReply = buildActionExecutionReply(execution, clarifications, {
           style: String(contextWithMemory?.tone_mode || 'supportive'),
@@ -3632,7 +3912,10 @@ export default withErrorHandling(async function handler(req, res) {
           intent,
         }).slice(0, CHATBOT_MAX_REPLY);
         const suggestions = applyLearningToSuggestions(
-          buildActionExecutionSuggestions(execution, clarifications),
+          buildActionExecutionSuggestions(execution, clarifications, subjectRecommendations, {
+            assignment_context: hasAssignmentDraft,
+            reminder_context: hasReminderDraft,
+          }),
           learningHints
         );
         const memoryUpdate = buildActionExecutionMemoryUpdate(memory, intent, message, execution, clarifications);

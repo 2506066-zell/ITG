@@ -319,14 +319,28 @@
       color: hsl(var(--text-100));
       margin: 0;
     }
+    .notes-history-list {
+      display: grid;
+      gap: 8px;
+    }
     .notes-history-item {
+      position: relative;
       border: 1px solid hsla(0, 0%, 100%, 0.11);
       border-radius: 11px;
-      padding: 10px;
+      padding: 10px 10px 10px 14px;
       background: hsla(0, 0%, 100%, 0.03);
-      margin-bottom: 8px;
       cursor: pointer;
       transition: border-color .18s ease, background .18s ease, transform .18s ease;
+      overflow: hidden;
+    }
+    .notes-history-item::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--subject-accent, hsl(var(--sem-info, 205 86% 65%)));
     }
     .notes-history-item:hover {
       border-color: hsla(var(--sem-info, 205 86% 65%), 0.34);
@@ -337,16 +351,66 @@
       background: hsla(var(--sem-info, 205 86% 65%), 0.12);
       box-shadow: 0 0 0 1px hsla(var(--sem-info, 205 86% 65%), 0.22);
     }
-    .notes-history-item h4 {
+    .notes-history-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .notes-history-title {
       margin: 0;
       font-size: 0.9rem;
       line-height: 1.35;
+      color: hsl(var(--text-100));
     }
-    .notes-history-item p {
-      margin: 5px 0 0;
+    .notes-history-status {
+      border: 1px solid hsla(0, 0%, 100%, 0.22);
+      border-radius: 999px;
+      padding: 4px 8px;
+      white-space: nowrap;
+      font-size: 0.62rem;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    .notes-history-status.done {
+      color: hsl(var(--sem-safe, 152 62% 54%));
+      border-color: hsla(var(--sem-safe, 152 62% 54%), 0.42);
+      background: hsla(var(--sem-safe, 152 62% 54%), 0.12);
+    }
+    .notes-history-status.pending {
+      color: hsl(var(--sem-danger, 352 82% 66%));
+      border-color: hsla(var(--sem-danger, 352 82% 66%), 0.42);
+      background: hsla(var(--sem-danger, 352 82% 66%), 0.12);
+    }
+    .notes-history-meta {
+      margin: 6px 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .notes-history-chip {
+      border: 1px solid hsla(0, 0%, 100%, 0.18);
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 0.66rem;
+      color: hsl(var(--text-300));
+      line-height: 1.3;
+      white-space: nowrap;
+    }
+    .notes-history-chip.owner {
+      border-color: var(--subject-accent, hsl(var(--sem-info, 205 86% 65%)));
+      color: var(--subject-accent, hsl(var(--sem-info, 205 86% 65%)));
+      background: var(--subject-soft, hsla(var(--sem-info, 205 86% 65%), 0.12));
+    }
+    .notes-history-desc {
+      margin: 7px 0 0;
       font-size: 0.78rem;
       color: hsl(var(--text-300));
       line-height: 1.42;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
     .notes-markdown-card {
       margin-top: 10px;
@@ -605,13 +669,9 @@
     <section class="card" style="margin-top:12px">
       <div class="notes-head">
         <h3 class="section-title" style="margin:0;font-size:1rem"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Catatan</h3>
-        <div class="notes-head-actions">
-          <button id="notes-export-md" type="button" class="btn small secondary"><i class="fa-solid fa-file-lines"></i> Unduh Markdown</button>
-          <button id="notes-export-pdf" type="button" class="btn small secondary"><i class="fa-solid fa-file-pdf"></i> Unduh PDF</button>
-        </div>
       </div>
-      <p id="notes-history-scope" class="muted small" style="margin:0 0 10px;">Riwayat mengikuti mata kuliah aktif.</p>
-      <div id="notes-history-list"></div>
+      <p id="notes-history-scope" class="muted small" style="margin:0 0 10px;">Riwayat mengikuti mata kuliah dan owner aktif. Klik item untuk buka detail markdown.</p>
+      <div id="notes-history-list" class="notes-history-list"></div>
       <div id="notes-history-preview" class="notes-markdown-card" style="display:none;"></div>
     </section>
   </main>
@@ -621,20 +681,6 @@
       <h3 class="notes-hardgate-title">Catatan sesi belum lengkap</h3>
       <p class="notes-hardgate-sub" id="notes-hardgate-sub">Isi minimum satu catatan agar sesi kuliah tercatat rapi.</p>
       <button class="btn" id="notes-hardgate-focus"><i class="fa-solid fa-pen"></i> Isi Catatan Sekarang</button>
-    </div>
-  </div>
-
-  <div id="notes-markdown-modal" class="notes-markdown-modal" aria-hidden="true">
-    <div class="notes-markdown-modal-card">
-      <div class="notes-markdown-modal-head">
-        <h3 id="notes-markdown-modal-title" class="notes-markdown-modal-title">Versi Full Markdown</h3>
-        <button id="notes-markdown-modal-close" type="button" class="btn small secondary">
-          <i class="fa-solid fa-xmark"></i> Tutup
-        </button>
-      </div>
-      <div class="notes-markdown-modal-body">
-        <pre id="notes-markdown-modal-pre" class="notes-markdown-modal-pre"></pre>
-      </div>
     </div>
   </div>
 
