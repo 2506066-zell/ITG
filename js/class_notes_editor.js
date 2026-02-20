@@ -25,6 +25,9 @@ const state = {
   formDirty: false,
   draftSaveTimer: null,
   lastRestoredDraftKey: '',
+  historyViewMode: 'review',
+  keyboardModeReady: false,
+  keyboardOpen: false,
 };
 
 const els = {
@@ -55,6 +58,8 @@ const els = {
   historyScope: document.getElementById('notes-history-scope'),
   history: document.getElementById('notes-history-list'),
   historyPreview: document.getElementById('notes-history-preview'),
+  viewCompactBtn: document.getElementById('notes-view-compact'),
+  viewReviewBtn: document.getElementById('notes-view-review'),
   markdownModal: document.getElementById('notes-markdown-modal'),
   markdownModalTitle: document.getElementById('notes-markdown-modal-title'),
   markdownModalPre: document.getElementById('notes-markdown-modal-pre'),
@@ -70,6 +75,7 @@ const els = {
 const NOTES_REALTIME_POLL_MS = 30000;
 const NOTES_AUTO_OPEN_PREFIX = 'class_notes_auto_open_v2:';
 const NOTES_DRAFT_PREFIX = 'class_notes_draft_v1:';
+const NOTES_HISTORY_VIEW_MODE_KEY = 'class_notes_history_view_mode_v1';
 const NOTES_DRAFT_DEBOUNCE_MS = 260;
 const TYPING_POPUP_FRAME_MS = 1000 / 30;
 const TYPING_POPUP_QUEUE_MAX = 24;
@@ -81,6 +87,116 @@ const TYPING_POPUP_FIELDS = [
   'note-questions',
   'note-free-text',
 ];
+
+function normalizeHistoryViewMode(value = '') {
+  const mode = String(value || '').trim().toLowerCase();
+  return mode === 'compact' ? 'compact' : 'review';
+}
+
+function readHistoryViewMode() {
+  try {
+    return normalizeHistoryViewMode(localStorage.getItem(NOTES_HISTORY_VIEW_MODE_KEY) || 'review');
+  } catch {
+    return 'review';
+  }
+}
+
+function writeHistoryViewMode(mode = 'review') {
+  const normalized = normalizeHistoryViewMode(mode);
+  try {
+    localStorage.setItem(NOTES_HISTORY_VIEW_MODE_KEY, normalized);
+  } catch {}
+}
+
+function syncHistoryViewModeUI() {
+  const compact = state.historyViewMode === 'compact';
+  document.body.classList.toggle('notes-view-compact', compact);
+  if (els.viewCompactBtn) els.viewCompactBtn.classList.toggle('active', compact);
+  if (els.viewReviewBtn) els.viewReviewBtn.classList.toggle('active', !compact);
+}
+
+function setHistoryViewMode(mode = 'review', options = {}) {
+  const normalized = normalizeHistoryViewMode(mode);
+  state.historyViewMode = normalized;
+  if (options.persist !== false) writeHistoryViewMode(normalized);
+  syncHistoryViewModeUI();
+}
+
+function isMobileNotesViewport() {
+  try {
+    return Boolean(window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+  } catch {
+    return false;
+  }
+}
+
+function detectNotesKeyboardState() {
+  if (!isMobileNotesViewport()) return false;
+  if (!window.visualViewport) return false;
+  const vv = window.visualViewport;
+  const heightDelta = Math.max(0, window.innerHeight - vv.height);
+  return heightDelta > 120;
+}
+
+function setNotesKeyboardOpen(open) {
+  const next = Boolean(open);
+  if (state.keyboardOpen === next) return;
+  state.keyboardOpen = next;
+  document.body.classList.toggle('notes-keyboard-open', next);
+}
+
+function initNotesMobileKeyboardMode() {
+  if (state.keyboardModeReady) return;
+  state.keyboardModeReady = true;
+
+  const fields = [
+    els.keyPoints,
+    els.actionItems,
+    els.questions,
+    els.freeText,
+    els.moodFocus,
+    els.confidence,
+  ].filter(Boolean);
+
+  if (!fields.length) return;
+
+  const onViewportChange = () => {
+    if (!isMobileNotesViewport()) {
+      setNotesKeyboardOpen(false);
+      return;
+    }
+    setNotesKeyboardOpen(detectNotesKeyboardState());
+  };
+
+  const onFocus = (ev) => {
+    if (!isMobileNotesViewport()) return;
+    setTimeout(() => {
+      setNotesKeyboardOpen(true);
+      try {
+        ev?.target?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      } catch {}
+    }, 120);
+  };
+
+  const onBlur = () => {
+    if (!isMobileNotesViewport()) return;
+    setTimeout(() => {
+      if (!detectNotesKeyboardState()) setNotesKeyboardOpen(false);
+    }, 160);
+  };
+
+  fields.forEach((field) => {
+    field.addEventListener('focus', onFocus, { passive: true });
+    field.addEventListener('blur', onBlur, { passive: true });
+  });
+
+  window.addEventListener('resize', onViewportChange, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', onViewportChange, { passive: true });
+    window.visualViewport.addEventListener('scroll', onViewportChange, { passive: true });
+  }
+  onViewportChange();
+}
 
 function currentUserLabel() {
   const user = String(localStorage.getItem('user') || 'Zaldy').trim();
@@ -796,6 +912,13 @@ function markdownToReviewHtml(markdown = '') {
   return out.join('');
 }
 
+function compactText(value = '', max = 220) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '-';
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).trim()}...`;
+}
+
 async function copyTextToClipboard(text = '') {
   const value = String(text || '');
   if (!value) return false;
@@ -887,7 +1010,34 @@ function renderHistoryPreview(note = null) {
   }
   const markdown = buildHistoryMarkdown(note);
   const reviewHtml = markdownToReviewHtml(markdown);
+  const compactHtml = `
+    <div class="notes-compact-doc">
+      <div class="notes-compact-row">
+        <h4>Ringkasan</h4>
+        <p>${escapeHtml(compactText(note.summary_text || note.key_points, 220))}</p>
+      </div>
+      <div class="notes-compact-row">
+        <h4>Aksi Berikutnya</h4>
+        <p>${escapeHtml(compactText(note.next_action_text || note.action_items, 220))}</p>
+      </div>
+      <div class="notes-compact-row">
+        <h4>Pertanyaan</h4>
+        <p>${escapeHtml(compactText(note.questions, 220))}</p>
+      </div>
+      <div class="notes-compact-row">
+        <h4>Catatan Bebas</h4>
+        <p>${escapeHtml(compactText(note.free_text, 260))}</p>
+      </div>
+    </div>
+  `;
   els.historyPreview.style.display = 'block';
+  if (state.historyViewMode === 'compact') {
+    els.historyPreview.innerHTML = `
+      <p class="notes-markdown-head"><i class="fa-solid fa-table-list"></i> Mode Compact</p>
+      ${compactHtml}
+    `;
+    return;
+  }
   els.historyPreview.innerHTML = `
     <p class="notes-markdown-head"><i class="fa-solid fa-file-lines"></i> Mode Review Catatan</p>
     <article class="notes-doc-page">${reviewHtml}</article>
@@ -1392,6 +1542,24 @@ function bindEvents() {
       renderHistoryPreview(note);
     });
   }
+  if (els.viewCompactBtn) {
+    els.viewCompactBtn.addEventListener('click', () => {
+      setHistoryViewMode('compact');
+      if (state.activeHistoryNoteId) {
+        const note = state.historyRows.find((x) => Number(x.id || 0) === Number(state.activeHistoryNoteId || 0));
+        renderHistoryPreview(note || null);
+      }
+    });
+  }
+  if (els.viewReviewBtn) {
+    els.viewReviewBtn.addEventListener('click', () => {
+      setHistoryViewMode('review');
+      if (state.activeHistoryNoteId) {
+        const note = state.historyRows.find((x) => Number(x.id || 0) === Number(state.activeHistoryNoteId || 0));
+        renderHistoryPreview(note || null);
+      }
+    });
+  }
   bindLiveMinimumCheck();
   if (els.exportMd) {
     els.exportMd.addEventListener('click', () => {
@@ -1438,9 +1606,12 @@ async function init() {
   normalizeLinks();
   const q = qs();
   state.enforce = q.get('enforce') === '1';
+  state.historyViewMode = readHistoryViewMode();
+  syncHistoryViewModeUI();
   state.date = String(q.get('date') || localDateText()).slice(0, 10);
   if (els.dateInput) els.dateInput.value = state.date;
   bindEvents();
+  initNotesMobileKeyboardMode();
   initTypingPopupEffects();
   await loadSessions({ preserveActive: true });
   await maybeAutoOpenStartedSession({ force: true });
@@ -1458,6 +1629,7 @@ async function init() {
       ev.preventDefault();
       ev.returnValue = '';
     }
+    setNotesKeyboardOpen(false);
     if (state.realtimeTimer) clearInterval(state.realtimeTimer);
   });
   if (els.pageSub) {

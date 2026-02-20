@@ -31,6 +31,31 @@
       flex-wrap: wrap;
       align-items: center;
     }
+    .notes-view-toggle {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .notes-view-btn {
+      border-radius: 999px;
+      border: 1px solid hsla(0, 0%, 100%, 0.2);
+      background: hsla(0, 0%, 100%, 0.05);
+      color: hsl(var(--text-300));
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: all .2s ease;
+    }
+    .notes-view-btn.active {
+      color: hsl(var(--text-100));
+      border-color: hsla(var(--sem-info, 205 86% 65%), .55);
+      background: hsla(var(--sem-info, 205 86% 65%), .2);
+      box-shadow: 0 0 0 1px hsla(var(--sem-info, 205 86% 65%), .22);
+    }
     .notes-active-session {
       border: 1px solid hsla(0, 0%, 100%, 0.14);
       border-left: 4px solid var(--active-accent, hsl(var(--sem-info, 205 86% 65%)));
@@ -485,6 +510,38 @@
     .notes-doc-gap {
       height: 8px;
     }
+    .notes-compact-doc {
+      display: grid;
+      gap: 8px;
+    }
+    .notes-compact-row {
+      border: 1px solid hsla(217, 44%, 52%, 0.24);
+      border-radius: 10px;
+      background: hsla(0, 0%, 100%, 0.58);
+      padding: 9px 10px;
+    }
+    .notes-compact-row h4 {
+      margin: 0 0 5px;
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: hsl(217 52% 34%);
+    }
+    .notes-compact-row p {
+      margin: 0;
+      font-size: .89rem;
+      line-height: 1.5;
+      color: hsl(226 22% 18%);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .notes-view-compact .notes-doc-page {
+      max-height: min(38vh, 300px);
+      font-size: .9rem;
+      line-height: 1.58;
+      padding: 10px;
+    }
     .notes-markdown-actions {
       margin-top: 10px;
       display: flex;
@@ -611,6 +668,19 @@
         max-height: min(92vh, 1000px);
       }
     }
+    @media (max-width: 768px) {
+      .class-notes-page.notes-keyboard-open .bottom-nav {
+        transform: translateY(120%);
+        opacity: 0;
+        pointer-events: none;
+      }
+      .class-notes-page.notes-keyboard-open .container {
+        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      }
+      .class-notes-page.notes-keyboard-open .notes-form-card {
+        margin-bottom: 8px;
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
       .notes-typing-popup-char.is-pop {
         animation: none;
@@ -720,6 +790,10 @@
     <section class="card" style="margin-top:12px">
       <div class="notes-head">
         <h3 class="section-title" style="margin:0;font-size:1rem"><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Catatan</h3>
+        <div class="notes-view-toggle">
+          <button id="notes-view-compact" type="button" class="notes-view-btn">Compact</button>
+          <button id="notes-view-review" type="button" class="notes-view-btn active">Review</button>
+        </div>
       </div>
       <p id="notes-history-scope" class="muted small" style="margin:0 0 10px;">Riwayat mengikuti mata kuliah dan owner aktif. Klik item untuk buka detail markdown.</p>
       <div id="notes-history-list" class="notes-history-list"></div>

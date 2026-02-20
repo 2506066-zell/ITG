@@ -83,7 +83,13 @@ function initMobileKeyboardMode() {
 
   const onFocus = () => {
     if (!isMobileChatViewport()) return;
-    setTimeout(() => setChatKeyboardOpen(true), 120);
+    setTimeout(() => {
+      setChatKeyboardOpen(true);
+      const composer = document.querySelector('.chat-composer');
+      try {
+        composer?.scrollIntoView?.({ block: 'end', behavior: 'smooth' });
+      } catch {}
+    }, 120);
   };
 
   const onBlur = () => {
@@ -100,6 +106,9 @@ function initMobileKeyboardMode() {
     window.visualViewport.addEventListener('resize', onViewportChange, { passive: true });
     window.visualViewport.addEventListener('scroll', onViewportChange, { passive: true });
   }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') setChatKeyboardOpen(false);
+  });
   onViewportChange();
 }
 

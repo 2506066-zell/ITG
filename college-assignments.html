@@ -542,6 +542,38 @@
       border-color: hsla(327, 85%, 68%, 0.34);
       color: hsl(327, 94%, 82%);
     }
+
+    @media (max-width: 768px) {
+      body.assignments-page.assignments-keyboard-open .bottom-nav {
+        transform: translateY(120%);
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      body.assignments-page.assignments-keyboard-open .fab {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      #add-overlay.active .bottom-sheet {
+        max-height: calc(100dvh - 12px);
+      }
+
+      body.assignments-page.assignments-keyboard-open #add-overlay.active .bottom-sheet,
+      body.assignments-page.assignments-keyboard-open #mood-overlay.active .bottom-sheet {
+        max-height: calc(100dvh - env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+      }
+
+      body.assignments-page.assignments-keyboard-open #add-overlay .sheet-actions,
+      body.assignments-page.assignments-keyboard-open #mood-overlay .sheet-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 6;
+        background: linear-gradient(180deg, hsla(var(--space-950), 0), hsla(var(--space-950), 0.94) 34%);
+        padding-top: 10px;
+      }
+    }
   </style>
   <link rel="stylesheet" href="css/v3-polish.css">
 </head>

@@ -13,6 +13,77 @@ let assignmentIntelMap = new Map();
 const SUBJECT_CACHE_TTL_MS = 5 * 60 * 1000;
 let scheduleSubjects = [];
 let scheduleSubjectsLoadedAt = 0;
+let assignmentsKeyboardModeReady = false;
+let assignmentsKeyboardOpen = false;
+
+function isMobileAssignmentsViewport() {
+  try {
+    return Boolean(window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+  } catch {
+    return false;
+  }
+}
+
+function detectAssignmentsKeyboardState() {
+  if (!isMobileAssignmentsViewport()) return false;
+  if (!window.visualViewport) return false;
+  const vv = window.visualViewport;
+  const heightDelta = Math.max(0, window.innerHeight - vv.height);
+  return heightDelta > 120;
+}
+
+function setAssignmentsKeyboardOpen(open) {
+  const next = Boolean(open);
+  if (assignmentsKeyboardOpen === next) return;
+  assignmentsKeyboardOpen = next;
+  document.body.classList.toggle('assignments-keyboard-open', next);
+}
+
+function isOverlayFieldTarget(target) {
+  if (!target || !(target instanceof Element)) return false;
+  return Boolean(
+    target.closest('#add-overlay.active') ||
+    target.closest('#mood-overlay.active')
+  );
+}
+
+function initAssignmentsMobileKeyboardMode() {
+  if (assignmentsKeyboardModeReady) return;
+  assignmentsKeyboardModeReady = true;
+
+  const onViewportChange = () => {
+    if (!isMobileAssignmentsViewport()) {
+      setAssignmentsKeyboardOpen(false);
+      return;
+    }
+    setAssignmentsKeyboardOpen(detectAssignmentsKeyboardState());
+  };
+
+  document.addEventListener('focusin', (ev) => {
+    if (!isMobileAssignmentsViewport()) return;
+    if (!isOverlayFieldTarget(ev.target)) return;
+    setTimeout(() => {
+      setAssignmentsKeyboardOpen(true);
+      try {
+        ev.target?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      } catch {}
+    }, 120);
+  });
+
+  document.addEventListener('focusout', () => {
+    if (!isMobileAssignmentsViewport()) return;
+    setTimeout(() => {
+      if (!detectAssignmentsKeyboardState()) setAssignmentsKeyboardOpen(false);
+    }, 160);
+  });
+
+  window.addEventListener('resize', onViewportChange, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', onViewportChange, { passive: true });
+    window.visualViewport.addEventListener('scroll', onViewportChange, { passive: true });
+  }
+  onViewportChange();
+}
 
 function normalizeOwner(value) {
   const v = String(value || '').trim().toLowerCase();
@@ -661,6 +732,7 @@ async function actions(e) {
 function init() {
   activeOwner = getDefaultOwner();
   setActiveOwner(activeOwner, { persist: false });
+  initAssignmentsMobileKeyboardMode();
 
   document.querySelector('#create-assignment').addEventListener('submit', create);
   document.querySelector('#assignments-active').addEventListener('change', actions);
@@ -730,6 +802,7 @@ async function openAddModal() {
 function closeAddModal() {
   addOverlay.classList.remove('active');
   addOverlay.querySelector('.bottom-sheet').classList.remove('active');
+  setAssignmentsKeyboardOpen(false);
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -796,5 +869,6 @@ function openMoodPrompt(note) {
 function closeMoodPrompt() {
   moodOverlay.classList.remove('active');
   moodSheet.classList.remove('active');
+  setAssignmentsKeyboardOpen(false);
 }
 

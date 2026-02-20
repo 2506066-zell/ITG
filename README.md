@@ -134,6 +134,15 @@ Organizer pribadi dengan login sederhana (bcrypt + JWT), backend Node serverless
     - `CHATBOT_TEST_BASE_URL=https://itg-ten.vercel.app`
     - `CHATBOT_TEST_STRICT_HYBRID=true|false`
 
+## Mobile UX Quality Gate
+- Jalankan sebelum deploy:
+  - `npm run test:mobile:gate`
+- Gate ini memverifikasi:
+  - breakpoint mobile utama (360/390/412)
+  - hardening keyboard-open (chat, catatan, tugas kuliah)
+  - safe-area usage di mobile CSS
+  - sinkronisasi file root dan `public/*` untuk halaman/script kunci
+
 ### Struktur File Chatbot
 ```
 project/
