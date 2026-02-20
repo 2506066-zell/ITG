@@ -414,26 +414,76 @@
     }
     .notes-markdown-card {
       margin-top: 10px;
-      border: 1px solid hsla(var(--sem-info, 205 86% 65%), 0.35);
-      border-radius: 12px;
-      background: linear-gradient(160deg, hsla(var(--sem-info, 205 86% 65%), 0.09), hsla(0, 0%, 100%, 0.03));
-      padding: 12px;
+      border: 1px solid hsla(218, 72%, 82%, 0.42);
+      border-radius: 14px;
+      background:
+        radial-gradient(120% 90% at 100% 0%, hsla(212, 92%, 68%, 0.16), transparent 62%),
+        linear-gradient(180deg, hsl(224 34% 98%), hsl(220 26% 95%));
+      padding: 14px;
+      color: hsl(224 24% 16%);
     }
     .notes-markdown-head {
       margin: 0 0 8px;
-      font-size: 0.76rem;
+      font-size: 0.72rem;
       letter-spacing: .09em;
       text-transform: uppercase;
-      color: hsl(var(--sem-info, 205 86% 65%));
+      color: hsl(215 64% 42%);
+      font-weight: 800;
     }
-    .notes-markdown-pre {
+    .notes-doc-page {
       margin: 0;
+      max-height: min(64vh, 620px);
+      overflow: auto;
+      padding: 12px;
+      border: 1px solid hsla(216, 42%, 62%, 0.26);
+      border-radius: 11px;
+      background: hsla(0, 0%, 100%, 0.75);
+      font-family: "Source Serif 4", "Georgia", "Times New Roman", serif;
+      font-size: 0.98rem;
+      line-height: 1.72;
+      color: hsl(226 23% 16%);
+      letter-spacing: .01em;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    .notes-doc-page h2,
+    .notes-doc-page h3 {
+      margin: 0 0 8px;
+      line-height: 1.34;
+      letter-spacing: 0;
+      color: hsl(220 30% 16%);
+    }
+    .notes-doc-page h2 {
+      font-size: 1.16rem;
+      font-weight: 800;
+      border-bottom: 1px solid hsla(220, 28%, 42%, 0.22);
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+    }
+    .notes-doc-page h3 {
+      font-size: 1.02rem;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+    .notes-doc-page p {
+      margin: 0 0 10px;
       white-space: pre-wrap;
+      overflow-wrap: anywhere;
       word-break: break-word;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 0.78rem;
-      line-height: 1.5;
-      color: hsl(var(--text-100));
+    }
+    .notes-doc-page ul {
+      margin: 0 0 10px 20px;
+      padding: 0;
+      display: grid;
+      gap: 4px;
+    }
+    .notes-doc-page li {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .notes-doc-gap {
+      height: 8px;
     }
     .notes-markdown-actions {
       margin-top: 10px;
@@ -575,6 +625,7 @@
       <i class="fa-solid fa-heart"></i> NZ
     </div>
     <div class="nav-actions">
+      <a class="btn small secondary" href="/"><i class="fa-solid fa-house"></i> Home</a>
       <a class="btn small secondary" href="/class-notes"><i class="fa-solid fa-arrow-left"></i> List Mapel</a>
     </div>
   </nav>

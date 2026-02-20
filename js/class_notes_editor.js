@@ -745,6 +745,57 @@ function buildHistoryMarkdown(note = {}) {
   return lines.join('\n').trim();
 }
 
+function markdownToReviewHtml(markdown = '') {
+  const lines = String(markdown || '').replace(/\r/g, '').split('\n');
+  const out = [];
+  let inList = false;
+  let prevGap = false;
+
+  const closeList = () => {
+    if (inList) {
+      out.push('</ul>');
+      inList = false;
+    }
+  };
+
+  for (const rawLine of lines) {
+    const line = String(rawLine || '').trimEnd();
+    const trimmed = line.trim();
+    if (!trimmed) {
+      closeList();
+      if (!prevGap) {
+        out.push('<div class="notes-doc-gap"></div>');
+        prevGap = true;
+      }
+      continue;
+    }
+    prevGap = false;
+    if (trimmed.startsWith('## ')) {
+      closeList();
+      out.push(`<h3>${escapeHtml(trimmed.slice(3).trim())}</h3>`);
+      continue;
+    }
+    if (trimmed.startsWith('# ')) {
+      closeList();
+      out.push(`<h2>${escapeHtml(trimmed.slice(2).trim())}</h2>`);
+      continue;
+    }
+    if (trimmed.startsWith('- ')) {
+      if (!inList) {
+        out.push('<ul>');
+        inList = true;
+      }
+      out.push(`<li>${escapeHtml(trimmed.slice(2).trim())}</li>`);
+      continue;
+    }
+    closeList();
+    out.push(`<p>${escapeHtml(trimmed)}</p>`);
+  }
+
+  closeList();
+  return out.join('');
+}
+
 async function copyTextToClipboard(text = '') {
   const value = String(text || '');
   if (!value) return false;
@@ -835,10 +886,11 @@ function renderHistoryPreview(note = null) {
     return;
   }
   const markdown = buildHistoryMarkdown(note);
+  const reviewHtml = markdownToReviewHtml(markdown);
   els.historyPreview.style.display = 'block';
   els.historyPreview.innerHTML = `
-    <p class="notes-markdown-head"><i class="fa-solid fa-file-lines"></i> Detail Catatan Markdown</p>
-    <pre class="notes-markdown-pre">${escapeHtml(markdown)}</pre>
+    <p class="notes-markdown-head"><i class="fa-solid fa-file-lines"></i> Mode Review Catatan</p>
+    <article class="notes-doc-page">${reviewHtml}</article>
   `;
 }
 
@@ -1230,28 +1282,22 @@ async function loadHistory() {
 
   if (els.historyScope) {
     const ownerText = scope.owner ? ` | Owner: ${scope.owner}` : '';
-    els.historyScope.textContent = `Riwayat mapel: ${scope.subject}${ownerText}`;
+    els.historyScope.textContent = `Riwayat mapel: ${scope.subject}${ownerText} | Semua waktu`;
   }
 
-  const to = state.date;
-  const base = new Date(`${to}T00:00:00`);
-  base.setDate(base.getDate() - 7);
-  const from = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
   const qs = new URLSearchParams();
-  qs.set('from', from);
-  qs.set('to', to);
   qs.set('subject', scope.subject);
   if (scope.owner) qs.set('owner', scope.owner);
 
   const rows = await get(`/class_notes?${qs.toString()}`);
   if (!Array.isArray(rows) || !rows.length) {
-    els.history.innerHTML = `<div class="notes-empty">Belum ada riwayat catatan ${escapeHtml(scope.subject)} untuk 7 hari terakhir.</div>`;
+    els.history.innerHTML = `<div class="notes-empty">Belum ada riwayat catatan ${escapeHtml(scope.subject)}.</div>`;
     state.historyRows = [];
     state.activeHistoryNoteId = 0;
     renderHistoryPreview(null);
     return;
   }
-  state.historyRows = rows.slice(0, 12);
+  state.historyRows = rows;
   state.activeHistoryNoteId = 0;
   renderHistoryList(state.historyRows);
   renderHistoryPreview(null);
