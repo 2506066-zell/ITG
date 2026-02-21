@@ -874,10 +874,6 @@ async function handleSemesterGet(req, res, user, url) {
   const withPartner = parseBool(url.searchParams.get('with_partner'));
   const owner = normalizeUserId(url.searchParams.get('owner') || '');
   const subject = normalizeText(url.searchParams.get('subject') || '', 120);
-  if (!subject) {
-    res.status(400).json({ error: 'subject wajib diisi' });
-    return;
-  }
 
   const visibility = await resolveVisibilityClause({
     requestUser: user,
@@ -906,7 +902,7 @@ async function handleSemesterGet(req, res, user, url) {
 
     const built = buildNoteWhereClause(visibility, {
       archive_status: 'all',
-      subject,
+      subject: subject || '',
     });
     const result = await client.query(
       `SELECT n.class_date

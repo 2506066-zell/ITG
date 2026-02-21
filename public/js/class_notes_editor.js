@@ -1083,13 +1083,12 @@ function renderHistoryList(rows = []) {
 }
 
 function activeHistoryScope() {
-  const subject = String(state.activeSession?.subject || state.activeNote?.subject || '').trim();
   const owner = normalizeOwnerLabel(
     state.activeNote?.viewer_user ||
     localStorage.getItem('user') ||
     'Zaldy'
   );
-  return { subject, owner };
+  return { owner };
 }
 
 function activeHistorySemesterLabel() {
@@ -1102,7 +1101,7 @@ function renderHistorySemesterChips() {
   if (!els.historySemesters) return;
   const rows = Array.isArray(state.historySemesterBuckets) ? state.historySemesterBuckets : [];
   if (!rows.length) {
-    els.historySemesters.innerHTML = '<div class="notes-history-sem-empty">Belum ada semester untuk mapel ini.</div>';
+    els.historySemesters.innerHTML = '<div class="notes-history-sem-empty">Belum ada semester untuk riwayat ini.</div>';
     return;
   }
   els.historySemesters.innerHTML = rows.map((row) => {
@@ -1122,7 +1121,6 @@ function renderHistorySemesterChips() {
 
 async function loadHistorySemesters(scope) {
   const qs = new URLSearchParams();
-  qs.set('subject', scope.subject);
   if (scope.owner) qs.set('owner', scope.owner);
   const payload = await get(`/class_notes/semester?${qs.toString()}`);
   const items = Array.isArray(payload?.items) ? payload.items : [];
@@ -1144,7 +1142,6 @@ async function loadHistorySemesters(scope) {
 
 async function loadHistoryRows(scope) {
   const qs = new URLSearchParams();
-  qs.set('subject', scope.subject);
   qs.set('include_semester', '1');
   if (scope.owner) qs.set('owner', scope.owner);
   if (state.historySemesterKey) qs.set('semester_key', state.historySemesterKey);
@@ -1153,7 +1150,7 @@ async function loadHistoryRows(scope) {
   if (!Array.isArray(rows) || !rows.length) {
     const semLabel = activeHistorySemesterLabel();
     const semPart = semLabel ? ` di ${escapeHtml(semLabel)}` : '';
-    els.history.innerHTML = `<div class="notes-empty">Belum ada riwayat catatan ${escapeHtml(scope.subject)}${semPart}.</div>`;
+    els.history.innerHTML = `<div class="notes-empty">Belum ada riwayat catatan${semPart}.</div>`;
     state.historyRows = [];
     state.activeHistoryNoteId = 0;
     renderHistoryPreview(null);
@@ -1496,27 +1493,12 @@ async function loadActiveNote(scheduleId, classDate = state.date) {
 async function loadHistory() {
   if (!els.history) return;
   const scope = activeHistoryScope();
-  if (!scope.subject) {
-    if (els.historyScope) {
-      els.historyScope.textContent = 'Pilih mata kuliah dulu untuk melihat riwayat catatan per mapel.';
-    }
-    state.historySemesterBuckets = [];
-    state.historySemesterKey = '';
-    state.historyCurrentSemesterKey = '';
-    renderHistorySemesterChips();
-    els.history.innerHTML = '<div class="notes-empty">Belum ada mata kuliah aktif untuk menampilkan riwayat.</div>';
-    state.historyRows = [];
-    state.activeHistoryNoteId = 0;
-    renderHistoryPreview(null);
-    return;
-  }
-
   await loadHistorySemesters(scope);
   const ownerText = scope.owner ? ` | Owner: ${scope.owner}` : '';
   const semLabel = activeHistorySemesterLabel();
   if (els.historyScope) {
     const semText = semLabel ? ` | Semester: ${semLabel}` : '';
-    els.historyScope.textContent = `Riwayat mapel: ${scope.subject}${ownerText}${semText}`;
+    els.historyScope.textContent = `Riwayat catatan${ownerText}${semText}`;
   }
   await loadHistoryRows(scope);
 }
@@ -1623,7 +1605,7 @@ function bindEvents() {
       const semLabel = activeHistorySemesterLabel();
       if (els.historyScope) {
         const semText = semLabel ? ` | Semester: ${semLabel}` : '';
-        els.historyScope.textContent = `Riwayat mapel: ${scope.subject}${ownerText}${semText}`;
+        els.historyScope.textContent = `Riwayat catatan${ownerText}${semText}`;
       }
       try {
         await loadHistoryRows(scope);
