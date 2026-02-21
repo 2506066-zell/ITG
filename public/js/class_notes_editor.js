@@ -35,6 +35,7 @@ const state = {
   historyViewMode: 'review',
   keyboardModeReady: false,
   keyboardOpen: false,
+  lockedSubject: '',
 };
 
 const els = {
@@ -52,6 +53,7 @@ const els = {
   noteId: document.getElementById('note-id'),
   scheduleId: document.getElementById('note-schedule-id'),
   classDate: document.getElementById('note-class-date'),
+  meetingNo: document.getElementById('note-meeting-no'),
   keyPoints: document.getElementById('note-key-points'),
   actionItems: document.getElementById('note-action-items'),
   questions: document.getElementById('note-questions'),
@@ -235,6 +237,7 @@ function draftStorageKey(scheduleId = null, classDate = null) {
 
 function collectFormDraftPayload() {
   return {
+    meeting_no: els.meetingNo?.value || '',
     key_points: String(els.keyPoints?.value || ''),
     action_items: String(els.actionItems?.value || ''),
     questions: String(els.questions?.value || ''),
@@ -247,6 +250,7 @@ function collectFormDraftPayload() {
 
 function applyDraftPayload(payload = {}) {
   if (!payload || typeof payload !== 'object') return;
+  if (els.meetingNo) els.meetingNo.value = String(payload.meeting_no || '');
   if (els.keyPoints) els.keyPoints.value = String(payload.key_points || '');
   if (els.actionItems) els.actionItems.value = String(payload.action_items || '');
   if (els.questions) els.questions.value = String(payload.questions || '');
@@ -792,6 +796,7 @@ function fillForm(note = null, session = null) {
   if (els.noteId) els.noteId.value = note?.id || '';
   if (els.scheduleId) els.scheduleId.value = String(nextScheduleId || '');
   if (els.classDate) els.classDate.value = noteDate;
+  if (els.meetingNo) els.meetingNo.value = note?.meeting_no || session?.meeting_no || '';
   if (els.keyPoints) els.keyPoints.value = note?.key_points || '';
   if (els.actionItems) els.actionItems.value = note?.action_items || '';
   if (els.questions) els.questions.value = note?.questions || '';
@@ -829,6 +834,24 @@ function normalizeHistorySubject(raw = '') {
   return String(raw || '').trim().slice(0, 140);
 }
 
+function subjectKey(raw = '') {
+  return String(raw || '').trim().toLowerCase();
+}
+
+function hasLockedSubject() {
+  return Boolean(normalizeHistorySubject(state.lockedSubject));
+}
+
+function isLockedSubjectMatch(session = null) {
+  if (!hasLockedSubject()) return true;
+  return subjectKey(session?.subject) === subjectKey(state.lockedSubject);
+}
+
+function filterByLockedSubject(rows = []) {
+  if (!hasLockedSubject()) return Array.isArray(rows) ? rows : [];
+  return (Array.isArray(rows) ? rows : []).filter((row) => isLockedSubjectMatch(row));
+}
+
 function setHistorySubject(subject = '') {
   state.historySubject = normalizeHistorySubject(subject);
   syncHistoryFilterUI();
@@ -850,12 +873,15 @@ function historySubjectLabel() {
 }
 
 function syncHistoryFilterUI() {
+  const locked = hasLockedSubject();
   if (els.filterSubjectSelected) {
-    els.filterSubjectSelected.classList.toggle('active', state.historySubjectMode === 'selected');
+    els.filterSubjectSelected.classList.toggle('active', locked || state.historySubjectMode === 'selected');
     els.filterSubjectSelected.textContent = historySubjectLabel();
   }
   if (els.filterSubjectAll) {
-    els.filterSubjectAll.classList.toggle('active', state.historySubjectMode === 'all');
+    els.filterSubjectAll.classList.toggle('active', !locked && state.historySubjectMode === 'all');
+    els.filterSubjectAll.disabled = locked;
+    els.filterSubjectAll.title = locked ? 'Mode mapel aktif: filter semua mapel dinonaktifkan.' : '';
   }
   if (els.filterSemesterSelected) {
     els.filterSemesterSelected.classList.toggle('active', state.historySemesterMode === 'selected');
@@ -877,6 +903,7 @@ function buildHistoryMarkdown(note = {}) {
   lines.push(`# ${note.subject || 'Catatan Kuliah'}`);
   lines.push('');
   lines.push(`- Tanggal: ${date || '-'}`);
+  if (note?.meeting_no) lines.push(`- Pertemuan: ${note.meeting_no}`);
   lines.push(`- Waktu: ${start && end ? `${start}-${end}` : '-'}`);
   lines.push(`- Ruangan: ${note.room || '-'}`);
   lines.push(`- Dosen: ${note.lecturer || '-'}`);
@@ -1007,6 +1034,7 @@ function applyHistoryNoteToEditor(note = null) {
     schedule_id: Number(note.schedule_id || state.activeSession?.schedule_id || 0),
     class_date: String(note.class_date || state.date || localDateText()).slice(0, 10),
     subject: note.subject || state.activeSession?.subject || 'Kelas',
+    meeting_no: note.meeting_no || state.activeSession?.meeting_no || null,
     room: note.room || state.activeSession?.room || '',
     lecturer: note.lecturer || state.activeSession?.lecturer || '',
     time_start: note.time_start || state.activeSession?.time_start || '',
@@ -1124,6 +1152,7 @@ function renderHistoryList(rows = []) {
         <p class="notes-history-meta">
           <span class="notes-history-chip"><i class="fa-regular fa-calendar"></i> ${escapeHtml(dateText)}</span>
           <span class="notes-history-chip"><i class="fa-regular fa-clock"></i> ${escapeHtml(timeText)}</span>
+          ${n?.meeting_no ? `<span class="notes-history-chip"><i class="fa-solid fa-hashtag"></i> P${Number(n.meeting_no)}</span>` : ''}
           ${owner ? `<span class="notes-history-chip owner"><i class="fa-regular fa-user"></i> ${escapeHtml(owner)}</span>` : ''}
         </p>
         <p class="notes-history-desc">${escapeHtml(desc)}</p>
@@ -1133,9 +1162,12 @@ function renderHistoryList(rows = []) {
 }
 
 function activeHistoryScope() {
-  const subject = state.historySubjectMode === 'selected'
-    ? normalizeHistorySubject(state.historySubject)
-    : '';
+  const lockedSubject = normalizeHistorySubject(state.lockedSubject);
+  const subject = lockedSubject || (
+    state.historySubjectMode === 'selected'
+      ? normalizeHistorySubject(state.historySubject)
+      : ''
+  );
   const owner = normalizeOwnerLabel(
     state.activeNote?.viewer_user ||
     localStorage.getItem('user') ||
@@ -1270,9 +1302,11 @@ function renderActiveSessionContext(note = null, session = null) {
   const ended = String(s.time_end || '').slice(0, 5);
   const completed = Boolean(note?.is_minimum_completed ?? s.is_minimum_completed);
   const statusText = completed ? 'Sudah tercatat' : 'Perlu catat';
+  const meetingNo = Number(note?.meeting_no || s.meeting_no || 0);
+  const meetingText = meetingNo >= 1 && meetingNo <= 14 ? ` | Pertemuan ${meetingNo}` : '';
 
   els.activeSubject.textContent = s.subject || 'Mata kuliah';
-  els.activeMeta.textContent = `${formatDateLabel(dateText)} | ${started}-${ended} | ${s.room || 'TBA'} | ${s.lecturer || 'Dosen belum diisi'}`;
+  els.activeMeta.textContent = `${formatDateLabel(dateText)}${meetingText} | ${started}-${ended} | ${s.room || 'TBA'} | ${s.lecturer || 'Dosen belum diisi'}`;
   els.activeStatus.classList.toggle('done', completed);
   els.activeStatus.classList.toggle('pending', !completed);
   els.activeStatus.textContent = statusText;
@@ -1418,6 +1452,7 @@ function renderExportMarkdown(notes = [], from = '', to = '') {
     const date = String(n.class_date || '').slice(0, 10);
     const time = `${String(n.time_start || '').slice(0, 5)}-${String(n.time_end || '').slice(0, 5)}`;
     lines.push(`## ${n.subject || 'Kelas'} - ${date} (${time})`);
+    if (n.meeting_no) lines.push(`- Pertemuan: ${n.meeting_no}`);
     lines.push(`- Ruangan: ${n.room || 'TBA'}`);
     lines.push(`- Dosen: ${n.lecturer || 'TBA'}`);
     if (n.summary_text) lines.push(`- Ringkasan Z AI: ${String(n.summary_text).trim()}`);
@@ -1436,10 +1471,11 @@ function renderExportHtml(notes = [], from = '', to = '') {
   const rows = notes.map((n) => {
     const date = escapeHtml(String(n.class_date || '').slice(0, 10));
     const time = `${escapeHtml(String(n.time_start || '').slice(0, 5))}-${escapeHtml(String(n.time_end || '').slice(0, 5))}`;
+    const meeting = n.meeting_no ? ` | Pertemuan ${escapeHtml(String(n.meeting_no))}` : '';
     return `
       <article class="note">
         <h3>${escapeHtml(n.subject || 'Kelas')}</h3>
-        <p class="meta">${date} | ${time} | ${escapeHtml(n.room || 'TBA')} | ${escapeHtml(n.lecturer || 'TBA')}</p>
+        <p class="meta">${date} | ${time}${meeting} | ${escapeHtml(n.room || 'TBA')} | ${escapeHtml(n.lecturer || 'TBA')}</p>
         <p><strong>Ringkasan Z AI:</strong> ${escapeHtml(n.summary_text || '-')}</p>
         <p><strong>Aksi Berikutnya:</strong> ${escapeHtml(n.next_action_text || '-')}</p>
         <p><strong>Catatan Risiko:</strong> ${escapeHtml(n.risk_hint || '-')}</p>
@@ -1535,32 +1571,36 @@ async function loadSessions(opts = {}) {
   const todayDate = localDateText();
   const tomorrowDate = addDays(todayDate, 1);
 
-  const [todaySessions, tomorrowSessions] = await Promise.all([
+  const [todaySessionsRaw, tomorrowSessionsRaw] = await Promise.all([
     fetchSessionsByDate(todayDate),
     fetchSessionsByDate(tomorrowDate),
   ]);
-  state.todaySessions = todaySessions;
-  state.tomorrowSessions = tomorrowSessions;
-  state.nearestSessions = buildNearestSessions(todaySessions, tomorrowSessions, new Date());
+  state.todaySessions = filterByLockedSubject(todaySessionsRaw);
+  state.tomorrowSessions = filterByLockedSubject(tomorrowSessionsRaw);
+  state.nearestSessions = buildNearestSessions(state.todaySessions, state.tomorrowSessions, new Date());
 
   if (selectedDate === todayDate) {
-    state.sessions = [...todaySessions];
+    state.sessions = [...state.todaySessions];
   } else if (selectedDate === tomorrowDate) {
-    state.sessions = [...tomorrowSessions];
+    state.sessions = [...state.tomorrowSessions];
   } else {
-    state.sessions = await fetchSessionsByDate(selectedDate);
+    state.sessions = filterByLockedSubject(await fetchSessionsByDate(selectedDate));
   }
 
   const q = qs();
   const queryScheduleId = Number(q.get('schedule_id') || 0);
   const queryDate = String(q.get('date') || '').slice(0, 10);
-  const currentActive = preserveActive && state.activeSession ? findSession(state.activeSession.schedule_id, state.activeSession.class_date || state.date) : null;
-  const queryPreferred = queryScheduleId > 0 ? findSession(queryScheduleId, queryDate) : null;
+  const currentActive = preserveActive && state.activeSession
+    ? findSession(state.activeSession.schedule_id, state.activeSession.class_date || state.date)
+    : null;
+  const queryPreferredRaw = queryScheduleId > 0 ? findSession(queryScheduleId, queryDate) : null;
+  const queryPreferred = isLockedSubjectMatch(queryPreferredRaw) ? queryPreferredRaw : null;
   const nearestPreferred = state.nearestSessions[0] || null;
   const selectedDatePreferred = state.sessions.find((x) => !x.is_minimum_completed) || state.sessions[0] || null;
+  const subjectPreferred = allKnownSessions().find((x) => !x.is_minimum_completed) || allKnownSessions()[0] || null;
   const chosen = preferSelectedDate
-    ? (selectedDatePreferred || currentActive || queryPreferred || nearestPreferred)
-    : (currentActive || queryPreferred || nearestPreferred || selectedDatePreferred);
+    ? (selectedDatePreferred || currentActive || queryPreferred || nearestPreferred || subjectPreferred)
+    : (currentActive || queryPreferred || nearestPreferred || selectedDatePreferred || subjectPreferred);
 
   if (chosen) {
     await setActiveSession(chosen, { focusEditor: false });
@@ -1585,7 +1625,10 @@ async function loadActiveNote(scheduleId, classDate = state.date) {
 
 async function loadHistory() {
   if (!els.history) return;
-  if (!state.historySubject && state.activeSession?.subject) {
+  if (hasLockedSubject()) {
+    setHistorySubject(state.lockedSubject);
+    state.historySubjectMode = 'selected';
+  } else if (!state.historySubject && state.activeSession?.subject) {
     setHistorySubject(state.activeSession.subject);
   }
   state.historySubjectMode = normalizeHistorySubjectMode(state.historySubjectMode);
@@ -1612,6 +1655,7 @@ async function saveNote(ev) {
     id: Number(els.noteId.value || 0) || undefined,
     schedule_id: scheduleId,
     class_date: classDate,
+    meeting_no: els.meetingNo?.value || null,
     key_points: els.keyPoints.value,
     action_items: els.actionItems.value,
     questions: els.questions.value,
@@ -1619,6 +1663,9 @@ async function saveNote(ev) {
     mood_focus: els.moodFocus.value || null,
     confidence: els.confidence.value || null,
   };
+  if (hasLockedSubject()) {
+    body.subject = normalizeHistorySubject(state.lockedSubject);
+  }
   const saved = await post('/class_notes', body);
   state.activeNote = saved;
   clearDraftPayload(scheduleId, classDate);
@@ -1714,7 +1761,9 @@ function bindEvents() {
   if (els.filterSubjectSelected) {
     els.filterSubjectSelected.addEventListener('click', async () => {
       state.historySubjectMode = 'selected';
-      if (!state.historySubject && state.activeSession?.subject) {
+      if (hasLockedSubject()) {
+        setHistorySubject(state.lockedSubject);
+      } else if (!state.historySubject && state.activeSession?.subject) {
         setHistorySubject(state.activeSession.subject);
       }
       syncHistoryFilterUI();
@@ -1723,6 +1772,10 @@ function bindEvents() {
   }
   if (els.filterSubjectAll) {
     els.filterSubjectAll.addEventListener('click', async () => {
+      if (hasLockedSubject()) {
+        showToast('Editor ini terkunci ke mapel terpilih.', 'info');
+        return;
+      }
       state.historySubjectMode = 'all';
       syncHistoryFilterUI();
       await loadHistory();
@@ -1819,6 +1872,7 @@ async function init() {
   normalizeLinks();
   const q = qs();
   state.enforce = q.get('enforce') === '1';
+  state.lockedSubject = normalizeHistorySubject(q.get('subject') || '');
   state.historyViewMode = readHistoryViewMode();
   syncHistoryViewModeUI();
   state.date = String(q.get('date') || localDateText()).slice(0, 10);
@@ -1846,9 +1900,14 @@ async function init() {
     if (state.realtimeTimer) clearInterval(state.realtimeTimer);
   });
   if (els.pageSub) {
-    els.pageSub.textContent = state.enforce
-      ? 'Mode wajib aktif: lengkapi catatan minimum untuk sesi kelas yang sudah berjalan agar Z AI bisa bantu eksekusi.'
-      : 'Catat per sesi kuliah hari ini, lalu biarkan Z AI bantu merangkum.';
+    const locked = hasLockedSubject();
+    if (locked) {
+      els.pageSub.textContent = `Mode mapel aktif: semua catatan dan riwayat difokuskan ke ${state.lockedSubject}.`;
+    } else {
+      els.pageSub.textContent = state.enforce
+        ? 'Mode wajib aktif: lengkapi catatan minimum untuk sesi kelas yang sudah berjalan agar Z AI bisa bantu eksekusi.'
+        : 'Catat per sesi kuliah hari ini, lalu biarkan Z AI bantu merangkum.';
+    }
   }
 }
 

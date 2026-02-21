@@ -111,6 +111,7 @@ function buildNoteMarkdown(note = {}) {
   lines.push(`# ${note.subject || 'Catatan Kuliah'}`);
   lines.push('');
   lines.push(`- Tanggal: ${date || '-'}`);
+  if (note?.meeting_no) lines.push(`- Pertemuan: ${note.meeting_no}`);
   lines.push(`- Waktu: ${start && end ? `${start}-${end}` : '-'}`);
   lines.push(`- Ruangan: ${note.room || '-'}`);
   lines.push(`- Dosen: ${note.lecturer || '-'}`);

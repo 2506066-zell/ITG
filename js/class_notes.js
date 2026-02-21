@@ -309,9 +309,11 @@ function openEditor(session, options = {}) {
   const scheduleId = Number(session?.schedule_id || 0);
   if (!scheduleId) return;
   const dateText = String(session?.class_date || state.date || localDateText()).slice(0, 10);
+  const subject = String(session?.subject || '').trim();
   const q = new URLSearchParams();
   q.set('schedule_id', String(scheduleId));
   q.set('date', dateText);
+  if (subject) q.set('subject', subject);
   if (options.enforce) q.set('enforce', '1');
   if (options.autoOpen) q.set('auto_open', '1');
   const target = `/class-notes-editor?${q.toString()}`;

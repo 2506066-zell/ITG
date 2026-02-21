@@ -239,6 +239,7 @@ CREATE TABLE IF NOT EXISTS class_notes (
   action_items TEXT DEFAULT '',
   questions TEXT DEFAULT '',
   free_text TEXT DEFAULT '',
+  meeting_no SMALLINT,
   mood_focus INTEGER,
   confidence VARCHAR(10),
   summary_text TEXT DEFAULT '',
@@ -267,6 +268,7 @@ ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS deleted_by VARCHAR(60);
 ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS purge_after TIMESTAMPTZ;
 ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS updated_by VARCHAR(60);
+ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS meeting_no SMALLINT;
 
 -- 17. Class Note Revisions (version snapshot on every save)
 CREATE TABLE IF NOT EXISTS class_note_revisions (
@@ -278,6 +280,7 @@ CREATE TABLE IF NOT EXISTS class_note_revisions (
   action_items TEXT DEFAULT '',
   questions TEXT DEFAULT '',
   free_text TEXT DEFAULT '',
+  meeting_no SMALLINT,
   mood_focus INTEGER,
   confidence VARCHAR(10),
   summary_text TEXT DEFAULT '',
@@ -287,6 +290,7 @@ CREATE TABLE IF NOT EXISTS class_note_revisions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (note_id, version_no)
 );
+ALTER TABLE class_note_revisions ADD COLUMN IF NOT EXISTS meeting_no SMALLINT;
 
 -- 18. Academic Semester Preferences (per user)
 CREATE TABLE IF NOT EXISTS academic_semester_preferences (

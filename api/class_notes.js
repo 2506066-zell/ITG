@@ -88,6 +88,15 @@ function normalizeMoodFocus(value) {
   return Math.round(n);
 }
 
+function normalizeMeetingNo(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const m = Math.round(n);
+  if (m < 1 || m > 14) return null;
+  return m;
+}
+
 function normalizeArchiveStatus(value, allowAll = false) {
   const v = String(value || '').trim().toLowerCase();
   if (v === 'active' || v === 'archived' || v === 'trashed') return v;
@@ -349,6 +358,7 @@ export async function ensureClassNotesSchema(client = null) {
       action_items TEXT DEFAULT '',
       questions TEXT DEFAULT '',
       free_text TEXT DEFAULT '',
+      meeting_no SMALLINT,
       mood_focus INTEGER,
       confidence VARCHAR(10),
       summary_text TEXT DEFAULT '',
@@ -377,6 +387,7 @@ export async function ensureClassNotesSchema(client = null) {
   await run(`ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS deleted_by VARCHAR(60)`);
   await run(`ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS purge_after TIMESTAMPTZ`);
   await run(`ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS updated_by VARCHAR(60)`);
+  await run(`ALTER TABLE class_notes ADD COLUMN IF NOT EXISTS meeting_no SMALLINT`);
 
   await run(`
     CREATE TABLE IF NOT EXISTS class_note_revisions (
@@ -388,6 +399,7 @@ export async function ensureClassNotesSchema(client = null) {
       action_items TEXT DEFAULT '',
       questions TEXT DEFAULT '',
       free_text TEXT DEFAULT '',
+      meeting_no SMALLINT,
       mood_focus INTEGER,
       confidence VARCHAR(10),
       summary_text TEXT DEFAULT '',
@@ -398,6 +410,7 @@ export async function ensureClassNotesSchema(client = null) {
       UNIQUE (note_id, version_no)
     )
   `);
+  await run(`ALTER TABLE class_note_revisions ADD COLUMN IF NOT EXISTS meeting_no SMALLINT`);
 
   await run(`CREATE INDEX IF NOT EXISTS idx_class_notes_user_date ON class_notes(user_id, class_date DESC)`);
   await run(`CREATE INDEX IF NOT EXISTS idx_class_notes_schedule_date ON class_notes(schedule_id, class_date DESC)`);
@@ -422,6 +435,7 @@ async function createRevisionSnapshot(client, noteId, userId, reason = 'save') {
       action_items,
       questions,
       free_text,
+      meeting_no,
       mood_focus,
       confidence,
       summary_text,
@@ -437,6 +451,7 @@ async function createRevisionSnapshot(client, noteId, userId, reason = 'save') {
       n.action_items,
       n.questions,
       n.free_text,
+      n.meeting_no,
       n.mood_focus,
       n.confidence,
       n.summary_text,
@@ -1069,9 +1084,9 @@ async function handleRevisionsGet(req, res, user, url) {
 
     const rows = await client.query(
       `SELECT id, note_id, version_no, user_id, key_points, action_items, questions, free_text,
-              mood_focus, confidence, summary_text, next_action_text, risk_hint, change_reason, created_at
+              meeting_no, mood_focus, confidence, summary_text, next_action_text, risk_hint, change_reason, created_at
          FROM class_note_revisions
-        WHERE note_id = $1
+         WHERE note_id = $1
         ORDER BY created_at DESC
         LIMIT 120`,
       [noteId]
@@ -1124,6 +1139,7 @@ async function handleRevisionsRestorePost(req, res, user) {
       action_items: normalizeText(rev.action_items, 6000),
       questions: normalizeText(rev.questions, 6000),
       free_text: normalizeText(rev.free_text, 9000),
+      meeting_no: normalizeMeetingNo(rev.meeting_no),
       mood_focus: normalizeMoodFocus(rev.mood_focus),
       confidence: normalizeConfidence(rev.confidence),
       summary_text: normalizeText(rev.summary_text, 500),
@@ -1139,19 +1155,20 @@ async function handleRevisionsRestorePost(req, res, user) {
               action_items = $3,
               questions = $4,
               free_text = $5,
-              mood_focus = $6,
-              confidence = $7,
-              summary_text = $8,
-              next_action_text = $9,
-              risk_hint = $10,
-              is_minimum_completed = $11,
-              quality_score = $12,
+              meeting_no = $6,
+              mood_focus = $7,
+              confidence = $8,
+              summary_text = $9,
+              next_action_text = $10,
+              risk_hint = $11,
+              is_minimum_completed = $12,
+              quality_score = $13,
               archive_status = 'active',
               archived_at = NULL,
               deleted_at = NULL,
               deleted_by = NULL,
               purge_after = NULL,
-              updated_by = $13,
+              updated_by = $14,
               updated_at = NOW()
         WHERE id = $1
         RETURNING *`,
@@ -1161,6 +1178,7 @@ async function handleRevisionsRestorePost(req, res, user) {
         restoredPayload.action_items,
         restoredPayload.questions,
         restoredPayload.free_text,
+        restoredPayload.meeting_no,
         restoredPayload.mood_focus,
         restoredPayload.confidence,
         restoredPayload.summary_text,
@@ -1217,6 +1235,7 @@ export default withErrorHandling(async function handler(req, res) {
           s.time_end,
           n.id AS note_id,
           COALESCE(n.is_minimum_completed, FALSE) AS is_minimum_completed,
+          n.meeting_no,
           COALESCE(n.archive_status, 'active') AS archive_status,
           COALESCE(n.pinned, FALSE) AS pinned,
           COALESCE(n.quality_score, 0) AS quality_score,
@@ -1386,6 +1405,7 @@ export default withErrorHandling(async function handler(req, res) {
         action_items: normalizeText(body.action_items, 6000),
         questions: normalizeText(body.questions, 6000),
         free_text: normalizeText(body.free_text, 9000),
+        meeting_no: normalizeMeetingNo(body.meeting_no),
         mood_focus: normalizeMoodFocus(body.mood_focus),
         confidence: normalizeConfidence(body.confidence),
         subject: normalizeText(body.subject || session.subject, 140) || String(session.subject || 'Kelas'),
@@ -1397,15 +1417,15 @@ export default withErrorHandling(async function handler(req, res) {
       const upsert = await client.query(
         `INSERT INTO class_notes (
             user_id, schedule_id, class_date, day_id, subject, room, lecturer, time_start, time_end,
-            key_points, action_items, questions, free_text, mood_focus, confidence,
+            key_points, action_items, questions, free_text, meeting_no, mood_focus, confidence,
             summary_text, next_action_text, risk_hint, is_minimum_completed, quality_score,
             archive_status, archived_at, deleted_at, deleted_by, purge_after, updated_by, updated_at
          )
          VALUES (
             $1, $2, $3::date, $4, $5, $6, $7, $8, $9,
-            $10, $11, $12, $13, $14, $15,
-            $16, $17, $18, $19, $20,
-            'active', NULL, NULL, NULL, NULL, $21, NOW()
+            $10, $11, $12, $13, $14, $15, $16,
+            $17, $18, $19, $20, $21,
+            'active', NULL, NULL, NULL, NULL, $22, NOW()
          )
          ON CONFLICT (user_id, schedule_id, class_date)
          DO UPDATE SET
@@ -1416,11 +1436,12 @@ export default withErrorHandling(async function handler(req, res) {
            time_start = EXCLUDED.time_start,
            time_end = EXCLUDED.time_end,
            key_points = EXCLUDED.key_points,
-           action_items = EXCLUDED.action_items,
-           questions = EXCLUDED.questions,
-           free_text = EXCLUDED.free_text,
-           mood_focus = EXCLUDED.mood_focus,
-           confidence = EXCLUDED.confidence,
+            action_items = EXCLUDED.action_items,
+            questions = EXCLUDED.questions,
+            free_text = EXCLUDED.free_text,
+            meeting_no = EXCLUDED.meeting_no,
+            mood_focus = EXCLUDED.mood_focus,
+            confidence = EXCLUDED.confidence,
            summary_text = EXCLUDED.summary_text,
            next_action_text = EXCLUDED.next_action_text,
            risk_hint = EXCLUDED.risk_hint,
@@ -1448,6 +1469,7 @@ export default withErrorHandling(async function handler(req, res) {
           payload.action_items,
           payload.questions,
           payload.free_text,
+          payload.meeting_no,
           payload.mood_focus,
           payload.confidence,
           smart.summary_text,
@@ -1466,6 +1488,7 @@ export default withErrorHandling(async function handler(req, res) {
       await logActivity(client, 'class_note', Number(row?.id || 0), req.method === 'POST' ? 'UPSERT' : 'UPDATE', user, {
         schedule_id: scheduleId,
         class_date: classDate,
+        meeting_no: payload.meeting_no,
         is_minimum_completed: minimumDone,
         quality_score: qualityScore,
       });
