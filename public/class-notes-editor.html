@@ -354,6 +354,50 @@
       gap: 8px;
       margin: 0 0 10px;
     }
+    .notes-history-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 10px;
+      align-items: center;
+    }
+    .notes-history-filter-chip {
+      border: 1px solid hsla(0, 0%, 100%, 0.2);
+      border-radius: 999px;
+      background: hsla(0, 0%, 100%, 0.04);
+      color: hsl(var(--text-200));
+      font-size: 0.68rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease;
+      white-space: nowrap;
+    }
+    .notes-history-filter-chip:hover {
+      transform: translateY(-1px);
+      border-color: hsla(var(--sem-info, 205 86% 65%), 0.4);
+    }
+    .notes-history-filter-chip.active {
+      border-color: hsla(var(--sem-info, 205 86% 65%), 0.55);
+      background: hsla(var(--sem-info, 205 86% 65%), 0.16);
+      color: hsl(var(--sem-info, 205 86% 65%));
+      box-shadow: 0 0 0 1px hsla(var(--sem-info, 205 86% 65%), 0.2);
+    }
+    .notes-history-filter-chip.reset {
+      border-color: hsla(var(--sem-danger, 352 82% 66%), 0.4);
+      color: hsl(var(--sem-danger, 352 82% 66%));
+      background: hsla(var(--sem-danger, 352 82% 66%), 0.12);
+    }
+    .notes-history-counter {
+      margin-left: auto;
+      font-size: 0.72rem;
+      color: hsl(var(--text-300));
+      border: 1px dashed hsla(0, 0%, 100%, 0.2);
+      border-radius: 999px;
+      padding: 4px 10px;
+      white-space: nowrap;
+    }
     .notes-history-sem-chip {
       border: 1px solid hsla(0, 0%, 100%, 0.2);
       border-radius: 999px;
@@ -831,6 +875,14 @@
         </div>
       </div>
       <p id="notes-history-scope" class="muted small" style="margin:0 0 10px;">Riwayat mengikuti owner aktif dan semester terpilih. Klik item untuk buka detail markdown.</p>
+      <div class="notes-history-filters">
+        <button id="notes-filter-subject-selected" type="button" class="notes-history-filter-chip active">Mapel Aktif</button>
+        <button id="notes-filter-subject-all" type="button" class="notes-history-filter-chip">Semua Mapel</button>
+        <button id="notes-filter-semester-selected" type="button" class="notes-history-filter-chip active">Semester Aktif</button>
+        <button id="notes-filter-semester-all" type="button" class="notes-history-filter-chip">Semua Semester</button>
+        <button id="notes-filter-reset" type="button" class="notes-history-filter-chip reset">Reset Filter</button>
+        <span id="notes-history-counter" class="notes-history-counter">Menampilkan 0 dari 0 catatan</span>
+      </div>
       <div id="notes-history-semesters" class="notes-history-semesters"></div>
       <div id="notes-history-list" class="notes-history-list"></div>
       <div id="notes-history-preview" class="notes-markdown-card" style="display:none;"></div>

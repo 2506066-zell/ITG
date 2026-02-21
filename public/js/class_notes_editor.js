@@ -16,9 +16,13 @@ const state = {
   realtimeTimer: null,
   historyRows: [],
   activeHistoryNoteId: 0,
+  historySubject: '',
+  historySubjectMode: 'selected',
   historySemesterKey: '',
+  historySemesterMode: 'selected',
   historySemesterBuckets: [],
   historyCurrentSemesterKey: '',
+  historyBaselineTotal: 0,
   typingPopupEnabled: false,
   typingPopupRafPending: false,
   typingPopupQueue: [],
@@ -59,6 +63,12 @@ const els = {
   aiNext: document.getElementById('notes-ai-next'),
   aiRisk: document.getElementById('notes-ai-risk'),
   historyScope: document.getElementById('notes-history-scope'),
+  historyCounter: document.getElementById('notes-history-counter'),
+  filterSubjectSelected: document.getElementById('notes-filter-subject-selected'),
+  filterSubjectAll: document.getElementById('notes-filter-subject-all'),
+  filterSemesterSelected: document.getElementById('notes-filter-semester-selected'),
+  filterSemesterAll: document.getElementById('notes-filter-semester-all'),
+  filterReset: document.getElementById('notes-filter-reset'),
   historySemesters: document.getElementById('notes-history-semesters'),
   history: document.getElementById('notes-history-list'),
   historyPreview: document.getElementById('notes-history-preview'),
@@ -815,6 +825,46 @@ function normalizeOwnerLabel(raw = '') {
   return t.slice(0, 60);
 }
 
+function normalizeHistorySubject(raw = '') {
+  return String(raw || '').trim().slice(0, 140);
+}
+
+function setHistorySubject(subject = '') {
+  state.historySubject = normalizeHistorySubject(subject);
+  syncHistoryFilterUI();
+}
+
+function normalizeHistorySubjectMode(raw = '') {
+  return String(raw || '').trim().toLowerCase() === 'all' ? 'all' : 'selected';
+}
+
+function normalizeHistorySemesterMode(raw = '') {
+  return String(raw || '').trim().toLowerCase() === 'all' ? 'all' : 'selected';
+}
+
+function historySubjectLabel() {
+  const subject = normalizeHistorySubject(state.historySubject);
+  if (!subject) return 'Mapel Aktif';
+  if (subject.length <= 26) return `Mapel: ${subject}`;
+  return `Mapel: ${subject.slice(0, 23)}...`;
+}
+
+function syncHistoryFilterUI() {
+  if (els.filterSubjectSelected) {
+    els.filterSubjectSelected.classList.toggle('active', state.historySubjectMode === 'selected');
+    els.filterSubjectSelected.textContent = historySubjectLabel();
+  }
+  if (els.filterSubjectAll) {
+    els.filterSubjectAll.classList.toggle('active', state.historySubjectMode === 'all');
+  }
+  if (els.filterSemesterSelected) {
+    els.filterSemesterSelected.classList.toggle('active', state.historySemesterMode === 'selected');
+  }
+  if (els.filterSemesterAll) {
+    els.filterSemesterAll.classList.toggle('active', state.historySemesterMode === 'all');
+  }
+}
+
 function buildHistoryMarkdown(note = {}) {
   const lines = [];
   const date = String(note.class_date || '').slice(0, 10);
@@ -1083,12 +1133,32 @@ function renderHistoryList(rows = []) {
 }
 
 function activeHistoryScope() {
+  const subject = state.historySubjectMode === 'selected'
+    ? normalizeHistorySubject(state.historySubject)
+    : '';
   const owner = normalizeOwnerLabel(
     state.activeNote?.viewer_user ||
     localStorage.getItem('user') ||
     'Zaldy'
   );
-  return { owner };
+  return { subject, owner };
+}
+
+function renderHistoryScope(scope = activeHistoryScope()) {
+  const subjectLabel = scope.subject || 'Semua mapel';
+  const ownerLabel = scope.owner || '-';
+  const semesterLabel = state.historySemesterMode === 'selected'
+    ? (activeHistorySemesterLabel() || 'Semester aktif')
+    : 'Semua semester';
+  if (els.historyScope) {
+    els.historyScope.textContent = `Riwayat catatan | Mapel: ${subjectLabel} | Owner: ${ownerLabel} | Semester: ${semesterLabel}`;
+  }
+  if (els.historyCounter) {
+    const shown = Number(state.historyRows.length || 0);
+    const total = Number(state.historyBaselineTotal || 0);
+    const totalText = total > 0 ? total : shown;
+    els.historyCounter.textContent = `Menampilkan ${shown} dari ${totalText} catatan`;
+  }
 }
 
 function activeHistorySemesterLabel() {
@@ -1102,11 +1172,12 @@ function renderHistorySemesterChips() {
   const rows = Array.isArray(state.historySemesterBuckets) ? state.historySemesterBuckets : [];
   if (!rows.length) {
     els.historySemesters.innerHTML = '<div class="notes-history-sem-empty">Belum ada semester untuk riwayat ini.</div>';
+    syncHistoryFilterUI();
     return;
   }
   els.historySemesters.innerHTML = rows.map((row) => {
     const key = String(row.semester_key || '');
-    const active = key && key === String(state.historySemesterKey || '');
+    const active = state.historySemesterMode === 'selected' && key && key === String(state.historySemesterKey || '');
     const label = String(row.semester_label || key || 'Semester');
     const total = Number(row.total || 0);
     return `
@@ -1117,10 +1188,12 @@ function renderHistorySemesterChips() {
       >${escapeHtml(label)} (${total})</button>
     `;
   }).join('');
+  syncHistoryFilterUI();
 }
 
 async function loadHistorySemesters(scope) {
   const qs = new URLSearchParams();
+  if (scope.subject) qs.set('subject', scope.subject);
   if (scope.owner) qs.set('owner', scope.owner);
   const payload = await get(`/class_notes/semester?${qs.toString()}`);
   const items = Array.isArray(payload?.items) ? payload.items : [];
@@ -1140,26 +1213,40 @@ async function loadHistorySemesters(scope) {
   renderHistorySemesterChips();
 }
 
+async function loadHistoryBaseTotal(owner = '') {
+  const qs = new URLSearchParams();
+  if (owner) qs.set('owner', owner);
+  const payload = await get(`/class_notes/semester?${qs.toString()}`);
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  state.historyBaselineTotal = items.reduce((acc, row) => acc + Number(row?.total || 0), 0);
+}
+
 async function loadHistoryRows(scope) {
   const qs = new URLSearchParams();
+  if (scope.subject) qs.set('subject', scope.subject);
   qs.set('include_semester', '1');
   if (scope.owner) qs.set('owner', scope.owner);
-  if (state.historySemesterKey) qs.set('semester_key', state.historySemesterKey);
+  if (state.historySemesterMode === 'selected' && state.historySemesterKey) {
+    qs.set('semester_key', state.historySemesterKey);
+  }
 
   const rows = await get(`/class_notes?${qs.toString()}`);
   if (!Array.isArray(rows) || !rows.length) {
-    const semLabel = activeHistorySemesterLabel();
+    const semLabel = state.historySemesterMode === 'selected' ? activeHistorySemesterLabel() : '';
     const semPart = semLabel ? ` di ${escapeHtml(semLabel)}` : '';
-    els.history.innerHTML = `<div class="notes-empty">Belum ada riwayat catatan${semPart}.</div>`;
+    const subPart = scope.subject ? ` ${escapeHtml(scope.subject)}` : '';
+    els.history.innerHTML = `<div class="notes-empty">Belum ada riwayat catatan${subPart}${semPart}. Coba ubah filter.</div>`;
     state.historyRows = [];
     state.activeHistoryNoteId = 0;
     renderHistoryPreview(null);
+    renderHistoryScope(scope);
     return;
   }
   state.historyRows = rows;
   state.activeHistoryNoteId = 0;
   renderHistoryList(state.historyRows);
   renderHistoryPreview(null);
+  renderHistoryScope(scope);
 }
 
 function renderActiveSessionContext(note = null, session = null) {
@@ -1289,12 +1376,18 @@ async function maybeAutoOpenStartedSession(opts = {}) {
 async function setActiveSession(session, opts = {}) {
   if (!session) return;
   const focusEditor = opts.focusEditor !== false;
+  const syncHistorySubject = Boolean(opts.syncHistorySubject);
   const prevKey = state.activeSessionKey;
   const dateText = String(session.class_date || state.date || localDateText()).slice(0, 10);
   state.activeSession = { ...session, class_date: dateText };
   state.activeSessionId = Number(state.activeSession.schedule_id || 0) || null;
   state.activeSessionKey = sessionKey(state.activeSession);
   state.date = dateText;
+  if (syncHistorySubject) {
+    setHistorySubject(state.activeSession.subject || '');
+    state.historySubjectMode = 'selected';
+    syncHistoryFilterUI();
+  }
   if (els.dateInput) els.dateInput.value = state.date;
   await loadActiveNote(state.activeSessionId, state.date);
   renderActiveSessionContext(state.activeNote, state.activeSession);
@@ -1492,14 +1585,18 @@ async function loadActiveNote(scheduleId, classDate = state.date) {
 
 async function loadHistory() {
   if (!els.history) return;
-  const scope = activeHistoryScope();
-  await loadHistorySemesters(scope);
-  const ownerText = scope.owner ? ` | Owner: ${scope.owner}` : '';
-  const semLabel = activeHistorySemesterLabel();
-  if (els.historyScope) {
-    const semText = semLabel ? ` | Semester: ${semLabel}` : '';
-    els.historyScope.textContent = `Riwayat catatan${ownerText}${semText}`;
+  if (!state.historySubject && state.activeSession?.subject) {
+    setHistorySubject(state.activeSession.subject);
   }
+  state.historySubjectMode = normalizeHistorySubjectMode(state.historySubjectMode);
+  state.historySemesterMode = normalizeHistorySemesterMode(state.historySemesterMode);
+  syncHistoryFilterUI();
+  const scope = activeHistoryScope();
+  await Promise.all([
+    loadHistorySemesters(scope),
+    loadHistoryBaseTotal(scope.owner),
+  ]);
+  renderHistoryScope(scope);
   await loadHistoryRows(scope);
 }
 
@@ -1544,7 +1641,8 @@ function bindSessionClicks() {
     const dateText = String(card.dataset.classDate || '').slice(0, 10);
     const session = findSession(id, dateText);
     if (!session) return;
-    await setActiveSession(session, { focusEditor: true });
+    await setActiveSession(session, { focusEditor: true, syncHistorySubject: true });
+    await loadHistory();
   };
   if (els.sessionList) {
     els.sessionList.addEventListener('click', onClick);
@@ -1597,22 +1695,64 @@ function bindEvents() {
       const btn = ev.target.closest('[data-semester-key]');
       if (!btn) return;
       const nextKey = String(btn.dataset.semesterKey || '').trim();
-      if (!nextKey || nextKey === String(state.historySemesterKey || '')) return;
+      if (!nextKey) return;
+      state.historySemesterMode = 'selected';
+      syncHistoryFilterUI();
+      if (nextKey === String(state.historySemesterKey || '')) return;
       state.historySemesterKey = nextKey;
       renderHistorySemesterChips();
       const scope = activeHistoryScope();
-      const ownerText = scope.owner ? ` | Owner: ${scope.owner}` : '';
-      const semLabel = activeHistorySemesterLabel();
-      if (els.historyScope) {
-        const semText = semLabel ? ` | Semester: ${semLabel}` : '';
-        els.historyScope.textContent = `Riwayat catatan${ownerText}${semText}`;
-      }
+      renderHistoryScope(scope);
       try {
         await loadHistoryRows(scope);
       } catch (err) {
         console.error(err);
         showToast('Gagal memuat riwayat semester.', 'error');
       }
+    });
+  }
+  if (els.filterSubjectSelected) {
+    els.filterSubjectSelected.addEventListener('click', async () => {
+      state.historySubjectMode = 'selected';
+      if (!state.historySubject && state.activeSession?.subject) {
+        setHistorySubject(state.activeSession.subject);
+      }
+      syncHistoryFilterUI();
+      await loadHistory();
+    });
+  }
+  if (els.filterSubjectAll) {
+    els.filterSubjectAll.addEventListener('click', async () => {
+      state.historySubjectMode = 'all';
+      syncHistoryFilterUI();
+      await loadHistory();
+    });
+  }
+  if (els.filterSemesterSelected) {
+    els.filterSemesterSelected.addEventListener('click', async () => {
+      state.historySemesterMode = 'selected';
+      if (!state.historySemesterKey) {
+        state.historySemesterKey = String(state.historyCurrentSemesterKey || state.historySemesterBuckets?.[0]?.semester_key || '');
+      }
+      syncHistoryFilterUI();
+      await loadHistory();
+    });
+  }
+  if (els.filterSemesterAll) {
+    els.filterSemesterAll.addEventListener('click', async () => {
+      state.historySemesterMode = 'all';
+      syncHistoryFilterUI();
+      await loadHistory();
+    });
+  }
+  if (els.filterReset) {
+    els.filterReset.addEventListener('click', async () => {
+      state.historySubjectMode = 'selected';
+      state.historySemesterMode = 'selected';
+      state.historySemesterKey = '';
+      setHistorySubject(state.activeSession?.subject || state.historySubject || '');
+      syncHistoryFilterUI();
+      await loadHistory();
     });
   }
   if (els.viewCompactBtn) {

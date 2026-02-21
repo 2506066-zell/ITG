@@ -583,6 +583,10 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
     gap: 10px;
   }
 
+  .schedule-page .container {
+    padding-bottom: calc(156px + env(safe-area-inset-bottom, 0px));
+  }
+
   .schedule-page .day-card {
     padding: 12px;
     min-height: 0;
@@ -711,6 +715,10 @@ body.no-anim .zai-floating-widget.is-urgent .zai-floating-trigger {
 
   .schedule-page .schedule-grid {
     grid-template-columns: 1fr;
+  }
+
+  .schedule-page .container {
+    padding-bottom: calc(168px + env(safe-area-inset-bottom, 0px));
   }
 
   .chat-page .container.chat-container {
