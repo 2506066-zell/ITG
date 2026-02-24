@@ -26,11 +26,12 @@ export async function mockFetch(path, options) {
     // Routes
     if (path === '/login' && method === 'POST') {
         const validUsers = ['Zaldy', 'Nesya'];
-        if (validUsers.includes(body.username)) {
+        const requiredPassword = 'Zal123456';
+        if (validUsers.includes(body.username) && body.password === requiredPassword) {
             data = { token: 'mock-jwt-' + body.username, user: body.username };
         } else {
             status = 401;
-            data = { error: 'Invalid user' };
+            data = { error: 'Invalid credentials' };
         }
     }
     else if (path.startsWith('/tasks')) {

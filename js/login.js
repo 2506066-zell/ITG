@@ -1,6 +1,8 @@
 import { apiFetch } from './api.js';
 import { showToast, registerSW } from './main.js';
 
+const REQUIRED_PASSWORD = 'Zal123456';
+
 function init() {
   registerSW();
   initVisuals();
@@ -40,12 +42,22 @@ function init() {
 
     const f = new FormData(form);
     const username = (f.get('username') || '').toString().trim();
+    const password = (f.get('password') || '').toString();
 
     const msg = document.querySelector('#login-msg');
     if (msg) msg.textContent = '';
 
+    if (password !== REQUIRED_PASSWORD) {
+      const text = 'PASSWORD SALAH';
+      if (msg) msg.textContent = text;
+      showToast(text, 'error');
+      btnText.textContent = originalText;
+      if (btn) btn.disabled = false;
+      return;
+    }
+
     try {
-      const res = await apiFetch('/login', { method: 'POST', body: JSON.stringify({ username }) });
+      const res = await apiFetch('/login', { method: 'POST', body: JSON.stringify({ username, password }) });
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem('token', data.token);

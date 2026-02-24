@@ -69,6 +69,17 @@ function normalizeDateText(raw = '') {
   return String(raw || '').slice(0, 10);
 }
 
+function normalizeMeetingNo(value = null) {
+  const meeting = Number(value || 0);
+  if (Number.isInteger(meeting) && meeting >= 1 && meeting <= 14) return meeting;
+  return 0;
+}
+
+function meetingBadgeText(value = null) {
+  const meeting = normalizeMeetingNo(value);
+  return meeting ? `P${meeting}` : 'P-';
+}
+
 function buildSemesterMeta(classDate = '', startMonth = 8) {
   const dt = normalizeDateText(classDate);
   if (!dt) return null;
@@ -111,7 +122,7 @@ function buildNoteMarkdown(note = {}) {
   lines.push(`# ${note.subject || 'Catatan Kuliah'}`);
   lines.push('');
   lines.push(`- Tanggal: ${date || '-'}`);
-  if (note?.meeting_no) lines.push(`- Pertemuan: ${note.meeting_no}`);
+  lines.push(`- Pertemuan: ${normalizeMeetingNo(note?.meeting_no) || '-'}`);
   lines.push(`- Waktu: ${start && end ? `${start}-${end}` : '-'}`);
   lines.push(`- Ruangan: ${note.room || '-'}`);
   lines.push(`- Dosen: ${note.lecturer || '-'}`);
@@ -279,7 +290,11 @@ function renderScopeInfo() {
   if (!els.scopeInfo) return;
   const owner = activeOwner() || '-';
   const status = state.status || 'archived';
-  const sort = state.sortMode || 'smart';
+  const sort = state.sortMode === 'meeting_asc'
+    ? 'Pertemuan 1-14'
+    : state.sortMode === 'meeting_desc'
+      ? 'Pertemuan 14-1'
+      : (state.sortMode || 'smart');
   const sem = activeSemesterRange();
   const semLabel = state.semesterMode === 'all' ? 'Semua semester' : (sem?.label || 'Semester aktif');
   els.scopeInfo.textContent = `Owner ${owner} | Status ${status} | ${semLabel} | Sort ${sort} | ${Number(state.items.length || 0)} catatan`;
@@ -336,6 +351,25 @@ function sortItems(items = []) {
   const byLatest = (a, b) => toSortableTime(b) - toSortableTime(a);
   if (state.sortMode === 'latest') return rows.sort(byLatest);
   if (state.sortMode === 'oldest') return rows.sort((a, b) => toSortableTime(a) - toSortableTime(b));
+  if (state.sortMode === 'meeting_asc') {
+    return rows.sort((a, b) => {
+      const ma = normalizeMeetingNo(a?.meeting_no) || 99;
+      const mb = normalizeMeetingNo(b?.meeting_no) || 99;
+      if (ma !== mb) return ma - mb;
+      return byLatest(a, b);
+    });
+  }
+  if (state.sortMode === 'meeting_desc') {
+    return rows.sort((a, b) => {
+      const ma = normalizeMeetingNo(a?.meeting_no);
+      const mb = normalizeMeetingNo(b?.meeting_no);
+      if (!ma && !mb) return byLatest(a, b);
+      if (!ma) return 1;
+      if (!mb) return -1;
+      if (ma !== mb) return mb - ma;
+      return byLatest(a, b);
+    });
+  }
   if (state.sortMode === 'subject') {
     return rows.sort((a, b) => {
       const subjectOrder = String(a.subject || '').localeCompare(String(b.subject || ''));
@@ -409,16 +443,18 @@ function renderList() {
         <div class="vault-week">
           ${(group.items || []).map((item) => {
             const color = getSubjectColor(item.subject);
+            const meetingText = meetingBadgeText(item.meeting_no);
             return `
               <article class="vault-item ${Number(item.id) === Number(state.activeNoteId) ? 'active' : ''}" data-note-id="${Number(item.id)}" style="--subject-accent:${color.solid}">
                 <p class="vault-item-title">${escapeHtml(item.subject || 'Catatan')}</p>
                 <p class="vault-item-meta">
                   ${escapeHtml(String(item.class_date || '').slice(0, 10))} - ${escapeHtml(String(item.time_start || '').slice(0, 5))}-${escapeHtml(String(item.time_end || '').slice(0, 5))}
-                  ${item.room ? ` - ${escapeHtml(item.room)}` : ''}
+                  ${item.room ? ` - ${escapeHtml(item.room)}` : ''} - ${escapeHtml(meetingText)}
                 </p>
                 <div class="vault-badge-row">
                   <span class="vault-badge ${escapeHtml(item.archive_status || 'active')}">${escapeHtml(item.archive_status || 'active')}</span>
                   <span class="vault-badge">${escapeHtml(item.user_id || '')}</span>
+                  <span class="vault-badge">${escapeHtml(meetingText)}</span>
                   <span class="vault-badge">Q ${Number(item.quality_score || 0)}</span>
                   ${item.pinned ? '<span class="vault-badge">Pinned</span>' : ''}
                 </div>
@@ -439,16 +475,18 @@ function renderList() {
           <div class="vault-week-head">${escapeHtml(week.week_label || week.week_key || '')}</div>
           ${(week.items || []).map((item) => {
             const color = getSubjectColor(item.subject);
+            const meetingText = meetingBadgeText(item.meeting_no);
             return `
               <article class="vault-item ${Number(item.id) === Number(state.activeNoteId) ? 'active' : ''}" data-note-id="${Number(item.id)}" style="--subject-accent:${color.solid}">
                 <p class="vault-item-title">${escapeHtml(item.subject || 'Catatan')}</p>
                 <p class="vault-item-meta">
                   ${escapeHtml(String(item.class_date || '').slice(0, 10))} - ${escapeHtml(String(item.time_start || '').slice(0, 5))}-${escapeHtml(String(item.time_end || '').slice(0, 5))}
-                  ${item.room ? ` - ${escapeHtml(item.room)}` : ''}
+                  ${item.room ? ` - ${escapeHtml(item.room)}` : ''} - ${escapeHtml(meetingText)}
                 </p>
                 <div class="vault-badge-row">
                   <span class="vault-badge ${escapeHtml(item.archive_status || 'active')}">${escapeHtml(item.archive_status || 'active')}</span>
                   <span class="vault-badge">${escapeHtml(item.user_id || '')}</span>
+                  <span class="vault-badge">${escapeHtml(meetingText)}</span>
                   <span class="vault-badge">Q ${Number(item.quality_score || 0)}</span>
                   ${item.pinned ? '<span class="vault-badge">Pinned</span>' : ''}
                 </div>
@@ -476,7 +514,8 @@ function renderDetail() {
   }
 
   els.detailTitle.textContent = note.subject || 'Catatan';
-  els.detailMeta.textContent = `${String(note.class_date || '').slice(0, 10)} - ${String(note.time_start || '').slice(0, 5)}-${String(note.time_end || '').slice(0, 5)} - ${note.user_id || ''}`;
+  const meetingText = meetingBadgeText(note.meeting_no);
+  els.detailMeta.textContent = `${String(note.class_date || '').slice(0, 10)} - ${String(note.time_start || '').slice(0, 5)}-${String(note.time_end || '').slice(0, 5)} - ${meetingText} - ${note.user_id || ''}`;
   els.detailSummary.textContent = note.summary_text ? `Ringkasan: ${note.summary_text}` : 'Ringkasan: -';
   els.detailNext.textContent = note.next_action_text ? `Aksi berikutnya: ${note.next_action_text}` : 'Aksi berikutnya: -';
   els.detailRisk.textContent = note.risk_hint ? `Risiko: ${note.risk_hint}` : 'Risiko: -';

@@ -6,12 +6,14 @@ export default async function handler(req, res) {
     return;
   }
   const body = req.body || await readBody(req);
-  const { username } = body;
+  const { username, password } = body;
   
   // Validate username
   const allowedUsers = ['Zaldy', 'Nesya'];
-  if (!username || !allowedUsers.includes(username)) {
-    res.status(401).json({ error: 'Invalid username' });
+  const requiredPassword = process.env.APP_LOGIN_PASSWORD || 'Zal123456';
+
+  if (!username || !allowedUsers.includes(username) || !password || password !== requiredPassword) {
+    res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
   const secret = process.env.JWT_SECRET || '';

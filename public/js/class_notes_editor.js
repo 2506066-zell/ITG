@@ -20,6 +20,7 @@ const state = {
   historySubjectMode: 'selected',
   historySemesterKey: '',
   historySemesterMode: 'selected',
+  historySortMode: 'latest',
   historySemesterBuckets: [],
   historyCurrentSemesterKey: '',
   historyBaselineTotal: 0,
@@ -70,6 +71,9 @@ const els = {
   filterSubjectAll: document.getElementById('notes-filter-subject-all'),
   filterSemesterSelected: document.getElementById('notes-filter-semester-selected'),
   filterSemesterAll: document.getElementById('notes-filter-semester-all'),
+  sortLatest: document.getElementById('notes-sort-latest'),
+  sortMeetingAsc: document.getElementById('notes-sort-meeting-asc'),
+  sortMeetingDesc: document.getElementById('notes-sort-meeting-desc'),
   filterReset: document.getElementById('notes-filter-reset'),
   historySemesters: document.getElementById('notes-history-semesters'),
   history: document.getElementById('notes-history-list'),
@@ -865,6 +869,55 @@ function normalizeHistorySemesterMode(raw = '') {
   return String(raw || '').trim().toLowerCase() === 'all' ? 'all' : 'selected';
 }
 
+function normalizeHistorySortMode(raw = '') {
+  const mode = String(raw || '').trim().toLowerCase();
+  if (mode === 'meeting_asc' || mode === 'meeting_desc') return mode;
+  return 'latest';
+}
+
+function normalizeMeetingNo(value = null) {
+  const meeting = Number(value || 0);
+  if (Number.isInteger(meeting) && meeting >= 1 && meeting <= 14) return meeting;
+  return 0;
+}
+
+function historyMeetingBadgeText(value = null) {
+  const meeting = normalizeMeetingNo(value);
+  return meeting ? `P${meeting}` : 'P-';
+}
+
+function historyRowTimestamp(row = {}) {
+  const date = String(row?.class_date || '').slice(0, 10);
+  const time = String(row?.time_start || '00:00').slice(0, 5);
+  const stamp = new Date(`${date}T${time}:00`).getTime();
+  return Number.isFinite(stamp) ? stamp : 0;
+}
+
+function sortHistoryRows(rows = []) {
+  const sorted = [...(Array.isArray(rows) ? rows : [])];
+  const byLatest = (a, b) => historyRowTimestamp(b) - historyRowTimestamp(a);
+  if (state.historySortMode === 'meeting_asc') {
+    return sorted.sort((a, b) => {
+      const ma = normalizeMeetingNo(a?.meeting_no) || 99;
+      const mb = normalizeMeetingNo(b?.meeting_no) || 99;
+      if (ma !== mb) return ma - mb;
+      return byLatest(a, b);
+    });
+  }
+  if (state.historySortMode === 'meeting_desc') {
+    return sorted.sort((a, b) => {
+      const ma = normalizeMeetingNo(a?.meeting_no);
+      const mb = normalizeMeetingNo(b?.meeting_no);
+      if (!ma && !mb) return byLatest(a, b);
+      if (!ma) return 1;
+      if (!mb) return -1;
+      if (ma !== mb) return mb - ma;
+      return byLatest(a, b);
+    });
+  }
+  return sorted.sort(byLatest);
+}
+
 function historySubjectLabel() {
   const subject = normalizeHistorySubject(state.historySubject);
   if (!subject) return 'Mapel Aktif';
@@ -889,6 +942,15 @@ function syncHistoryFilterUI() {
   if (els.filterSemesterAll) {
     els.filterSemesterAll.classList.toggle('active', state.historySemesterMode === 'all');
   }
+  if (els.sortLatest) {
+    els.sortLatest.classList.toggle('active', state.historySortMode === 'latest');
+  }
+  if (els.sortMeetingAsc) {
+    els.sortMeetingAsc.classList.toggle('active', state.historySortMode === 'meeting_asc');
+  }
+  if (els.sortMeetingDesc) {
+    els.sortMeetingDesc.classList.toggle('active', state.historySortMode === 'meeting_desc');
+  }
 }
 
 function buildHistoryMarkdown(note = {}) {
@@ -903,7 +965,7 @@ function buildHistoryMarkdown(note = {}) {
   lines.push(`# ${note.subject || 'Catatan Kuliah'}`);
   lines.push('');
   lines.push(`- Tanggal: ${date || '-'}`);
-  if (note?.meeting_no) lines.push(`- Pertemuan: ${note.meeting_no}`);
+  lines.push(`- Pertemuan: ${normalizeMeetingNo(note?.meeting_no) || '-'}`);
   lines.push(`- Waktu: ${start && end ? `${start}-${end}` : '-'}`);
   lines.push(`- Ruangan: ${note.room || '-'}`);
   lines.push(`- Dosen: ${note.lecturer || '-'}`);
@@ -1139,6 +1201,7 @@ function renderHistoryList(rows = []) {
     const start = String(n.time_start || '').slice(0, 5);
     const end = String(n.time_end || '').slice(0, 5);
     const timeText = start && end ? `${start}-${end}` : '-';
+    const meetingText = historyMeetingBadgeText(n?.meeting_no);
     const owner = normalizeOwnerLabel(n.user_id || n.viewer_user || '');
     const desc = String(n.summary_text || n.next_action_text || n.risk_hint || 'Catatan tersimpan. Klik untuk lihat detail markdown.')
       .replace(/\s+/g, ' ')
@@ -1152,7 +1215,7 @@ function renderHistoryList(rows = []) {
         <p class="notes-history-meta">
           <span class="notes-history-chip"><i class="fa-regular fa-calendar"></i> ${escapeHtml(dateText)}</span>
           <span class="notes-history-chip"><i class="fa-regular fa-clock"></i> ${escapeHtml(timeText)}</span>
-          ${n?.meeting_no ? `<span class="notes-history-chip"><i class="fa-solid fa-hashtag"></i> P${Number(n.meeting_no)}</span>` : ''}
+          <span class="notes-history-chip"><i class="fa-solid fa-hashtag"></i> ${escapeHtml(meetingText)}</span>
           ${owner ? `<span class="notes-history-chip owner"><i class="fa-regular fa-user"></i> ${escapeHtml(owner)}</span>` : ''}
         </p>
         <p class="notes-history-desc">${escapeHtml(desc)}</p>
@@ -1182,8 +1245,13 @@ function renderHistoryScope(scope = activeHistoryScope()) {
   const semesterLabel = state.historySemesterMode === 'selected'
     ? (activeHistorySemesterLabel() || 'Semester aktif')
     : 'Semua semester';
+  const sortLabel = state.historySortMode === 'meeting_asc'
+    ? 'Pertemuan 1-14'
+    : state.historySortMode === 'meeting_desc'
+      ? 'Pertemuan 14-1'
+      : 'Terbaru';
   if (els.historyScope) {
-    els.historyScope.textContent = `Riwayat catatan | Mapel: ${subjectLabel} | Owner: ${ownerLabel} | Semester: ${semesterLabel}`;
+    els.historyScope.textContent = `Riwayat catatan | Mapel: ${subjectLabel} | Owner: ${ownerLabel} | Semester: ${semesterLabel} | Sort: ${sortLabel}`;
   }
   if (els.historyCounter) {
     const shown = Number(state.historyRows.length || 0);
@@ -1274,7 +1342,7 @@ async function loadHistoryRows(scope) {
     renderHistoryScope(scope);
     return;
   }
-  state.historyRows = rows;
+  state.historyRows = sortHistoryRows(rows);
   state.activeHistoryNoteId = 0;
   renderHistoryList(state.historyRows);
   renderHistoryPreview(null);
@@ -1633,6 +1701,7 @@ async function loadHistory() {
   }
   state.historySubjectMode = normalizeHistorySubjectMode(state.historySubjectMode);
   state.historySemesterMode = normalizeHistorySemesterMode(state.historySemesterMode);
+  state.historySortMode = normalizeHistorySortMode(state.historySortMode);
   syncHistoryFilterUI();
   const scope = activeHistoryScope();
   await Promise.all([
@@ -1798,10 +1867,38 @@ function bindEvents() {
       await loadHistory();
     });
   }
+  if (els.sortLatest) {
+    els.sortLatest.addEventListener('click', () => {
+      state.historySortMode = 'latest';
+      state.historyRows = sortHistoryRows(state.historyRows);
+      syncHistoryFilterUI();
+      renderHistoryList(state.historyRows);
+      renderHistoryScope(activeHistoryScope());
+    });
+  }
+  if (els.sortMeetingAsc) {
+    els.sortMeetingAsc.addEventListener('click', () => {
+      state.historySortMode = 'meeting_asc';
+      state.historyRows = sortHistoryRows(state.historyRows);
+      syncHistoryFilterUI();
+      renderHistoryList(state.historyRows);
+      renderHistoryScope(activeHistoryScope());
+    });
+  }
+  if (els.sortMeetingDesc) {
+    els.sortMeetingDesc.addEventListener('click', () => {
+      state.historySortMode = 'meeting_desc';
+      state.historyRows = sortHistoryRows(state.historyRows);
+      syncHistoryFilterUI();
+      renderHistoryList(state.historyRows);
+      renderHistoryScope(activeHistoryScope());
+    });
+  }
   if (els.filterReset) {
     els.filterReset.addEventListener('click', async () => {
       state.historySubjectMode = 'selected';
       state.historySemesterMode = 'selected';
+      state.historySortMode = 'latest';
       state.historySemesterKey = '';
       setHistorySubject(state.activeSession?.subject || state.historySubject || '');
       syncHistoryFilterUI();
